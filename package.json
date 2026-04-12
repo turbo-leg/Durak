@@ -10,9 +10,9 @@
     "dev:server": "npm run dev -w @durak/server",
     "dev:client": "npm run dev -w @durak/client",
     "dev": "npm run dev:server & npm run dev:client",
-    "build": "npm run build -ws",
-    "test": "npm run test -ws",
-    "lint": "eslint packages/"
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
