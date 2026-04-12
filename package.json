@@ -1,0 +1,22 @@
+{
+  "name": "durak-discord-activity",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multiplayer Durak on Discord using Colyseus",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w @durak/server",
+    "dev:client": "npm run dev -w @durak/client",
+    "dev": "npm run dev:server & npm run dev:client",
+    "build": "npm run build -ws",
+    "test": "npm run test -ws",
+    "lint": "eslint packages/"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.2.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@durak/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "dependencies": {
+    "@colyseus/schema": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
