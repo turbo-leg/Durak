@@ -1,14 +1,10 @@
-import { Server, Room } from "colyseus";
+import { Server } from "colyseus";
 import express from "express";
 import http from "http";
 import cors from "cors";
+import { monitor } from "@colyseus/monitor";
 
-// A dummy room to prevent Colyseus boot errors
-class DummyRoom extends Room {
-  onCreate() {
-    console.log("DummyRoom created!");
-  }
-}
+import { DurakRoom } from "./src/rooms/DurakRoom";
 
 const app = express();
 app.use(cors());
@@ -19,9 +15,13 @@ const gameServer = new Server({
   server,
 });
 
-gameServer.define('dummy', DummyRoom);
+// Register the Durak game room
+gameServer.define('durak', DurakRoom);
+
+// Add colyseus monitor for debugging
+app.use("/colyseus", monitor());
 
 const port = Number(process.env.PORT || 2567);
 gameServer.listen(port).then(() => {
-  console.log(`🎮 Game server is listening on port ${port}`);
+  console.log(`🎮 Durak Game server is listening on port ${port}`);
 });
