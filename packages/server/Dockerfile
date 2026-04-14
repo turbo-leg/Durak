@@ -10,8 +10,8 @@ COPY packages/server/package.json ./packages/server/
 COPY packages/client/package.json ./packages/client/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install dependencies (workspaces requires this to run at root)
-RUN npm ci
+# Install dependencies only for the server and shared workspaces
+RUN npm ci --workspace packages/shared --workspace packages/server --include-workspace-root=false
 
 # Copy the rest of the monorepo code
 COPY . .
