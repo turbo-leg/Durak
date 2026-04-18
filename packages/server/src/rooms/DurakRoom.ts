@@ -59,9 +59,9 @@ export class DurakRoom extends Room<GameState> {
   private startGame() {
     this.state.phase = "playing";
     
-    // Initial Deal (6 cards each)
+    // Initial Deal (5 cards each)
     this.state.players.forEach(player => {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 5; i++) {
         const card = this.state.deck.pop();
         if (card) player.hand.push(card);
       }
@@ -142,8 +142,8 @@ export class DurakRoom extends Room<GameState> {
     // Increment chain
     this.state.defenseChainCount++;
 
-    if (this.state.defenseChainCount === 6) {
-      // 7th person defended! Round is dead. (Since there are 6 cards per hand MAX, 6 attacks max)
+    if (this.state.defenseChainCount === 5) {
+      // 6th person defended! Round is dead.
       DurakEngine.endRound(this.state, null);
       DurakEngine.replenishAll(this.state);
       this.nextTurn();
