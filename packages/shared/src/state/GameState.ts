@@ -16,6 +16,10 @@ export class GameState extends Schema {
   @type("number") defenseChainCount: number = 0; // 0 to 5 (tracks 6-player cycle)
   @type("string") phase: string = "waiting"; // waiting, playing, finished
   
+  @type("number") maxPlayers: number = 6;
+  @type("boolean") isPrivate: boolean = false;
+  @type("string") mode: string = "classic"; // classic, teams, etc.
+
   @type([ "string" ]) winners = new ArraySchema<string>(); // List of sessionIds who finished their hand
   @type("string") loser = ""; // sessionId of the Durak
 }
