@@ -26,6 +26,17 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage("defend", (client, message) => this.handleDefend(client, message));
     this.onMessage("pickUp", (client) => this.handlePickUp(client));
     this.onMessage("swapHuzur", (client) => this.handleSwapHuzur(client));
+    
+    // Allow players to start the game manually
+    this.onMessage("startGame", () => {
+      // Only start if there are at least 2 players and the game hasn't started yet
+      if (this.state.phase !== "playing" && this.state.players.size >= 2) {
+        this.startGame();
+      }
+    });
+    
+    // Add pass action for attacker
+    this.onMessage("pass", (client) => this.handlePass(client));
   }
 
   onJoin(client: Client, options: any) {
@@ -34,8 +45,8 @@ export class DurakRoom extends Room<GameState> {
     const player = new Player(client.sessionId);
     this.state.players.set(client.sessionId, player);
 
-    // If we have 6 players, start the game
-    if (this.state.players.size === 6) {
+    // If we have 6 players, start the game automatically if not started
+    if (this.state.players.size === 6 && this.state.phase !== "playing") {
       this.startGame();
     }
   }
@@ -48,16 +59,27 @@ export class DurakRoom extends Room<GameState> {
   private startGame() {
     this.state.phase = "playing";
     
-    // Initial Deal (5 cards each)
+    // Initial Deal (6 cards each)
     this.state.players.forEach(player => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         const card = this.state.deck.pop();
         if (card) player.hand.push(card);
       }
     });
 
-    // Set first attacker (for now, first person who joined)
-    const firstId = Array.from(this.state.players.keys())[0];
+    // Set first attacker: player with the lowest Huzur (Trump) card in hand
+    let firstId = Array.from(this.state.players.keys())[0];
+    let lowestTrumpRank = Infinity;
+    
+    this.state.players.forEach((player, id) => {
+      player.hand.forEach(card => {
+        if (card.suit === this.state.huzurSuit && card.rank < lowestTrumpRank) {
+          lowestTrumpRank = card.rank;
+          firstId = id;
+        }
+      });
+    });
+    
     this.state.currentTurn = firstId;
   }
 
@@ -120,16 +142,29 @@ export class DurakRoom extends Room<GameState> {
     // Increment chain
     this.state.defenseChainCount++;
 
-    if (this.state.defenseChainCount === 5) {
-      // 6th person defended! Round is dead.
+    if (this.state.defenseChainCount === 6) {
+      // 7th person defended! Round is dead. (Since there are 6 cards per hand MAX, 6 attacks max)
       DurakEngine.endRound(this.state, null);
       DurakEngine.replenishAll(this.state);
-      // This person starts next attack
+      this.nextTurn();
     } else {
       // Move defending cards into the "activeAttack" slot for the next player
       defendingCards.forEach(c => this.state.activeAttackCards.push(c));
       this.nextTurn();
     }
+  }
+  
+  private handlePass(client: Client) {
+    // Only the current attacker can optionally pass to the next attacker
+    if (this.state.currentTurn !== client.sessionId) return;
+    
+    // If there is an active defense on the table but current attacker passes adding more cards,
+    // we would end the attack phase.
+    DurakEngine.endRound(this.state, null);
+    DurakEngine.replenishAll(this.state);
+    
+    // Next player starts fresh
+    this.nextTurn();
   }
 
   private handlePickUp(client: Client) {

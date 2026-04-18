@@ -153,19 +153,19 @@ export class DurakEngine {
 
   /**
    * Evaluates how many cards a player should draw.
-   * "If someone picks up... wait until they have less than 5 cards to draw."
+   * "If someone picks up... wait until they have less than 6 cards to draw."
    */
   static computeDrawAmount(player: Player, deckSize: number): number {
     if (deckSize <= 0) return 0;
 
     if (player.hasPickedUp) {
-      if (player.hand.length >= 5) return 0;
-      // Below 5, draw to 5
-      return Math.min(deckSize, 5 - player.hand.length);
+      if (player.hand.length >= 6) return 0;
+      // Below 6, draw to 6
+      return Math.min(deckSize, 6 - player.hand.length);
     }
 
-    // Standard draw to 5
-    const needed = 5 - player.hand.length;
+    // Standard draw to 6
+    const needed = 6 - player.hand.length;
     return needed > 0 ? Math.min(deckSize, needed) : 0;
   }
 
