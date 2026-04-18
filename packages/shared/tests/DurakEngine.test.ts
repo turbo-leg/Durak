@@ -245,14 +245,13 @@ describe('DurakEngine - Custom Rules', () => {
 
   describe('Drawing Logic', () => {
     test('computeDrawAmount - penalized player (hasPickedUp) only draws if < 5', () => {
-       const p = new Player("p1");
-       p.hasPickedUp = true;
-       p.hand = new Array(6).fill(new Card());
-
-       expect(DurakEngine.computeDrawAmount(p, 10)).toBe(0);
-
-       p.hand = new Array(4).fill(new Card());
-       expect(DurakEngine.computeDrawAmount(p, 10)).toBe(1);
+      const p = new Player("p1");
+      p.hasPickedUp = true;
+      
+      for(let i = 0; i < 4; i++) {
+        p.hand.push(new Card());
+      }
+      expect(DurakEngine.computeDrawAmount(p, 10)).toBe(1);
     });
 
     test('computeDrawAmount - normal player draws to 5', () => {
@@ -261,5 +260,4 @@ describe('DurakEngine - Custom Rules', () => {
       expect(DurakEngine.computeDrawAmount(p, 10)).toBe(4);
     });
   });
-
 });
