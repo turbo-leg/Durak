@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { Client, Room } from 'colyseus.js';
+import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
 
 interface GameContextState {
@@ -10,6 +11,10 @@ interface GameContextState {
   gameState: GameState | null;
   gameMessage: string | null;
   clearGameMessage: () => void;
+  createGame: (options: any) => Promise<void>;
+  joinGame: (roomId: string) => Promise<void>;
+  findPublicGames: () => Promise<RoomAvailable[]>;
+  leaveGame: () => void;
 }
 
 const GameContext = createContext<GameContextState>({
@@ -20,6 +25,10 @@ const GameContext = createContext<GameContextState>({
   gameState: null,
   gameMessage: null,
   clearGameMessage: () => {},
+  createGame: async () => {},
+  joinGame: async () => {},
+  findPublicGames: async () => [],
+  leaveGame: () => {},
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -37,89 +46,76 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearGameMessage = () => setGameMessage(null);
 
+  const handleRoomEvents = (roomInstance: Room<GameState>) => {
+    roomInstance.onStateChange(() => setTick(t => t + 1));
+    roomInstance.onMessage('error', (message: string) => {
+      setGameMessage(`Error: ${message}`);
+      setTimeout(() => setGameMessage(null), 4000);
+    });
+    roomInstance.onMessage('playerWon', (playerId: string) => {
+      setGameMessage(playerId === roomInstance.sessionId ? '🎉 You won!' : `🎉 Player ${playerId} has won!`);
+      setTimeout(() => setGameMessage(null), 4000);
+    });
+    roomInstance.onMessage('gameOver', (data: { loser?: string, draw?: boolean }) => {
+      if (data.draw) setGameMessage('Game Over! It is a draw.');
+      else setGameMessage(data.loser === roomInstance.sessionId ? '😭 Game Over. You are the Durak (Fool)!' : `🎉 Game Over! ${data.loser} is the Durak.`);
+    });
+    roomInstance.onError((code, message) => {
+      console.error('Room error:', code, message);
+      setError(message || 'Unknown room error');
+    });
+    roomInstance.onLeave((code) => {
+      console.log('Left room:', code);
+      setIsConnected(false);
+      setRoom(null);
+    });
+    setRoom(roomInstance);
+    setIsConnected(true);
+    setTick(1);
+    setError(null);
+  };
+
+  const createGame = async (options: any) => {
+    try {
+      const roomInstance = await client.create<GameState>('durak', options);
+      handleRoomEvents(roomInstance);
+    } catch (e: any) {
+      console.error('Error creating room:', e);
+      setError(e.message || 'Failed to create room');
+    }
+  };
+
+  const joinGame = async (roomId: string) => {
+    try {
+      const roomInstance = await client.joinById<GameState>(roomId);
+      handleRoomEvents(roomInstance);
+    } catch (e: any) {
+      console.error('Error joining room:', e);
+      setError(e.message || 'Failed to join room');
+    }
+  };
+
+  const findPublicGames = async () => {
+    return await client.getAvailableRooms('durak');
+  };
+  
+  const leaveGame = () => {
+    if (room) {
+      room.leave();
+    }
+  };
+
   useEffect(() => {
-    let currentRoom: Room<GameState> | null = null;
-    let isMounted = true;
-    let connectionPromise: Promise<Room<GameState>> | null = null;
-
-    const connectToRoom = async () => {
-      try {
-        connectionPromise = client.joinOrCreate<GameState>('durak');
-        const roomInstance = await connectionPromise;
-        
-        if (!isMounted) {
-          // If the component unmounted while connecting (e.g. React 18 Strict Mode), leave immediately.
-          roomInstance.leave();
-          return;
-        }
-        
-        currentRoom = roomInstance;
-        
-        currentRoom.onStateChange(() => {
-          setTick(t => t + 1);
-        });
-
-        currentRoom.onMessage('error', (message: string) => {
-          setGameMessage(`Error: ${message}`);
-          setTimeout(() => setGameMessage(null), 4000);
-        });
-
-        currentRoom.onMessage('playerWon', (playerId: string) => {
-          if (playerId === currentRoom?.sessionId) {
-            setGameMessage('🎉 You won!');
-          } else {
-            setGameMessage(`🎉 Player ${playerId} has won!`);
-          }
-          setTimeout(() => setGameMessage(null), 4000);
-        });
-
-        currentRoom.onMessage('gameOver', (data: { loser?: string, draw?: boolean }) => {
-          if (data.draw) {
-            setGameMessage('Game Over! It is a draw.');
-          } else if (data.loser === currentRoom?.sessionId) {
-            setGameMessage('😭 Game Over. You are the Durak (Fool)!');
-          } else {
-            setGameMessage(`🎉 Game Over! ${data.loser} is the Durak.`);
-          }
-        });
-
-        currentRoom.onError((code, message) => {
-          console.error('Room error:', code, message);
-          setError(message || 'Unknown room error');
-        });
-
-        currentRoom.onLeave((code) => {
-          console.log('Left room:', code);
-          setIsConnected(false);
-          setRoom(null);
-        });
-
-        setRoom(currentRoom);
-        setIsConnected(true);
-        // Force an initial render with the room's initial state
-        setTick(1);
-      } catch (e: unknown) {
-        console.error('Error joining room:', e);
-        setError(e instanceof Error ? e.message : 'Failed to connect to server');
-      }
-    };
-
-    const connectToRoomAsync = async () => {
-      connectToRoom();
-    };
-    
-    connectToRoomAsync();
-
     return () => {
-      isMounted = false;
-      if (currentRoom) {
-        currentRoom.leave();
-      }
+      if (room) room.leave();
     };
-  }, [client]);
+  }, [room]);
 
   return (
-    <GameContext.Provider value={{ client, room, error, isConnected, gameState, gameMessage, clearGameMessage }}>
+    <GameContext.Provider value={{
+      client, room, error, isConnected, gameState, gameMessage, clearGameMessage,
+      createGame, joinGame, findPublicGames, leaveGame
+    }}>
       {children}
     </GameContext.Provider>
   );

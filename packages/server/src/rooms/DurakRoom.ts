@@ -7,6 +7,17 @@ export class DurakRoom extends Room<GameState> {
   onCreate(options: any) {
     this.setState(new GameState());
 
+    // Apply custom options
+    this.state.maxPlayers = options.maxPlayers ? parseInt(options.maxPlayers, 10) : 6;
+    this.maxClients = this.state.maxPlayers;
+    
+    this.state.isPrivate = !!options.isPrivate;
+    this.setPrivate(this.state.isPrivate);
+
+    if (options.mode) {
+      this.state.mode = String(options.mode);
+    } // "classic" | "teams" etc. (defaults to "classic" in GameState)
+
     // Initialize the deck
     const deck = DurakEngine.createDeck();
     let shuffled;
@@ -54,8 +65,8 @@ export class DurakRoom extends Room<GameState> {
     const player = new Player(client.sessionId);
     this.state.players.set(client.sessionId, player);
 
-    // If we have 6 players, start the game automatically if not started
-    if (this.state.players.size === 6 && this.state.phase !== "playing") {
+    // If we have `maxPlayers` players, start the game automatically if not started
+    if (this.state.players.size === this.state.maxPlayers && this.state.phase !== "playing") {
       this.startGame();
     }
   }
