@@ -53,6 +53,10 @@ export const GameBoard: React.FC = () => {
     room.send("pass");
   };
 
+  const handleTeamSelect = (teamId: number) => {
+    room.send("switchTeam", { team: teamId });
+  };
+
   return (
     <div className="flex flex-col h-full w-full justify-between items-center bg-green-900 rounded-xl border border-green-800 shadow-2xl overflow-hidden p-6 relative">
       
@@ -136,12 +140,36 @@ export const GameBoard: React.FC = () => {
       {/* Center: Table & Huzur */}
       <div className="h-2/5 flex flex-col items-center justify-center relative w-full">
         {gameState.phase === 'waiting' && gameState.players.size >= 2 && (
-          <button 
-            onClick={handleStartGame} 
-            className="absolute z-10 px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-yellow-900 font-bold text-xl rounded-full shadow-lg transform transition active:scale-95"
-          >
-            Start Game
-          </button>
+          <div className="absolute z-10 flex flex-col items-center space-y-4">
+            {gameState.mode === 'teams' && gameState.teamSelection === 'manual' && myPlayer && (
+              <div className="flex space-x-4 bg-black/60 p-4 rounded-xl backdrop-blur-md border border-white/10">
+                <div className="flex flex-col items-center">
+                  <span className="text-blue-300 font-bold mb-2">Team Blue</span>
+                  <button 
+                    onClick={() => handleTeamSelect(0)}
+                    className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 0 ? 'bg-blue-600 text-white ring-2 ring-white' : 'bg-blue-900/50 hover:bg-blue-800 text-blue-200'}`}
+                  >
+                    Join
+                  </button>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-red-300 font-bold mb-2">Team Red</span>
+                  <button 
+                    onClick={() => handleTeamSelect(1)}
+                    className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 1 ? 'bg-red-600 text-white ring-2 ring-white' : 'bg-red-900/50 hover:bg-red-800 text-red-200'}`}
+                  >
+                    Join
+                  </button>
+                </div>
+              </div>
+            )}
+            <button 
+              onClick={handleStartGame} 
+              className="px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-yellow-900 font-bold text-xl rounded-full shadow-lg transform transition active:scale-95"
+            >
+              Start Game
+            </button>
+          </div>
         )}
 
         {/* The Huzur/Trump Deck Area */}

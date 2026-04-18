@@ -19,7 +19,10 @@ export class GameState extends Schema {
   @type("number") maxPlayers: number = 6;
   @type("boolean") isPrivate: boolean = false;
   @type("string") mode: string = "classic"; // classic, teams, etc.
+  @type("string") teamSelection: string = "random"; // random, manual
 
+  @type([ "string" ]) seatOrder = new ArraySchema<string>(); // Used for turn progression and team alternating seats
+  
   @type([ "string" ]) winners = new ArraySchema<string>(); // List of sessionIds who finished their hand
   @type("string") loser = ""; // sessionId of the Durak
 }

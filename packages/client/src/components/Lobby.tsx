@@ -13,6 +13,7 @@ export const Lobby: React.FC = () => {
   const [maxPlayers, setMaxPlayers] = useState(6);
   const [isPrivate, setIsPrivate] = useState(false);
   const [mode, setMode] = useState('classic');
+  const [teamSelection, setTeamSelection] = useState<'random' | 'manual'>('random');
 
   const fetchRooms = async () => {
     try {
@@ -33,7 +34,7 @@ export const Lobby: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    await createGame({ maxPlayers, isPrivate, mode });
+    await createGame({ maxPlayers, isPrivate, mode, teamSelection });
     setIsLoading(false);
   };
 
@@ -60,7 +61,7 @@ export const Lobby: React.FC = () => {
               onChange={(e) => setMaxPlayers(parseInt(e.target.value))}
               className="w-full p-2 border border-green-400 rounded-md bg-white"
             >
-              {[2, 3, 4, 5, 6].map(num => (
+              {(mode === 'teams' ? [2, 4, 6] : [2, 3, 4, 5, 6]).map(num => (
                 <option key={num} value={num}>{num} Players</option>
               ))}
             </select>
@@ -70,13 +71,33 @@ export const Lobby: React.FC = () => {
             <label className="block text-sm font-bold text-green-800 mb-1">Game Mode</label>
             <select 
               value={mode} 
-              onChange={(e) => setMode(e.target.value)}
+              onChange={(e) => {
+                const newMode = e.target.value;
+                setMode(newMode);
+                if (newMode === 'teams' && maxPlayers % 2 !== 0) {
+                  setMaxPlayers(Math.max(2, maxPlayers - 1));
+                }
+              }}
               className="w-full p-2 border border-green-400 rounded-md bg-white"
             >
               <option value="classic">Classic (Free for All)</option>
-              <option value="teams" disabled>Teams (Coming Soon)</option>
+              <option value="teams">Teams (3v3 / 2v2)</option>
             </select>
           </div>
+
+          {mode === 'teams' && (
+            <div>
+              <label className="block text-sm font-bold text-green-800 mb-1">Team Assignment</label>
+              <select 
+                value={teamSelection} 
+                onChange={(e) => setTeamSelection(e.target.value as 'random' | 'manual')}
+                className="w-full p-2 border border-green-400 rounded-md bg-white"
+              >
+                <option value="random">Randomize Teams</option>
+                <option value="manual">Manual Selection</option>
+              </select>
+            </div>
+          )}
 
           <div className="flex items-center space-x-2 pt-2">
             <input 
@@ -145,7 +166,7 @@ export const Lobby: React.FC = () => {
                     <div>
                       <div className="font-bold text-gray-800">Room {r.roomId.substring(0,6)}...</div>
                       <div className="text-sm text-gray-500">
-                        {r.clients} / {r.maxClients} Players
+                        {r.clients} / {r.maxClients} Players • {(r.metadata as Record<string, unknown>)?.mode === 'teams' ? 'Teams' : 'Classic'}
                       </div>
                     </div>
                     <button 
