@@ -57,6 +57,10 @@ export const GameBoard: React.FC = () => {
     room.send("switchTeam", { team: teamId });
   };
 
+  const handleSwapHuzur = () => {
+    room.send("swapHuzur");
+  };
+
   return (
     <div className="flex flex-col h-full w-full justify-between items-center bg-green-900 rounded-xl border border-green-800 shadow-2xl overflow-hidden p-6 relative">
       
@@ -243,6 +247,11 @@ export const GameBoard: React.FC = () => {
                 Pick Up
              </button>
           </>
+        )}
+        {gameState.phase === 'playing' && myHand.some(c => c.suit === gameState.huzurSuit && c.rank === 7) && (gameState.deck?.length || 0) > 0 && (
+          <button onClick={handleSwapHuzur} className="px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded font-bold shadow transition ml-4">
+            Swap 7 of Trump
+          </button>
         )}
       </div>      {/* Bottom Area: Local Player Hand */}
       <div className="h-1/4 w-full flex flex-col items-center justify-end pb-4">
