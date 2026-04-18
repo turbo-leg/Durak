@@ -15,4 +15,7 @@ export class GameState extends Schema {
   @type("string") currentTurn: string = ""; // ID of the active player (attacker or defender)
   @type("number") defenseChainCount: number = 0; // 0 to 5 (tracks 6-player cycle)
   @type("string") phase: string = "waiting"; // waiting, playing, finished
+  
+  @type([ "string" ]) winners = new ArraySchema<string>(); // List of sessionIds who finished their hand
+  @type("string") loser = ""; // sessionId of the Durak
 }

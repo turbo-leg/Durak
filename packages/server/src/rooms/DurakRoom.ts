@@ -108,6 +108,8 @@ export class DurakRoom extends Room<GameState> {
       }
     });
 
+    this.checkGameOver();
+
     // Pass turn to next defender
     this.nextTurn();
   }
@@ -146,10 +148,12 @@ export class DurakRoom extends Room<GameState> {
       // 6th person defended! Round is dead.
       DurakEngine.endRound(this.state, null);
       DurakEngine.replenishAll(this.state);
+      this.checkGameOver();
       this.nextTurn();
     } else {
       // Move defending cards into the "activeAttack" slot for the next player
       defendingCards.forEach(c => this.state.activeAttackCards.push(c));
+      this.checkGameOver(); // They might have played their last card and won before passing turn
       this.nextTurn();
     }
   }
@@ -162,6 +166,7 @@ export class DurakRoom extends Room<GameState> {
     // we would end the attack phase.
     DurakEngine.endRound(this.state, null);
     DurakEngine.replenishAll(this.state);
+    this.checkGameOver();
     
     // Next player starts fresh
     this.nextTurn();
@@ -173,6 +178,7 @@ export class DurakRoom extends Room<GameState> {
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
     DurakEngine.replenishAll(this.state);
+    this.checkGameOver();
 
     // Next player starts fresh
     this.nextTurn();
@@ -186,10 +192,58 @@ export class DurakRoom extends Room<GameState> {
      }
   }
 
+  private checkGameOver() {
+    if (this.state.phase !== "playing") return;
+
+    // A player wins if the deck is empty and they have no cards left
+    // We check every player
+    let hasNewWinner = false;
+    this.state.players.forEach((player, id) => {
+      // check if player already in winners list
+      const alreadyWon = this.state.winners.includes(id);
+      
+      if (this.state.deck.length === 0 && player.hand.length === 0 && !alreadyWon) {
+        this.state.winners.push(id);
+        hasNewWinner = true;
+        this.broadcast("playerWon", id);
+      }
+    });
+
+    if (hasNewWinner) {
+      // Are there any players left who haven't won?
+      const remainingPlayers = Array.from(this.state.players.keys()).filter(
+        id => !this.state.winners.includes(id)
+      );
+
+      if (remainingPlayers.length <= 1) {
+        this.state.phase = "finished";
+        if (remainingPlayers.length === 1) {
+          this.state.loser = remainingPlayers[0];
+          this.broadcast("gameOver", { loser: this.state.loser });
+        } else {
+          // It's a draw (multi-person win on last beat)
+          this.broadcast("gameOver", { loser: null, draw: true });
+        }
+      }
+    }
+  }
+
   private nextTurn() {
-    const ids = Array.from(this.state.players.keys());
-    const currentIdx = ids.indexOf(this.state.currentTurn);
-    const nextIdx = (currentIdx + 1) % ids.length;
-    this.state.currentTurn = ids[nextIdx];
+    if (this.state.phase === "finished") return;
+
+    const allIds = Array.from(this.state.players.keys());
+    let currentIdx = allIds.indexOf(this.state.currentTurn);
+    if (currentIdx === -1) currentIdx = 0;
+
+    let nextIdx = (currentIdx + 1) % allIds.length;
+    let fallbackCounter = 0;
+    
+    while (this.state.winners.includes(allIds[nextIdx])) {
+      nextIdx = (nextIdx + 1) % allIds.length;
+      fallbackCounter++;
+      if (fallbackCounter > allIds.length) break; // Should not happen if phase isn't finished but safe
+    }
+    
+    this.state.currentTurn = allIds[nextIdx];
   }
 }
