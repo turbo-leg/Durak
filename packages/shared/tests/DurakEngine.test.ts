@@ -104,8 +104,8 @@ describe('DurakEngine - Custom Rules', () => {
          new Card(Suit.Clubs, Rank.Seven)
        ];
        
-       const p1 = new Player("p1"); p1.hand = [new Card(), new Card(), new Card()];
-       const p2 = new Player("p2"); p2.hand = [new Card(), new Card(), new Card(), new Card()];
+       const p1 = new Player("p1"); p1.hand.push(...[new Card(), new Card(), new Card()]);
+       const p2 = new Player("p2"); p2.hand.push(...[new Card(), new Card(), new Card(), new Card()]);
        
        expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 10)).toBe(true);
     });
@@ -116,7 +116,7 @@ describe('DurakEngine - Custom Rules', () => {
          new Card(Suit.Spades, Rank.Queen),
          new Card(Suit.Clubs, Rank.Seven)
        ];
-       const p1 = new Player("p1"); p1.hand = [new Card(), new Card(), new Card()];
+       const p1 = new Player("p1"); p1.hand.push(...[new Card(), new Card(), new Card()]);
        expect(DurakEngine.isValidMassAttack(atkCards, [p1], 10)).toBe(false);
     });
 
@@ -126,7 +126,7 @@ describe('DurakEngine - Custom Rules', () => {
         new Card(Suit.None, Rank.RedJoker, true),
         new Card(Suit.Hearts, Rank.Seven)
       ];
-      const p1 = new Player("p1"); p1.hand = [new Card(), new Card(), new Card()];
+      const p1 = new Player("p1"); p1.hand.push(...[new Card(), new Card(), new Card()]);
       expect(DurakEngine.isValidMassAttack(jokersAndSingle, [p1], 10)).toBe(false);
 
       const pairWithJoker = [
@@ -144,8 +144,8 @@ describe('DurakEngine - Custom Rules', () => {
          new Card(Suit.Clubs, Rank.Seven)
        ];
        
-       const p1 = new Player("p1"); p1.hand = [new Card(), new Card()]; // Only 2 cards
-       const p2 = new Player("p2"); p2.hand = [new Card(), new Card(), new Card()];
+       const p1 = new Player("p1"); p1.hand.push(...[new Card(), new Card()]); // Only 2 cards
+       const p2 = new Player("p2"); p2.hand.push(...[new Card(), new Card(), new Card()]);
        
        expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 10)).toBe(false);
     });
@@ -159,7 +159,7 @@ describe('DurakEngine - Custom Rules', () => {
         new Card(Suit.Hearts, Rank.Queen)
       ];
       
-      const p1 = new Player("p1"); p1.hand = new Array(5).fill(new Card());
+      const p1 = new Player("p1"); p1.hand.push(...new Array(5).fill(new Card()));
       expect(DurakEngine.isValidMassAttack(atkCards, [p1], 0)).toBe(true);
     });
 
@@ -171,7 +171,7 @@ describe('DurakEngine - Custom Rules', () => {
         new Card(Suit.Clubs, Rank.Nine),
         new Card(Suit.Hearts, Rank.Queen)
       ];
-      const p1 = new Player("p1"); p1.hand = new Array(5).fill(new Card());
+      const p1 = new Player("p1"); p1.hand.push(...new Array(5).fill(new Card()));
       expect(DurakEngine.isValidMassAttack(atkCards, [p1], 1)).toBe(false); // deckSize = 1
     });
 
@@ -183,7 +183,7 @@ describe('DurakEngine - Custom Rules', () => {
         new Card(Suit.Clubs, Rank.Nine),
         new Card(Suit.Hearts, Rank.Queen)
       ];
-      const p1 = new Player("p1"); p1.hand = new Array(4).fill(new Card()); // 4 cards
+      const p1 = new Player("p1"); p1.hand.push(...new Array(4).fill(new Card())); // 4 cards
       expect(DurakEngine.isValidMassAttack(atkCards, [p1], 0)).toBe(false); 
     });
 
@@ -214,31 +214,34 @@ describe('DurakEngine - Custom Rules', () => {
     test('swapHuzur - Allowed if player has 7 of Huzur suit and deck is not empty', () => {
       const p1 = new Player("p1");
       const sevenOfHearts = new Card(Suit.Hearts, Rank.Seven);
-      p1.hand = [sevenOfHearts, new Card(Suit.Spades, Rank.Ten)];
+      p1.hand.push(...[sevenOfHearts, new Card(Suit.Spades, Rank.Ten)]);
 
       const faceUpHuzur = new Card(Suit.Hearts, Rank.Ace);
+      const fakeState = { huzurSuit: Suit.Hearts, huzurCard: faceUpHuzur, deck: { length: 10 } } as any;
       
-      const success = DurakEngine.swapHuzur(p1, faceUpHuzur, Suit.Hearts, 10);
+      const success = DurakEngine.swapHuzur(p1, fakeState);
       expect(success).toBe(true);
-      expect(faceUpHuzur.rank).toBe(Rank.Seven);
-      expect(p1.hand[0].rank).toBe(Rank.Ace);
+      expect(fakeState.huzurCard.rank).toBe(Rank.Seven);
+      expect(p1.hand[0]?.rank).toBe(Rank.Ace);
     });
 
     test('swapHuzur - Fails if deck is empty', () => {
       const p1 = new Player("p1");
-      p1.hand = [new Card(Suit.Hearts, Rank.Seven)];
+      p1.hand.push(...[new Card(Suit.Hearts, Rank.Seven)]);
       const faceUpHuzur = new Card(Suit.Hearts, Rank.Ace);
+      const fakeState = { huzurSuit: Suit.Hearts, huzurCard: faceUpHuzur, deck: { length: 0 } } as any;
       
-      const success = DurakEngine.swapHuzur(p1, faceUpHuzur, Suit.Hearts, 0); // deckSize = 0
+      const success = DurakEngine.swapHuzur(p1, fakeState); // deckSize = 0
       expect(success).toBe(false);
     });
 
     test('swapHuzur - Fails if player does not have the 7 of Huzur suit', () => {
       const p1 = new Player("p1");
-      p1.hand = [new Card(Suit.Hearts, Rank.Eight)]; // Has 8 instead of 7
+      p1.hand.push(...[new Card(Suit.Hearts, Rank.Eight)]); // Has 8 instead of 7
       const faceUpHuzur = new Card(Suit.Hearts, Rank.Ace);
+      const fakeState = { huzurSuit: Suit.Hearts, huzurCard: faceUpHuzur, deck: { length: 10 } } as any;
       
-      const success = DurakEngine.swapHuzur(p1, faceUpHuzur, Suit.Hearts, 10); 
+      const success = DurakEngine.swapHuzur(p1, fakeState); 
       expect(success).toBe(false);
     });
   });

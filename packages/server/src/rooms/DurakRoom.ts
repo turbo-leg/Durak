@@ -18,6 +18,12 @@ export class DurakRoom extends Room<GameState> {
       this.state.mode = String(options.mode);
     } // "classic" | "teams" etc. (defaults to "classic" in GameState)
 
+    if (options.teamSelection) {
+      this.state.teamSelection = String(options.teamSelection);
+    }
+
+    this.setMetadata({ mode: this.state.mode });
+
     // Initialize the deck
     const deck = DurakEngine.createDeck();
     let shuffled;
@@ -47,6 +53,16 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage("pickUp", (client) => this.handlePickUp(client));
     this.onMessage("swapHuzur", (client) => this.handleSwapHuzur(client));
     
+    // Team selection handler in lobby
+    this.onMessage("switchTeam", (client, message) => {
+      if (this.state.phase === "waiting" && this.state.mode === "teams" && this.state.teamSelection === "manual") {
+        const player = this.state.players.get(client.sessionId);
+        if (player && typeof message.team === "number") {
+          player.team = message.team;
+        }
+      }
+    });
+
     // Allow players to start the game manually
     this.onMessage("startGame", () => {
       // Only start if there are at least 2 players and the game hasn't started yet
@@ -79,6 +95,44 @@ export class DurakRoom extends Room<GameState> {
   private startGame() {
     this.state.phase = "playing";
     
+    // Assign teams and seat order
+    const sessionIds = Array.from(this.state.players.keys());
+    let teamA = 0;
+    let teamB = 0;
+    
+    if (this.state.mode === "teams") {
+      const sortedIds = sessionIds.sort(); // Optional sorting for consistency
+      
+      if (this.state.teamSelection === "manual") {
+        // Separate players into their chosen teams
+        const team0 = sortedIds.filter(id => this.state.players.get(id)!.team === 0);
+        const team1 = sortedIds.filter(id => this.state.players.get(id)!.team === 1);
+        
+        // Seat them alternatingly
+        const maxLength = Math.max(team0.length, team1.length);
+        for (let i = 0; i < maxLength; i++) {
+          if (i < team0.length) this.state.seatOrder.push(team0[i]);
+          if (i < team1.length) this.state.seatOrder.push(team1[i]);
+        }
+      } else {
+        // In random teams mode, alternate players into teams 0 and 1
+        let currentIndex = 0;
+        sortedIds.forEach((id) => {
+          const p = this.state.players.get(id)!;
+          p.team = currentIndex % 2;
+          this.state.seatOrder.push(id);
+          currentIndex++;
+        });
+      }
+    } else {
+      // Normal classic free for all
+      sessionIds.forEach((id) => {
+        const p = this.state.players.get(id)!;
+        p.team = 0; // default for FFA
+        this.state.seatOrder.push(id);
+      });
+    }
+    
     // Initial Deal (5 cards each)
     this.state.players.forEach(player => {
       for (let i = 0; i < 5; i++) {
@@ -104,11 +158,21 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private getPreviousTurn(currentTurnId: string): string {
-    const ids = Array.from(this.state.players.keys());
+    const ids = Array.from(this.state.seatOrder); // USE SEATORDER NOW
     const idx = ids.indexOf(currentTurnId);
     if (idx === -1) return currentTurnId;
     const prevIdx = (idx - 1 + ids.length) % ids.length;
-    return ids[prevIdx];
+    return ids[prevIdx] || currentTurnId;
+  }
+  
+  private nextTurn() {
+     // For passing turn to next defender
+     const ids = Array.from(this.state.seatOrder);
+     const idx = ids.indexOf(this.state.currentTurn);
+     if (idx !== -1) {
+        const nextId = ids[(idx + 1) % ids.length];
+        if (nextId) this.state.currentTurn = nextId;
+     }
   }
 
   private handleAttack(client: Client, message: { cards: any[] }) {
@@ -281,24 +345,5 @@ export class DurakRoom extends Room<GameState> {
         }
       }
     }
-  }
-
-  private nextTurn() {
-    if (this.state.phase === "finished") return;
-
-    const allIds = Array.from(this.state.players.keys());
-    let currentIdx = allIds.indexOf(this.state.currentTurn);
-    if (currentIdx === -1) currentIdx = 0;
-
-    let nextIdx = (currentIdx + 1) % allIds.length;
-    let fallbackCounter = 0;
-    
-    while (this.state.winners.includes(allIds[nextIdx])) {
-      nextIdx = (nextIdx + 1) % allIds.length;
-      fallbackCounter++;
-      if (fallbackCounter > allIds.length) break; // Should not happen if phase isn't finished but safe
-    }
-    
-    this.state.currentTurn = allIds[nextIdx];
   }
 }
