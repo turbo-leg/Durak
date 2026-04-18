@@ -82,29 +82,48 @@ export class DurakEngine {
   }
 
   /**
-   * Mass = exactly 3 cards. Must have at least 1 pair. (Red/Black Jokers cannot be the pair)
+   * Mass = 3 or 5 cards based on conditions.
+   * 3-Card Mass: 1 pair + 1 random card. (Denied if anyone has < 3 cards)
+   * 5-Card Mass: 2 pairs + 1 random card. (Only if deck empty AND everyone has >= 5 cards)
    */
-  static isValidMassAttack(cards: Card[], allPlayers: Player[]): boolean {
-    if (cards.length !== 3) return false;
+  static isValidMassAttack(cards: Card[], allPlayers: Player[], deckSize: number): boolean {
+    if (cards.length === 3) {
+      for (const p of allPlayers) {
+        if (p.hand.length < 3) return false;
+      }
+      
+      const ranks = new Map<number, number>();
+      for (const c of cards) {
+        if (c.isJoker) continue;
+        ranks.set(c.rank, (ranks.get(c.rank) || 0) + 1);
+      }
 
-    // Constraint: Cannot play mass if ANY player has < 3 cards
-    for (const p of allPlayers) {
-      if (p.hand.length < 3) return false;
+      let pairs = 0;
+      ranks.forEach((count) => {
+        pairs += Math.floor(count / 2);
+      });
+      return pairs >= 1;
+    } else if (cards.length === 5) {
+      if (deckSize > 0) return false;
+      
+      for (const p of allPlayers) {
+        if (p.hand.length < 5) return false;
+      }
+      
+      const ranks = new Map<number, number>();
+      for (const c of cards) {
+        if (c.isJoker) continue;
+        ranks.set(c.rank, (ranks.get(c.rank) || 0) + 1);
+      }
+
+      let pairs = 0;
+      ranks.forEach((count) => {
+        pairs += Math.floor(count / 2);
+      });
+      return pairs >= 2;
     }
-
-    // Composition check: Need a pair of same-rank standard cards
-    const ranks = new Map<number, number>();
-    for (const c of cards) {
-      if (c.isJoker) continue; // Jokers don't count towards the required pair
-      ranks.set(c.rank, (ranks.get(c.rank) || 0) + 1);
-    }
-
-    let hasPair = false;
-    ranks.forEach((count) => {
-      if (count >= 2) hasPair = true;
-    });
-
-    return hasPair;
+    
+    return false;
   }
 
   /**
@@ -115,21 +134,21 @@ export class DurakEngine {
 
     const usedDefenders = new Set<number>();
     
-    // We try to find a valid mapping where evey attacker is beatable by a unique defender
-    for (const atk of attackers) {
-      let foundMatch = false;
+    function backtrack(attackerIndex: number): boolean {
+      if (attackerIndex === attackers.length) return true;
+      
       for (let i = 0; i < defenders.length; i++) {
         if (usedDefenders.has(i)) continue;
-        if (DurakEngine.canDefend(defenders[i], atk, huzurSuit)) {
+        if (DurakEngine.canDefend(defenders[i], attackers[attackerIndex], huzurSuit)) {
           usedDefenders.add(i);
-          foundMatch = true;
-          break;
+          if (backtrack(attackerIndex + 1)) return true;
+          usedDefenders.delete(i);
         }
       }
-      if (!foundMatch) return false;
+      return false;
     }
 
-    return true;
+    return backtrack(0);
   }
 
   /**
@@ -150,7 +169,9 @@ export class DurakEngine {
     return needed > 0 ? Math.min(deckSize, needed) : 0;
   }
 
-  static swapHuzur(player: Player, huzurCard: Card, huzurSuit: string): boolean {
+  static swapHuzur(player: Player, huzurCard: Card, huzurSuit: string, deckSize: number): boolean {
+    if (deckSize === 0) return false;
+    
     const handIndex = player.hand.findIndex(c => c.suit === huzurSuit && c.rank === Rank.Seven);
     if (handIndex === -1) return false;
 
