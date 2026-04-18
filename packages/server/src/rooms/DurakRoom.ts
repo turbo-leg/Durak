@@ -9,8 +9,13 @@ export class DurakRoom extends Room<GameState> {
 
     // Initialize the deck
     const deck = DurakEngine.createDeck();
-    const shuffled = DurakEngine.shuffleDeck(deck);
-    shuffled.forEach(card => this.state.deck.push(card));
+    let shuffled;
+    if (options.testModeDeck) {
+      shuffled = options.testModeDeck;
+    } else {
+      shuffled = DurakEngine.shuffleDeck(deck);
+    }
+    shuffled.forEach((card: Card) => this.state.deck.push(card));
 
     // Choose the Huzur (Trump) card
     const huzur = this.state.deck.pop();
