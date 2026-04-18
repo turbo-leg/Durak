@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { Client, Room } from 'colyseus.js';
 import { GameState } from '@durak/shared';
 
@@ -16,25 +16,21 @@ const GameContext = createContext<GameContextState>({
   isConnected: false,
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useGame = () => useContext(GameContext);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [client, setClient] = useState<Client | null>(null);
+  const client = useMemo(() => new Client(import.meta.env.VITE_SERVER_URL || 'ws://localhost:2567'), []);
   const [room, setRoom] = useState<Room<GameState> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Determine the server endpoint
-    const endpoint = import.meta.env.VITE_SERVER_URL || 'ws://localhost:2567';
-    const colyseusClient = new Client(endpoint);
-    setClient(colyseusClient);
-
     let currentRoom: Room<GameState> | null = null;
 
     const connectToRoom = async () => {
       try {
-        currentRoom = await colyseusClient.joinOrCreate<GameState>('durak');
+        currentRoom = await client.joinOrCreate<GameState>('durak');
         
         currentRoom.onStateChange((state) => {
           console.log('Room state changed:', state);
@@ -53,9 +49,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setRoom(currentRoom);
         setIsConnected(true);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error('Error joining room:', e);
-        setError(e.message || 'Failed to connect to server');
+        setError(e instanceof Error ? e.message : 'Failed to connect to server');
       }
     };
 
@@ -67,7 +63,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentRoom.leave();
       }
     };
-  }, []);
+  }, [client]);
 
   return (
     <GameContext.Provider value={{ client, room, error, isConnected }}>
