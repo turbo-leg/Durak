@@ -25,8 +25,9 @@ export const Lobby: React.FC = () => {
 
   useEffect(() => {
     fetchRooms();
-    const interval = setInterval(fetchRooms, 3000);
+    const interval = setInterval(() => { void fetchRooms(); }, 3000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {

@@ -11,7 +11,7 @@ interface GameContextState {
   gameState: GameState | null;
   gameMessage: string | null;
   clearGameMessage: () => void;
-  createGame: (options: any) => Promise<void>;
+  createGame: (options: Record<string, unknown>) => Promise<void>;
   joinGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
@@ -75,13 +75,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
   };
 
-  const createGame = async (options: any) => {
+  const createGame = async (options: Record<string, unknown>) => {
     try {
       const roomInstance = await client.create<GameState>('durak', options);
       handleRoomEvents(roomInstance);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error creating room:', e);
-      setError(e.message || 'Failed to create room');
+      setError(e instanceof Error ? e.message : 'Failed to create room');
     }
   };
 
@@ -89,9 +89,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const roomInstance = await client.joinById<GameState>(roomId);
       handleRoomEvents(roomInstance);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error joining room:', e);
-      setError(e.message || 'Failed to join room');
+      setError(e instanceof Error ? e.message : 'Failed to join room');
     }
   };
 
