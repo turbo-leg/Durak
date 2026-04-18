@@ -158,18 +158,34 @@ export const GameBoard: React.FC = () => {
         )}
 
         {/* The Active Attack & Table Area */}
-        <div className="flex flex-row flex-wrap space-x-6 justify-center">
-           {/* History Table Cards */}
-           {tableCards.map((c, i) => (
-             <div key={`table-${i}`} className="relative -ml-4 grayscale opacity-60 pointer-events-none transform -rotate-3 scale-90">
-               <UICard card={c} />
-             </div>
-           ))}
+        <div className="flex flex-row flex-wrap space-x-6 justify-center mt-8">
+           {/* History Table Cards (paired: attack underneath, defend on top) */}
+           {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pairIndex) => {
+             const atk = tableCards[pairIndex * 2];
+             const def = tableCards[pairIndex * 2 + 1];
+             if (!atk) return null; // Avoid rendering undefined
+
+             return (
+               <div key={`table-pair-${pairIndex}`} className="relative mx-3 transform scale-90 opacity-80 pointer-events-none">
+                 {/* Bottom card: the attack that was beaten */}
+                 <div className="absolute top-0 left-0 transform rotate-[-5deg] grayscale-[0.3]">
+                   <UICard card={atk} />
+                 </div>
+                 {/* Top card: the successful defense, slightly offset */}
+                 {def && (
+                   <div className="relative top-4 left-4 shadow-[0_5px_15px_rgba(0,0,0,0.5)] z-10 transform rotate-[3deg]">
+                     <UICard card={def} />
+                   </div>
+                 )}
+               </div>
+             );
+           })}
+           
            {/* Current Active Attack Cards */}
            {attackCards.map((atk, i) => (
-              <div key={`atk-${i}`} className="relative mr-4 shadow-[0_0_15px_rgba(250,204,21,0.4)] rounded-lg transform hover:-translate-y-2 transition-transform">
+              <div key={`atk-${i}`} className="relative ml-8 mr-4 shadow-[0_0_15px_rgba(250,204,21,0.4)] rounded-lg transform hover:-translate-y-2 transition-transform">
                  <UICard card={atk} />
-                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold bg-red-600 px-2 rounded-t z-10">ATTACK</div>
+                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold bg-red-600 px-2 rounded-t z-10 whitespace-nowrap">ATTACK</div>
               </div>
            ))}
         </div>
@@ -177,20 +193,20 @@ export const GameBoard: React.FC = () => {
 
       {/* Actions */}
       <div className="flex space-x-4 mb-4">
-        {isMyTurn && gameState.phase === 'playing' && (
+        {isMyTurn && gameState.phase === 'playing' && attackCards.length === 0 && (
           <>
              <button onClick={handleAttack} disabled={selectedCards.length === 0} className="px-6 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold shadow transition">
                 Attack ({selectedCards.length})
              </button>
-             {/* If we are the attacker but also can pass (meaning a defense happened) */}
-             {attackCards.length === 0 && tableCards.length > 0 && (
+             {/* If we are the attacker but also can pass (meaning a defense happened or we don't want to attack) */}
+             {tableCards.length > 0 && (
                 <button onClick={handlePass} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded font-bold shadow transition">
-                  Pass
+                   Pass
                 </button>
              )}
           </>
         )}
-        {!isMyTurn && gameState.phase === 'playing' && attackCards.length > 0 && (
+        {isMyTurn && gameState.phase === 'playing' && attackCards.length > 0 && (
           <>
              <button onClick={handleDefend} disabled={selectedCards.length === 0} className="px-6 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold shadow transition">
                 Defend ({selectedCards.length})
@@ -200,9 +216,7 @@ export const GameBoard: React.FC = () => {
              </button>
           </>
         )}
-      </div>
-
-      {/* Bottom Area: Local Player Hand */}
+      </div>      {/* Bottom Area: Local Player Hand */}
       <div className="h-1/4 w-full flex flex-col items-center justify-end pb-4">
          <div className="flex justify-center -space-x-4 hover:space-x-2 transition-all duration-300 px-8">
             {myHand.map((card, i) => {

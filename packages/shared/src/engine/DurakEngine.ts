@@ -169,25 +169,37 @@ export class DurakEngine {
     return needed > 0 ? Math.min(deckSize, needed) : 0;
   }
 
-  static swapHuzur(player: Player, huzurCard: Card, huzurSuit: string, deckSize: number): boolean {
-    if (deckSize === 0) return false;
+  static swapHuzur(player: Player, state: GameState): boolean {
+    if (state.deck.length === 0) return false;
     
-    const handIndex = player.hand.findIndex(c => c.suit === huzurSuit && c.rank === Rank.Seven);
+    const handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
     if (handIndex === -1) return false;
 
     const playerSeven = player.hand[handIndex]!;
     
+    // The visual table card
+    const tableHuzur = state.huzurCard;
+    // The actual deck bottom card
+    const actualDeckHuzur = state.deck[0]!;
+
+    // Move the player's 7 attributes
     const tempSuit = playerSeven.suit;
     const tempRank = playerSeven.rank;
     const tempIsJoker = playerSeven.isJoker;
 
-    playerSeven.suit = huzurCard.suit;
-    playerSeven.rank = huzurCard.rank;
-    playerSeven.isJoker = huzurCard.isJoker;
+    // Give player the tableHuzur's power
+    playerSeven.suit = tableHuzur.suit;
+    playerSeven.rank = tableHuzur.rank;
+    playerSeven.isJoker = tableHuzur.isJoker;
 
-    huzurCard.suit = tempSuit;
-    huzurCard.rank = tempRank;
-    huzurCard.isJoker = tempIsJoker;
+    // Set the tableHuzur and deck bottom card to the 7
+    tableHuzur.suit = tempSuit;
+    tableHuzur.rank = tempRank;
+    tableHuzur.isJoker = tempIsJoker;
+
+    actualDeckHuzur.suit = tempSuit;
+    actualDeckHuzur.rank = tempRank;
+    actualDeckHuzur.isJoker = tempIsJoker;
 
     return true;
   }
@@ -200,19 +212,19 @@ export class DurakEngine {
       // Player picked up the whole table
       const player = state.players.get(pickerUpperId);
       if (player) {
-        state.table.forEach(card => player.hand.push(card));
-        state.activeAttackCards.forEach(card => player.hand.push(card));
+        state.table.forEach(card => player.hand.push(new Card(card.suit, card.rank, card.isJoker)));
+        state.activeAttackCards.forEach(card => player.hand.push(new Card(card.suit, card.rank, card.isJoker)));
         player.hasPickedUp = true;
       }
     } else {
       // Success! Cards are dead.
-      state.table.forEach(card => state.discardPile.push(card));
-      state.activeAttackCards.forEach(card => state.discardPile.push(card));
+      state.table.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+      state.activeAttackCards.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
     }
 
     // Reset cycle
-    state.table.clear();
-    state.activeAttackCards.clear();
+    state.table.splice(0, state.table.length);
+    state.activeAttackCards.splice(0, state.activeAttackCards.length);
     state.defenseChainCount = 0;
   }
 
@@ -224,7 +236,7 @@ export class DurakEngine {
       const amount = DurakEngine.computeDrawAmount(player, state.deck.length);
       for (let i = 0; i < amount; i++) {
         const card = state.deck.pop();
-        if (card) player.hand.push(card);
+        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
       }
     });
   }

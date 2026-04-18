@@ -32,9 +32,9 @@ const rankNames: Record<number, string> = {
   11: 'J',
   12: 'Q',
   13: 'K',
-  14: 'A',
+  14: '3',
   15: '2',
-  16: '3',
+  16: 'A',
   17: 'JK',
   18: 'RJ'
 };

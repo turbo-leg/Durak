@@ -20,9 +20,13 @@ export class DurakRoom extends Room<GameState> {
     // Choose the Huzur (Trump) card
     const huzur = this.state.deck.pop();
     if (huzur) {
-      this.state.huzurCard = huzur;
+      // In Colyseus, you cannot put the exact same Schema instance in two places.
+      // So we clone the huzur to serve as the visual Trump card underneath the deck.
+      const clonedHuzur = new Card(huzur.suit, huzur.rank, huzur.isJoker);
+      this.state.huzurCard = clonedHuzur;
       this.state.huzurSuit = huzur.suit;
-      // Put it back at the bottom of the deck (typical Durak rules)
+      
+      // Put original back at the bottom of the deck
       this.state.deck.unshift(huzur); 
     }
 
@@ -68,7 +72,7 @@ export class DurakRoom extends Room<GameState> {
     this.state.players.forEach(player => {
       for (let i = 0; i < 5; i++) {
         const card = this.state.deck.pop();
-        if (card) player.hand.push(card);
+        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
       }
     });
 
@@ -88,6 +92,14 @@ export class DurakRoom extends Room<GameState> {
     this.state.currentTurn = firstId;
   }
 
+  private getPreviousTurn(currentTurnId: string): string {
+    const ids = Array.from(this.state.players.keys());
+    const idx = ids.indexOf(currentTurnId);
+    if (idx === -1) return currentTurnId;
+    const prevIdx = (idx - 1 + ids.length) % ids.length;
+    return ids[prevIdx];
+  }
+
   private handleAttack(client: Client, message: { cards: any[] }) {
     if (this.state.currentTurn !== client.sessionId) return;
     
@@ -102,6 +114,17 @@ export class DurakRoom extends Room<GameState> {
         client.send("error", "Invalid Mass Attack composition or opponent hand size too small.");
         return;
       }
+    } else if (this.state.table.length > 0 || this.state.activeAttackCards.length > 0) {
+      // Adding to an ongoing attack: the rank must match something on the table or active attacks
+      const playedRank = cardsToPlay[0].rank;
+      const rankExists = 
+        this.state.table.some(c => c.rank === playedRank) || 
+        this.state.activeAttackCards.some(c => c.rank === playedRank);
+      
+      if (!rankExists && !cardsToPlay[0].isJoker) {
+        client.send("error", "You can only attack with a rank that is already on the table.");
+        return;
+      }
     }
 
     // Move cards from hand to active attack
@@ -114,6 +137,9 @@ export class DurakRoom extends Room<GameState> {
     });
 
     this.checkGameOver();
+
+    // User rule: players should always draw a card immediately after they play anything.
+    DurakEngine.replenishAll(this.state);
 
     // Pass turn to next defender
     this.nextTurn();
@@ -133,33 +159,46 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    // Success! Move defenders from hand to table history
-    defendingCards.forEach(c => {
-      const idx = player.hand.findIndex(hc => hc.suit === c.suit && hc.rank === c.rank);
+    // Success! Move defenders from hand to table history paired with attack cards.
+    // To ensure they are displayed with the attacked card underneath, 
+    // we push the Attack Card first, then the Defending Card.
+    for (let i = 0; i < defendingCards.length; i++) {
+      const defCard = defendingCards[i];
+      const idx = player.hand.findIndex(hc => hc.suit === defCard.suit && hc.rank === defCard.rank);
       if (idx !== -1) {
         player.hand.splice(idx, 1);
-        this.state.table.push(c);
+        
+        // Colyseus arrays shouldn't share references directly across state structures
+        const originalAtk = atkCards[i];
+        const clonedAtk = new Card(originalAtk.suit, originalAtk.rank, originalAtk.isJoker);
+        
+        this.state.table.push(clonedAtk); // Attack card on bottom
+        this.state.table.push(defCard);     // Defense card on top
       }
-    });
+    }
 
-    // Beaten attack cards also move to history
-    this.state.activeAttackCards.forEach(c => this.state.table.push(c));
-    this.state.activeAttackCards.clear();
+    // Since we pushed active attacks as clones, clear the originals fully by splicing
+    this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
 
     // Increment chain
     this.state.defenseChainCount++;
 
-    if (this.state.defenseChainCount === 5) {
-      // 6th person defended! Round is dead.
+    if (this.state.defenseChainCount >= this.state.players.size - 1) {
+      // Everyone defended! Round is dead.
       DurakEngine.endRound(this.state, null);
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
-      this.nextTurn();
+      
+      // Because this is the defender's turn (they just played their card), passing it to nextTurn
+      // would skip them! But since they successfully beat all attacks, they should be the next attacker!
+      // But wait! `handleAttack` passes the turn to the defender immediately. So right now, currentTurn is the defender!
+      // We don't want to skip them, so we just keep the turn on them so they can attack!
     } else {
-      // Move defending cards into the "activeAttack" slot for the next player
-      defendingCards.forEach(c => this.state.activeAttackCards.push(c));
-      this.checkGameOver(); // They might have played their last card and won before passing turn
-      this.nextTurn();
+      // Allow the attacker to throw in more cards instead of forcing the defender's defense to be a new attack.
+      this.state.currentTurn = this.getPreviousTurn(client.sessionId);
+      
+      // We don't draw yet (drawing happens at endRound). 
+      this.checkGameOver(); 
     }
   }
   
@@ -191,9 +230,9 @@ export class DurakRoom extends Room<GameState> {
 
   private handleSwapHuzur(client: Client) {
      const player = this.state.players.get(client.sessionId)!;
-     const success = DurakEngine.swapHuzur(player, this.state.huzurCard, this.state.huzurSuit, this.state.deck.length);
+     const success = DurakEngine.swapHuzur(player, this.state);
      if (!success) {
-       client.send("error", "You do not have the 7 of Huzur.");
+       client.send("error", "Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.");
      }
   }
 
