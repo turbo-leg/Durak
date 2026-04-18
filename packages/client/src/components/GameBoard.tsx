@@ -4,7 +4,7 @@ import { Card as UICard } from './Card';
 import { Card as SharedCard } from '@durak/shared';
 
 export const GameBoard: React.FC = () => {
-  const { room, gameState } = useGame();
+  const { room, gameState, gameMessage, clearGameMessage } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
 
   if (!room || !gameState) {
@@ -13,9 +13,9 @@ export const GameBoard: React.FC = () => {
 
   const isMyTurn = gameState.currentTurn === room.sessionId;
   const myPlayer = gameState.players.get(room.sessionId);
-  const myHand = myPlayer ? Array.from(myPlayer.hand) : [];
-  const tableCards = Array.from(gameState.table || []);
-  const attackCards = Array.from(gameState.activeAttackCards || []);
+  const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
+  const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
+  const attackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
   
   const handleCardClick = (card: SharedCard) => {
     // Basic multi-select logic for mass attack/defend
@@ -57,20 +57,78 @@ export const GameBoard: React.FC = () => {
     <div className="flex flex-col h-full w-full justify-between items-center bg-green-900 rounded-xl border border-green-800 shadow-2xl overflow-hidden p-6 relative">
       
       {/* Top Banner: Status */}
-      <div className="absolute top-4 left-4 bg-black/40 text-green-200 px-4 py-2 rounded-lg text-sm font-mono flex items-center space-x-4">
+      <div className="absolute top-4 left-4 bg-black/40 text-green-200 px-4 py-2 rounded-lg text-sm font-mono flex items-center space-x-4 z-50">
         <div>Phase: <span className="font-bold text-white">{gameState.phase}</span></div>
         <div>Turn: <span className={`font-bold ${isMyTurn ? 'text-yellow-400' : 'text-gray-400'}`}>{isMyTurn ? 'Yours' : 'Opponent'}</span></div>
         <div>Deck: <span className="font-bold text-white">{gameState.deck?.length || 0}</span></div>
         <div>Colyseus Session ID: <span className="text-gray-400">{room.sessionId}</span></div>
       </div>
 
-      {/* Opponents Area (Placeholder for now) */}
-      <div className="h-1/5 w-full flex items-start justify-center space-x-8 pt-8">
+      {/* Game Message Toast */}
+      {gameMessage && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-red-600 border border-red-400 font-bold text-white px-6 py-3 rounded-lg shadow-2xl z-50 flex items-center space-x-4 animate-bounce">
+          <span>{gameMessage}</span>
+          <button onClick={clearGameMessage} className="text-red-200 hover:text-white">&times;</button>
+        </div>
+      )}
+
+      {/* Game Over Overlay */}
+      {gameState.phase === 'finished' && (
+        <div className="absolute inset-0 bg-black/80 z-40 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-gray-900 border-2 border-yellow-500 rounded-2xl p-12 flex flex-col items-center shadow-2xl text-center">
+            {gameState.loser === room.sessionId ? (
+              <>
+                <h1 className="text-6xl mb-4">🥴</h1>
+                <h2 className="text-4xl font-extrabold text-red-500 mb-2">YOU ARE THE DURAK!</h2>
+                <p className="text-gray-300">Ah well, better luck next time.</p>
+              </>
+            ) : gameState.loser === null ? (
+              <>
+                <h1 className="text-6xl mb-4">🤝</h1>
+                <h2 className="text-4xl font-extrabold text-blue-400 mb-2">DRAW!</h2>
+                <p className="text-gray-300">Everybody wins (or loses?).</p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-6xl mb-4">👑</h1>
+                <h2 className="text-4xl font-extrabold text-yellow-400 mb-2">YOU SURVIVED!</h2>
+                <p className="text-gray-300">The fool is {gameState.loser}.</p>
+              </>
+            )}
+            <button 
+              onClick={handleStartGame}
+              className="mt-8 px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-yellow-900 font-bold text-xl rounded-full shadow-lg transition"
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Opponents Area */}
+      <div className="h-1/5 w-full flex items-start justify-center space-x-8 pt-8 z-10">
          {Array.from(gameState.players.entries()).filter(([id]) => id !== room.sessionId).map(([id, player]) => (
-            <div key={id} className="bg-black/30 px-6 py-3 rounded-lg text-center flex flex-col items-center">
-              <div className="text-sm text-gray-300 font-mono mb-2">{id}</div>
-              <div className="w-16 h-24 bg-red-800 rounded border-2 border-white/20 shadow-md"></div>
-              <div className="mt-2 font-bold text-white">{player.hand.length} Cards</div>
+            <div key={id} className="bg-black/40 px-6 py-4 rounded-xl text-center flex flex-col items-center relative border border-white/10 shadow-lg">
+              {gameState.currentTurn === id && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-md animate-pulse">
+                  PLAYING
+                </div>
+              )}
+              <div className="text-sm text-gray-200 font-mono mb-3 bg-black/50 px-2 py-1 rounded w-full truncate">User: {id.slice(0, 5)}...</div>
+              
+              <div className="flex -space-x-3 mb-2 h-20">
+                {Array.from({ length: Math.min(player.hand.length, 10) }).map((_, i) => (
+                  <div key={i} className="w-14 h-20 bg-red-800 rounded shadow-md border-2 border-white/20 relative overflow-hidden flex items-center justify-center transform scale-90">
+                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiM4YjAwMDAiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iIzlhMTExMSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+PC9zdmc+')] opacity-50"></div>
+                  </div>
+                ))}
+                {player.hand.length > 10 && (
+                  <div className="w-14 h-20 bg-red-900 rounded shadow-md border-2 border-white/10 flex items-center justify-center text-white/50 text-xs font-bold transform scale-90 z-10">
+                    +{player.hand.length - 10}
+                  </div>
+                )}
+              </div>
+              <div className="mt-1 font-bold text-yellow-400 text-sm">{player.hand.length} Cards</div>
             </div>
          ))}
       </div>
