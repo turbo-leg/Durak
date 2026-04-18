@@ -71,7 +71,7 @@ export class DurakRoom extends Room<GameState> {
     const isMass = cardsToPlay.length > 1;
     if (isMass) {
       const allPlayersArray = Array.from(this.state.players.values());
-      if (!DurakEngine.isValidMassAttack(cardsToPlay, allPlayersArray)) {
+      if (!DurakEngine.isValidMassAttack(cardsToPlay, allPlayersArray, this.state.deck.length)) {
         client.send("error", "Invalid Mass Attack composition or opponent hand size too small.");
         return;
       }
@@ -96,7 +96,8 @@ export class DurakRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId)!;
     const defendingCards = message.cards.map(c => new Card(c.suit, c.rank, c.isJoker));
 
-    const success = DurakEngine.canDefendMass(defendingCards, Array.from(this.state.activeAttackCards), this.state.huzurSuit);
+    const atkCards = Array.from(this.state.activeAttackCards).filter((c): c is Card => c !== undefined);
+    const success = DurakEngine.canDefendMass(defendingCards, atkCards, this.state.huzurSuit);
 
     if (!success) {
       client.send("error", "Your cards cannot beat the current attack.");
@@ -144,7 +145,7 @@ export class DurakRoom extends Room<GameState> {
 
   private handleSwapHuzur(client: Client) {
      const player = this.state.players.get(client.sessionId)!;
-     const success = DurakEngine.swapHuzur(player, this.state.huzurCard, this.state.huzurSuit);
+     const success = DurakEngine.swapHuzur(player, this.state.huzurCard, this.state.huzurSuit, this.state.deck.length);
      if (!success) {
        client.send("error", "You do not have the 7 of Huzur.");
      }
