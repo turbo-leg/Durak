@@ -7,6 +7,7 @@ interface GameContextState {
   room: Room<GameState> | null;
   error: string | null;
   isConnected: boolean;
+  gameState: GameState | null;
 }
 
 const GameContext = createContext<GameContextState>({
@@ -14,6 +15,7 @@ const GameContext = createContext<GameContextState>({
   room: null,
   error: null,
   isConnected: false,
+  gameState: null,
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -24,6 +26,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [room, setRoom] = useState<Room<GameState> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [gameState, setGameState] = useState<GameState | null>(null);
 
   useEffect(() => {
     let currentRoom: Room<GameState> | null = null;
@@ -33,7 +36,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentRoom = await client.joinOrCreate<GameState>('durak');
         
         currentRoom.onStateChange((state) => {
-          console.log('Room state changed:', state);
+          // Deep clone is costly, but we can do a state spread just to ensure React sees a "new" object.
+          // For Colyseus schema, a tick variable is often the easiest way to force React to re-render.
+          setGameState({ ...state } as GameState);
         });
 
         currentRoom.onError((code, message) => {
@@ -45,6 +50,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('Left room:', code);
           setIsConnected(false);
           setRoom(null);
+          setGameState(null);
         });
 
         setRoom(currentRoom);
@@ -66,7 +72,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [client]);
 
   return (
-    <GameContext.Provider value={{ client, room, error, isConnected }}>
+    <GameContext.Provider value={{ client, room, error, isConnected, gameState }}>
       {children}
     </GameContext.Provider>
   );

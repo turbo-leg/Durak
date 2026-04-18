@@ -1,0 +1,40 @@
+Issue	Fix game logic and build issues	20	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTekM
+Issue	Implement Game State Schema & Deck Generation	18	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqSdb0
+Issue	Basic Frontend Connection Hookup	19	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqSd44
+Issue	Phase 3: Room Config (Singleplayer vs Multiplayer)	56	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlSo
+Issue	Phase 5: Chat System and Emote Reactions	55	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlTE
+Issue	Phase 5: Card Animations	54	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlTY
+Issue	Phase 4: Setup Load Balancer in docker-compose	53	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlT4
+Issue	Phase 4: Connect Redis to Colyseus	52	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlUI
+Issue	Phase 3: Room Config (Singleplayer vs Multiplayer)	51	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlUc
+Issue	Phase 3: Integrate GrandmasterBot & MCTS	50	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlUw
+Issue	Phase 2: 'Players in Room' Counter	49	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlU8
+Issue	Phase 2: Error Notification Toast System	48	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlVM
+Issue	Phase 2: Actions UI (Attack, Defend, Pass, Take)	47	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlVk
+Issue	Phase 2: Playmat UI (Hands, Table, Deck, Huzur)	46	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlWA
+Issue	Phase 3: Integrate GrandmasterBot & MCTS	45	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlWU
+Issue	Phase 2: 'Players in Room' Counter	44	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlWo
+Issue	Phase 2: Error Notification Toast System	43	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlW8
+Issue	Phase 2: Actions UI (Attack, Defend, Pass, Take)	42	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlXU
+Issue	Phase 2: Playmat UI (Hands, Table, Deck, Huzur)	41	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlXk
+Issue	Phase 5: Chat System and Emote Reactions	40	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlXw
+Issue	Phase 5: Card Animations	39	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlYE
+Issue	Phase 4: Setup Load Balancer in docker-compose	38	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlYY
+Issue	Phase 4: Connect Redis to Colyseus	37	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlY0
+Issue	Phase 3: Room Config (Singleplayer vs Multiplayer)	36	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlZc
+Issue	Phase 3: Integrate GrandmasterBot & MCTS	35	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlZs
+Issue	Phase 2: 'Players in Room' Counter	34	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlaE
+Issue	Phase 2: Error Notification Toast System	33	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlaY
+Issue	Phase 2: Actions UI (Attack, Defend, Pass, Take)	32	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlas
+Issue	Phase 2: Playmat UI (Hands, Table, Deck, Huzur)	31	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlbE
+Issue	Phase 2: Playmat UI (Hands, Table, Deck, Huzur)	30	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlbY
+Issue	Phase 1: Handle player disconnections/reconnections	29	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlbw
+Issue	Phase 1: Implement Game Over conditions and win/loss emissions	28	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlcM
+Issue	Phase 1: Implement Full Game Loop Orchestration	27	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlcg
+Issue	Phase 2: Playmat UI (Hands, Table, Deck, Huzur)	26	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlc4
+Issue	Phase 1: Handle player disconnections/reconnections	25	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTldM
+Issue	Phase 1: Implement Game Over conditions and win/loss emissions	24	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTldc
+Issue	Phase 1: Implement Full Game Loop Orchestration	23	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTld4
+Issue	Discord App & Environment Initialization	16	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqSdAA
+Issue	Initialize Colyseus Server & Boilerplate	17	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqSdKQ
+Issue	Discord App & Environment Initialization	15	turbo-leg/Durak	PVTI_lAHOCsmXI84BU8hDzgqTlfE
