@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
 import { Card as SharedCard } from '@durak/shared';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const GameBoard: React.FC = () => {
   const { room, gameState, gameMessage, clearGameMessage } = useGame();
@@ -67,7 +68,7 @@ export const GameBoard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full w-full justify-between items-center bg-green-900 rounded-xl border border-green-800 shadow-2xl overflow-hidden p-6 relative">
+    <div className="flex flex-col h-full w-full justify-between items-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 rounded-2xl ring-4 ring-green-900/50 shadow-2xl overflow-hidden p-6 relative">
       
       {/* Top Banner: Status */}
       <div className="absolute top-4 left-4 bg-black/40 text-green-200 px-4 py-2 rounded-lg text-sm font-mono flex items-center space-x-4 z-50">
@@ -132,27 +133,40 @@ export const GameBoard: React.FC = () => {
                 READY
               </div>
             )}
-            <div className="text-sm text-gray-200 font-mono mb-3 bg-black/50 px-2 py-1 rounded w-full truncate">User: {id.slice(0, 5)}...</div>              <div className="flex -space-x-3 mb-2 h-20">
+            <div className="text-sm text-gray-200 font-mono mb-3 bg-black/50 px-2 py-1 rounded w-full truncate">User: {id.slice(0, 5)}...</div>
+            <div className="flex -space-x-4 mb-2 h-24 justify-center">
+              <AnimatePresence>
                 {Array.from({ length: Math.min(player.hand.length, 10) }).map((_, i) => (
-                  <div key={i} className="w-14 h-20 bg-red-800 rounded shadow-md border-2 border-white/20 relative overflow-hidden flex items-center justify-center transform scale-90">
+                  <motion.div 
+                    key={`${id}-card-${i}`} 
+                    initial={{ y: -50, scale: 0.5, opacity: 0 }}
+                    animate={{ y: 0, scale: 0.8, opacity: 1 }}
+                    exit={{ y: 50, scale: 0.5, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 20, delay: i * 0.05 }}
+                    className="w-14 h-20 bg-red-800 rounded shadow-[0_4px_10px_rgba(0,0,0,0.5)] border border-white/20 relative overflow-hidden flex items-center justify-center transform hover:-translate-y-2 transition-transform"
+                  >
                     <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiM4YjAwMDAiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iIzlhMTExMSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+PC9zdmc+')] opacity-50"></div>
-                  </div>
+                  </motion.div>
                 ))}
-                {player.hand.length > 10 && (
-                  <div className="w-14 h-20 bg-red-900 rounded shadow-md border-2 border-white/10 flex items-center justify-center text-white/50 text-xs font-bold transform scale-90 z-10">
-                    +{player.hand.length - 10}
-                  </div>
-                )}
-              </div>
-              <div className="mt-1 font-bold text-yellow-400 text-sm">{player.hand.length} Cards</div>
+              </AnimatePresence>
+              {player.hand.length > 10 && (
+                <motion.div 
+                  initial={{ scale: 0 }} animate={{ scale: 0.8 }} 
+                  className="w-14 h-20 bg-red-900 rounded shadow-md border-2 border-white/10 flex items-center justify-center text-white font-black text-xl z-20"
+                >
+                  +{player.hand.length - 10}
+                </motion.div>
+              )}
             </div>
+            <div className="mt-1 font-bold text-yellow-400 text-sm">{player.hand.length} Cards</div>
+          </div>
         ))}
       </div>
 
       {/* Center: Table & Huzur */}
-      <div className="h-2/5 flex flex-col items-center justify-center relative w-full">
+      <div className="h-2/5 flex flex-col items-center justify-center relative w-full pointer-events-none">
         {gameState.phase === 'waiting' && (
-          <div className="absolute z-10 flex flex-col items-center space-y-4">
+          <div className="absolute z-10 flex flex-col items-center space-y-4 pointer-events-auto">
             <h2 className="text-2xl font-bold text-white mb-2 shadow-sm">
               Waiting for Players ({gameState.players.size}/{gameState.maxPlayers})
             </h2>
@@ -202,8 +216,29 @@ export const GameBoard: React.FC = () => {
            <div className="absolute left-8 top-1/2 transform -translate-y-1/2 flex items-center">
               <div className="relative">
                  <UICard card={gameState.huzurCard} className="rotate-90 relative -left-8 -z-10 brightness-75 border-yellow-500" />
-                 <div className="absolute top-0 left-0 w-24 h-36 bg-red-900 rounded-lg shadow-xl border border-white/20 border-dashed z-0 flex items-center justify-center text-4xl text-gray-800/20">🃏</div>
-                 <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-yellow-900/80 px-3 py-1 rounded text-xs font-bold ring-1 ring-yellow-500">
+                 {/* Styled the deck to look stacked */}
+                 {(() => {
+                    const deckLength = gameState.deck?.length || 0;
+                    const layers = Math.min(3, Math.max(1, Math.ceil(deckLength / 10)));
+                    if (deckLength === 0) return null;
+                    return Array.from({ length: layers }).map((_, i) => (
+                      <motion.div 
+                        key={`deck-${i}`}
+                        initial={{ y: -100, x: -100, opacity: 0, rotate: -45 }}
+                        animate={{ y: -i * 3, x: -i * 2, opacity: 1, rotate: 0 }}
+                        className="absolute top-0 left-0 w-24 h-36 bg-red-900 rounded-lg shadow-[0_5px_15px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center justify-center overflow-hidden" 
+                        style={{ zIndex: i }}
+                      >
+                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiM4YjAwMDAiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iIzlhMTExMSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+PC9zdmc+')] opacity-60"></div>
+                        {i === layers - 1 && <span className="text-white z-10 font-black text-2xl bg-black/60 px-3 py-1 rounded shadow-inner">{deckLength}</span>}
+                      </motion.div>
+                    ));
+                 })()}
+                 {/* Fallback if deck is tiny or empty but we don't want it to break */}
+                 {(gameState.deck?.length || 0) <= 0 && (
+                     <div className="absolute top-0 left-0 w-24 h-36 rounded-lg border-2 border-dashed border-white/20 z-0 flex items-center justify-center opacity-50 bg-black/20"></div>
+                 )}
+                 <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-yellow-900/80 px-3 py-1 rounded text-xs font-bold ring-1 ring-yellow-500 z-10 whitespace-nowrap">
                     Trump: {gameState.huzurSuit}
                  </div>
               </div>
@@ -213,39 +248,58 @@ export const GameBoard: React.FC = () => {
         {/* The Active Attack & Table Area */}
         <div className="flex flex-row flex-wrap space-x-6 justify-center mt-8">
            {/* History Table Cards (paired: attack underneath, defend on top) */}
+           <AnimatePresence>
            {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pairIndex) => {
              const atk = tableCards[pairIndex * 2];
              const def = tableCards[pairIndex * 2 + 1];
              if (!atk) return null; // Avoid rendering undefined
 
              return (
-               <div key={`table-pair-${pairIndex}`} className="relative mx-3 transform scale-90 opacity-80 pointer-events-none">
+               <motion.div 
+                 key={`table-pair-${pairIndex}-${atk.suit}-${atk.rank}`}
+                 initial={{ opacity: 0, scale: 0.8, y: -50, rotate: -15 }}
+                 animate={{ opacity: 1, scale: 0.9, y: 0, rotate: 0 }}
+                 exit={{ opacity: 0, scale: 0.5 }}
+                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                 className="relative mx-3 opacity-80 pointer-events-none"
+               >
                  {/* Bottom card: the attack that was beaten */}
                  <div className="absolute top-0 left-0 transform rotate-[-5deg] grayscale-[0.3]">
                    <UICard card={atk} />
                  </div>
                  {/* Top card: the successful defense, slightly offset */}
                  {def && (
-                   <div className="relative top-4 left-4 shadow-[0_5px_15px_rgba(0,0,0,0.5)] z-10 transform rotate-[3deg]">
+                   <motion.div 
+                     initial={{ x: -30, y: -30, opacity: 0, rotate: 10 }}
+                     animate={{ x: 16, y: 16, opacity: 1, rotate: 3 }}
+                     className="relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] z-10"
+                   >
                      <UICard card={def} />
-                   </div>
+                   </motion.div>
                  )}
-               </div>
+               </motion.div>
              );
            })}
            
            {/* Current Active Attack Cards */}
            {attackCards.map((atk, i) => (
-              <div key={`atk-${i}`} className="relative ml-8 mr-4 shadow-[0_0_15px_rgba(250,204,21,0.4)] rounded-lg transform hover:-translate-y-2 transition-transform">
+              <motion.div 
+                 key={`atk-${i}-${atk.suit}-${atk.rank}`}
+                 initial={{ opacity: 0, scale: 0.5, y: -100 }}
+                 animate={{ opacity: 1, scale: 1, y: 0 }}
+                 transition={{ type: 'spring', damping: 20 }}
+                 className="relative ml-8 mr-4 shadow-[0_0_15px_rgba(250,204,21,0.4)] rounded-lg transition-transform"
+              >
                  <UICard card={atk} />
                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold bg-red-600 px-2 rounded-t z-10 whitespace-nowrap">ATTACK</div>
-              </div>
+              </motion.div>
            ))}
+           </AnimatePresence>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex space-x-4 mb-4">
+      <div className="flex space-x-4 mb-4 relative z-30">
         {isMyTurn && gameState.phase === 'playing' && attackCards.length === 0 && (
           <>
              <button onClick={handleAttack} disabled={selectedCards.length === 0} className="px-6 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold shadow transition">
@@ -275,22 +329,56 @@ export const GameBoard: React.FC = () => {
           </button>
         )}
       </div>      {/* Bottom Area: Local Player Hand */}
-      <div className="h-1/4 w-full flex flex-col items-center justify-end pb-4">
-         <div className="flex justify-center -space-x-4 hover:space-x-2 transition-all duration-300 px-8">
+      <div className="h-1/4 w-full flex flex-col items-center justify-end pb-8 relative overflow-visible z-20 pointer-events-none">
+         <AnimatePresence>
             {myHand.map((card, i) => {
                const isSelected = !!selectedCards.find((c) => c.suit === card.suit && c.rank === card.rank);
+               
+               const total = myHand.length;
+               const mid = (total - 1) / 2;
+               const diff = i - mid;
+               
+               // Fan formulas
+               const maxAngle = 40; // Max span of the fan
+               const fanSpread = Math.min(maxAngle, total * 3); 
+               const anglePerCard = total > 1 ? fanSpread / (total - 1) : 0;
+               const rotate = diff * anglePerCard;
+               
+               const baseSpread = 35; // Pixel space between cards
+               const xSpread = Math.max(10, baseSpread - (total * 0.8)); // Compress for large hands
+               const xOffset = diff * xSpread;
+               
+               // Arc formula
+               const yOffset = Math.abs(diff) * Math.abs(diff) * 1.2;
+
                return (
-                 <div key={i} className={`transform transition-all ${isSelected ? '-translate-y-6 ring-4 ring-yellow-400 rounded-lg z-20' : 'hover:-translate-y-4 z-10'}`}>
+                 <motion.div
+                   key={`${card.suit}-${card.rank}`}
+                   layoutId={`card-${card.suit}-${card.rank}`}
+                   initial={{ opacity: 0, y: 300, scale: 0.5, rotate: 0 }}
+                   animate={{ 
+                     opacity: 1, 
+                     x: xOffset, 
+                     y: yOffset + (isSelected ? -30 : 0), 
+                     rotate: rotate, 
+                     scale: 1,
+                     zIndex: i + (isSelected ? 100 : 0)
+                   }}
+                   exit={{ opacity: 0, y: -200, scale: 0.5 }}
+                   transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                   className="absolute transform-origin-bottom pointer-events-auto"
+                   style={{ transformOrigin: 'bottom center', bottom: '20px' }}
+                 >
                    <UICard 
                      card={card} 
                      isPlayable={true} 
                      onClick={handleCardClick} 
-                     className={isSelected ? 'shadow-[0_20px_25px_-5px_rgba(0,0,0,0.5)]' : ''}
+                     className={isSelected ? 'shadow-[0_20px_25px_-5px_rgba(250,204,21,0.5)] ring-4 ring-yellow-400' : ''}
                    />
-                 </div>
+                 </motion.div>
                );
             })}
-         </div>
+         </AnimatePresence>
       </div>
       
     </div>

@@ -9,7 +9,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { room, isConnected, error, leaveGame } = useGame()
 
   return (
-    <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8">
+    <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative">
       <header className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
         <div className="flex items-center space-x-4">
           <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
@@ -34,7 +34,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
         )}
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-2 pt-0 w-full overflow-x-hidden">
+      <main className="flex-1 flex flex-col items-center justify-center p-2 pt-0 w-full overflow-x-hidden relative z-10">
         {error && !isConnected && (
           <div className="w-full text-center text-red-400 font-bold mb-4 bg-red-900/30 p-2 rounded">Error: {error}</div>
         )}

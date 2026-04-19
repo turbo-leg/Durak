@@ -38,7 +38,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const defaultServerUrl = useMemo(() => {
     if (typeof window === 'undefined') return 'ws://localhost:2567';
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${window.location.host}`;
+    return `${wsProtocol}//${window.location.host}/api-ws`;
   }, []);
 
   const client = useMemo(

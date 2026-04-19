@@ -47,7 +47,7 @@ export const Lobby: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 text-black">
+    <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 text-black relative z-20">
       
       {/* Create Room Panel */}
       <div className="bg-green-100 p-8 rounded-xl shadow-lg border border-green-300">
