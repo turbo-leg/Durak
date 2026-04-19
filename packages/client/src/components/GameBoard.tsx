@@ -57,6 +57,11 @@ export const GameBoard: React.FC = () => {
     room.send("switchTeam", { team: teamId });
   };
 
+  const handleToggleReady = () => {
+    const isReadyNow = !myPlayer?.isReady;
+    room.send("toggleReady", { isReady: isReadyNow });
+  };
+
   const handleSwapHuzur = () => {
     room.send("swapHuzur");
   };
@@ -115,16 +120,19 @@ export const GameBoard: React.FC = () => {
 
       {/* Opponents Area */}
       <div className="h-1/5 w-full flex items-start justify-center space-x-8 pt-8 z-10">
-         {Array.from(gameState.players.entries()).filter(([id]) => id !== room.sessionId).map(([id, player]) => (
-            <div key={id} className="bg-black/40 px-6 py-4 rounded-xl text-center flex flex-col items-center relative border border-white/10 shadow-lg">
-              {gameState.currentTurn === id && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-md animate-pulse">
-                  PLAYING
-                </div>
-              )}
-              <div className="text-sm text-gray-200 font-mono mb-3 bg-black/50 px-2 py-1 rounded w-full truncate">User: {id.slice(0, 5)}...</div>
-              
-              <div className="flex -space-x-3 mb-2 h-20">
+        {Array.from(gameState.players.entries()).filter(([id]) => id !== room.sessionId).map(([id, player]) => (
+          <div key={id} className={`bg-black/40 px-6 py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : 'border-white/10'}`}>
+            {gameState.currentTurn === id && (
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-md animate-pulse">
+                PLAYING
+              </div>
+            )}
+            {gameState.phase === 'waiting' && player.isReady && (
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-green-500 text-green-900 text-xs font-bold px-2 py-1 rounded-full shadow-md">
+                READY
+              </div>
+            )}
+            <div className="text-sm text-gray-200 font-mono mb-3 bg-black/50 px-2 py-1 rounded w-full truncate">User: {id.slice(0, 5)}...</div>              <div className="flex -space-x-3 mb-2 h-20">
                 {Array.from({ length: Math.min(player.hand.length, 10) }).map((_, i) => (
                   <div key={i} className="w-14 h-20 bg-red-800 rounded shadow-md border-2 border-white/20 relative overflow-hidden flex items-center justify-center transform scale-90">
                     <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiM4YjAwMDAiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iIzlhMTExMSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+PC9zdmc+')] opacity-50"></div>
@@ -138,13 +146,17 @@ export const GameBoard: React.FC = () => {
               </div>
               <div className="mt-1 font-bold text-yellow-400 text-sm">{player.hand.length} Cards</div>
             </div>
-         ))}
+        ))}
       </div>
 
       {/* Center: Table & Huzur */}
       <div className="h-2/5 flex flex-col items-center justify-center relative w-full">
-        {gameState.phase === 'waiting' && gameState.players.size >= 2 && (
+        {gameState.phase === 'waiting' && (
           <div className="absolute z-10 flex flex-col items-center space-y-4">
+            <h2 className="text-2xl font-bold text-white mb-2 shadow-sm">
+              Waiting for Players ({gameState.players.size}/{gameState.maxPlayers})
+            </h2>
+            
             {gameState.mode === 'teams' && gameState.teamSelection === 'manual' && myPlayer && (
               <div className="flex space-x-4 bg-black/60 p-4 rounded-xl backdrop-blur-md border border-white/10">
                 <div className="flex flex-col items-center">
@@ -167,11 +179,20 @@ export const GameBoard: React.FC = () => {
                 </div>
               </div>
             )}
+            
+            <p className="text-sm text-gray-300">
+               Game will start automatically when the room is full ({gameState.maxPlayers}) and everyone is ready.
+            </p>
+
             <button 
-              onClick={handleStartGame} 
-              className="px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-yellow-900 font-bold text-xl rounded-full shadow-lg transform transition active:scale-95"
+              onClick={handleToggleReady} 
+              className={`mt-4 px-8 py-4 font-bold text-xl rounded-full shadow-lg transform transition active:scale-95 ${
+                 myPlayer?.isReady 
+                   ? 'bg-green-500 hover:bg-green-400 text-green-900 ring-4 ring-green-300' 
+                   : 'bg-yellow-500 hover:bg-yellow-400 text-yellow-900'
+               }`}
             >
-              Start Game
+              {myPlayer?.isReady ? 'Ready!' : 'Click to Ready'}
             </button>
           </div>
         )}

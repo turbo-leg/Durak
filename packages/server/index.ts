@@ -3,6 +3,8 @@ import express from "express";
 import http from "http";
 import cors from "cors";
 import { monitor } from "@colyseus/monitor";
+import path from "path";
+import fs from "fs";
 
 import { DurakRoom } from "./src/rooms/DurakRoom";
 import "dotenv/config"; // Load environment variables from .env
@@ -62,6 +64,17 @@ gameServer.define('durak', DurakRoom);
 
 // Add colyseus monitor for debugging
 app.use("/colyseus", monitor());
+
+const clientDistPath = path.resolve(__dirname, "../client/dist");
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/colyseus") || req.path.startsWith("/matchmake")) {
+      return next();
+    }
+    return res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 const port = Number(process.env.PORT || 2567);
 gameServer.listen(port).then(() => {

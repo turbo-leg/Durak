@@ -47,7 +47,9 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
       </main>
       
       <footer className="mt-4 text-center text-green-700 text-xs">
-         © {new Date().getFullYear()} Durak Online — Multiplayer Framework Built with Colyseus.js
+        © {new Date().getFullYear()} Durak Online — Multiplayer Framework Built with Colyseus.js ·{' '}
+        <a href="/privacy.html" className="underline hover:text-green-400">Privacy</a> ·{' '}
+        <a href="/terms.html" className="underline hover:text-green-400">Terms</a>
       </footer>
     </div>
   )

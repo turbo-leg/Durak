@@ -63,14 +63,23 @@ export class DurakRoom extends Room<GameState> {
       }
     });
 
-    // Allow players to start the game manually
-    this.onMessage("startGame", () => {
-      // Only start if there are at least 2 players and the game hasn't started yet
-      if (this.state.phase !== "playing" && this.state.players.size >= 2) {
-        this.startGame();
+    // Allow players to ready up manually
+    this.onMessage("toggleReady", (client, message) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) {
+        player.isReady = message.isReady;
+        
+        // Auto start if room is full and everyone is ready
+        if (
+          this.state.phase !== "playing" &&
+          this.state.players.size === this.state.maxPlayers &&
+          Array.from(this.state.players.values()).every((p) => p.isReady)
+        ) {
+          this.startGame();
+        }
       }
     });
-    
+
     // Add pass action for attacker
     this.onMessage("pass", (client) => this.handlePass(client));
   }
@@ -79,12 +88,11 @@ export class DurakRoom extends Room<GameState> {
     console.log(client.sessionId, "joined!");
     
     const player = new Player(client.sessionId);
+    // Auto-ready for bots or special logic can go here. By default false.
     this.state.players.set(client.sessionId, player);
 
-    // If we have `maxPlayers` players, start the game automatically if not started
-    if (this.state.players.size === this.state.maxPlayers && this.state.phase !== "playing") {
-      this.startGame();
-    }
+    // We no longer auto-start just because the room is full.
+    // They must click Ready.
   }
 
   onLeave(client: Client, consented: boolean) {

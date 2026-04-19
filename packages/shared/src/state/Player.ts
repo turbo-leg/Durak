@@ -6,6 +6,7 @@ export class Player extends Schema {
   @type([ Card ]) hand = new ArraySchema<Card>();
   @type("boolean") hasPickedUp: boolean = false;
   @type("number") team: number = 0; // 0 or 1 for 3v3
+  @type("boolean") isReady: boolean = false;
   
   constructor(id: string = "") {
     super();
