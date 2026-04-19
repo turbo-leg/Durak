@@ -1,9 +1,11 @@
 import { useGame } from './contexts/GameContext'
+import { useEffect, useState } from 'react'
 import { GameBoard } from './components/GameBoard'
 import { Lobby } from './components/Lobby'
+import { isEmbedded, setupDiscordSdk, type DiscordAuthInfo } from './discordAuth'
 import './App.css'
 
-function Game() {
+function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { room, isConnected, error, leaveGame } = useGame()
 
   return (
@@ -13,6 +15,11 @@ function Game() {
           <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
             ♦ Durak <span className="text-yellow-400">Online</span> ♦
           </h1>
+          {discordAuth && (
+             <div className="bg-indigo-900/50 text-indigo-200 px-3 py-1 rounded text-xs ml-4 border border-indigo-500/50">
+               Discord Connected as <span className="font-bold">{discordAuth.user.username}</span>
+             </div>
+          )}
         </div>
         {isConnected && room && (
           <div className="flex space-x-4 items-center">
@@ -49,7 +56,32 @@ function Game() {
 }
 
 function App() {
-  return <Game />
+  const [auth, setAuth] = useState<DiscordAuthInfo | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isEmbedded) {
+      setupDiscordSdk()
+        .then((discordAuth) => {
+           setAuth(discordAuth);
+        })
+        .catch((e) => {
+           console.error("Discord SDK setup failed:", e);
+           setAuthError(e.message);
+        });
+    }
+  }, []);
+
+  return (
+    <>
+      {authError && (
+         <div className="bg-red-900/90 text-white p-2 text-center text-xs w-full fixed top-0 z-50">
+           Failed to connect to Discord Activity: {authError}
+         </div>
+      )}
+      <Game discordAuth={auth} />
+    </>
+  );
 }
 
 export default App

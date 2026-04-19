@@ -20,9 +20,13 @@ export default defineConfig({
       clientPort: 443, 
     },
     proxy: {
+      '/colyseus': {
+         target: 'http://localhost:2567',
+         changeOrigin: true
+      },
       '/api': {
-        target: 'http://127.0.0.1:2567',
-        changeOrigin: true
+         target: 'http://localhost:2567',
+         changeOrigin: true
       },
       '/ws': {
         target: 'ws://127.0.0.1:2567',
