@@ -16,16 +16,23 @@ export default defineConfig({
         'Content-Security-Policy': "frame-ancestors *",
         'Access-Control-Allow-Origin': '*'
     },
-    hmr: {
-      clientPort: 443, 
-    },
     proxy: {
+      '/api-ws': {
+         target: 'http://127.0.0.1:2567',
+         changeOrigin: true,
+         ws: true,
+         rewrite: (path) => path.replace(/^\/api-ws/, '')
+      },
+      '/matchmake': {
+         target: 'http://127.0.0.1:2567',
+         changeOrigin: true
+      },
       '/colyseus': {
-         target: 'http://localhost:2567',
+         target: 'http://127.0.0.1:2567',
          changeOrigin: true
       },
       '/api': {
-         target: 'http://localhost:2567',
+         target: 'http://127.0.0.1:2567',
          changeOrigin: true
       },
       '/ws': {

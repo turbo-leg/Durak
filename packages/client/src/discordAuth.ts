@@ -1,13 +1,14 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
-const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
 
-export const discordSdk = new DiscordSDK(clientId);
-
-// Infer if we are running in an iframe within Discord
 export const isEmbedded = window.location.search.includes('frame_id') || document.referrer.includes('discord.com');
 
+// Only instantiate the DiscordSDK if we are actually embedded in Discord
+export const discordSdk = isEmbedded ? new DiscordSDK(clientId) : null;
+
 export async function setupDiscordSdk() {
+  if (!discordSdk) return null;
   await discordSdk.ready();
 
   // Authorize with Discord Client
@@ -51,4 +52,4 @@ export async function setupDiscordSdk() {
   return auth;
 }
 
-export type DiscordAuthInfo = Awaited<ReturnType<typeof setupDiscordSdk>>;
+export type DiscordAuthInfo = NonNullable<Awaited<ReturnType<typeof setupDiscordSdk>>>;
