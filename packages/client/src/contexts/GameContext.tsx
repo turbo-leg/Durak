@@ -38,7 +38,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const defaultServerUrl = useMemo(() => {
     if (typeof window === 'undefined') return 'ws://localhost:2567';
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${window.location.host}/api-ws`;
+    // In development mode, we route through the Vite dev server proxy (/api-ws) to avoid conflict with Vite's HMR socket
+    const path = import.meta.env.DEV ? '/api-ws' : '';
+    return `${wsProtocol}//${window.location.host}${path}`;
   }, []);
 
   const client = useMemo(

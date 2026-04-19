@@ -1,6 +1,6 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
-const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
+const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || '1493531312206647406';
 
 export const isEmbedded = window.location.search.includes('frame_id') || document.referrer.includes('discord.com');
 
