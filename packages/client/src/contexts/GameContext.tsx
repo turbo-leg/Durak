@@ -35,7 +35,16 @@ const GameContext = createContext<GameContextState>({
 export const useGame = () => useContext(GameContext);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const client = useMemo(() => new Client(import.meta.env.VITE_SERVER_URL || 'ws://localhost:2567'), []);
+  const defaultServerUrl = useMemo(() => {
+    if (typeof window === 'undefined') return 'ws://localhost:2567';
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${window.location.host}`;
+  }, []);
+
+  const client = useMemo(
+    () => new Client(import.meta.env.VITE_SERVER_URL || defaultServerUrl),
+    [defaultServerUrl]
+  );
   const [room, setRoom] = useState<Room<GameState> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gameMessage, setGameMessage] = useState<string | null>(null);
