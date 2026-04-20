@@ -5,6 +5,7 @@ export class DurakRoom extends Room<GameState> {
   maxClients = 6;
 
   onCreate(options: any) {
+    console.log("Room created! Options:", options);
     this.setState(new GameState());
 
     // Apply custom options

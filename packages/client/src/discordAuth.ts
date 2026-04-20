@@ -31,6 +31,7 @@ export async function setupDiscordSdk() {
     },
     body: JSON.stringify({
       code,
+      redirect_uri: window.location.origin
     }),
   });
 

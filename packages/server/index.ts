@@ -16,7 +16,7 @@ app.use(express.json());
 // Token exchange endpoint for Discord Embedded App SDK
 app.post("/api/token", async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, redirect_uri } = req.body;
     if (!code) {
        res.status(400).json({ error: "Missing authorization code" });
        return;
@@ -28,17 +28,25 @@ app.post("/api/token", async (req, res) => {
       return;
     }
 
+    const bodyParams: Record<string, string> = {
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code: code,
+    };
+    
+    if (redirect_uri) {
+      bodyParams.redirect_uri = redirect_uri;
+    } else if (process.env.DISCORD_REDIRECT_URI) {
+      bodyParams.redirect_uri = process.env.DISCORD_REDIRECT_URI;
+    }
+
     const response = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: "authorization_code",
-        code: code,
-      }),
+      body: new URLSearchParams(bodyParams),
     });
 
     const data = await response.json();
