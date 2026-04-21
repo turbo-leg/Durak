@@ -10,7 +10,7 @@ export class DurakRoom extends Room<GameState> {
     // Apply custom options
     this.state.maxPlayers = options.maxPlayers ? parseInt(options.maxPlayers, 10) : 6;
     this.maxClients = this.state.maxPlayers;
-    
+
     this.state.isPrivate = !!options.isPrivate;
     this.setPrivate(this.state.isPrivate);
 
@@ -42,9 +42,9 @@ export class DurakRoom extends Room<GameState> {
       const clonedHuzur = new Card(huzur.suit, huzur.rank, huzur.isJoker);
       this.state.huzurCard = clonedHuzur;
       this.state.huzurSuit = huzur.suit;
-      
+
       // Put original back at the bottom of the deck
-      this.state.deck.unshift(huzur); 
+      this.state.deck.unshift(huzur);
     }
 
     // Register Handlers
@@ -52,13 +52,29 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage("defend", (client, message) => this.handleDefend(client, message));
     this.onMessage("pickUp", (client) => this.handlePickUp(client));
     this.onMessage("swapHuzur", (client) => this.handleSwapHuzur(client));
-    
+
     // Team selection handler in lobby
     this.onMessage("switchTeam", (client, message) => {
       if (this.state.phase === "waiting" && this.state.mode === "teams" && this.state.teamSelection === "manual") {
         const player = this.state.players.get(client.sessionId);
         if (player && typeof message.team === "number") {
-          player.team = message.team;
+          const targetTeam = message.team === 1 ? 1 : 0;
+          const team0Count = Array.from(this.state.players.values()).filter((p) => p.team === 0).length;
+          const team1Count = Array.from(this.state.players.values()).filter((p) => p.team === 1).length;
+          const half = this.state.maxPlayers / 2;
+
+          // Don't allow overfilling a team pre-start.
+          if (targetTeam === 0 && team0Count >= half) {
+            client.send("error", `Team Blue is full. Teams must stay balanced (${half} vs ${half}).`);
+            return;
+          }
+          if (targetTeam === 1 && team1Count >= half) {
+            client.send("error", `Team Red is full. Teams must stay balanced (${half} vs ${half}).`);
+            return;
+          }
+
+          player.team = targetTeam;
+          client.send("info", `You joined ${targetTeam === 0 ? "Team Blue" : "Team Red"}.`);
         }
       }
     });
@@ -68,13 +84,27 @@ export class DurakRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       if (player) {
         player.isReady = message.isReady;
-        
+
         // Auto start if room is full and everyone is ready
         if (
           this.state.phase !== "playing" &&
           this.state.players.size === this.state.maxPlayers &&
           Array.from(this.state.players.values()).every((p) => p.isReady)
         ) {
+          // Teams balance enforcement (manual selection)
+          if (this.state.mode === "teams" && this.state.teamSelection === "manual") {
+            const team0Count = Array.from(this.state.players.values()).filter((p) => p.team === 0).length;
+            const team1Count = Array.from(this.state.players.values()).filter((p) => p.team === 1).length;
+            if (team0Count !== team1Count) {
+              // Broadcast so everyone sees why the game didn't start.
+              this.broadcast(
+                "error",
+                `Teams must be balanced to start: Team Blue (${team0Count}) vs Team Red (${team1Count}).`
+              );
+              return;
+            }
+          }
+
           this.startGame();
         }
       }
@@ -86,7 +116,7 @@ export class DurakRoom extends Room<GameState> {
 
   onJoin(client: Client, options: any) {
     console.log(client.sessionId, "joined!");
-    
+
     const player = new Player(client.sessionId);
     // Auto-ready for bots or special logic can go here. By default false.
     this.state.players.set(client.sessionId, player);
@@ -102,20 +132,20 @@ export class DurakRoom extends Room<GameState> {
 
   private startGame() {
     this.state.phase = "playing";
-    
+
     // Assign teams and seat order
     const sessionIds = Array.from(this.state.players.keys());
     let teamA = 0;
     let teamB = 0;
-    
+
     if (this.state.mode === "teams") {
       const sortedIds = sessionIds.sort(); // Optional sorting for consistency
-      
+
       if (this.state.teamSelection === "manual") {
         // Separate players into their chosen teams
-        const team0 = sortedIds.filter(id => this.state.players.get(id)!.team === 0);
-        const team1 = sortedIds.filter(id => this.state.players.get(id)!.team === 1);
-        
+        const team0 = sortedIds.filter((id) => this.state.players.get(id)!.team === 0);
+        const team1 = sortedIds.filter((id) => this.state.players.get(id)!.team === 1);
+
         // Seat them alternatingly
         const maxLength = Math.max(team0.length, team1.length);
         for (let i = 0; i < maxLength; i++) {
@@ -140,9 +170,9 @@ export class DurakRoom extends Room<GameState> {
         this.state.seatOrder.push(id);
       });
     }
-    
+
     // Initial Deal (5 cards each)
-    this.state.players.forEach(player => {
+    this.state.players.forEach((player) => {
       for (let i = 0; i < 5; i++) {
         const card = this.state.deck.pop();
         if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
@@ -152,16 +182,16 @@ export class DurakRoom extends Room<GameState> {
     // Set first attacker: player with the lowest Huzur (Trump) card in hand
     let firstId = Array.from(this.state.players.keys())[0];
     let lowestTrumpRank = Infinity;
-    
+
     this.state.players.forEach((player, id) => {
-      player.hand.forEach(card => {
+      player.hand.forEach((card) => {
         if (card.suit === this.state.huzurSuit && card.rank < lowestTrumpRank) {
           lowestTrumpRank = card.rank;
           firstId = id;
         }
       });
     });
-    
+
     this.state.currentTurn = firstId;
   }
 
@@ -172,22 +202,22 @@ export class DurakRoom extends Room<GameState> {
     const prevIdx = (idx - 1 + ids.length) % ids.length;
     return ids[prevIdx] || currentTurnId;
   }
-  
+
   private nextTurn() {
-     // For passing turn to next defender
-     const ids = Array.from(this.state.seatOrder);
-     const idx = ids.indexOf(this.state.currentTurn);
-     if (idx !== -1) {
-        const nextId = ids[(idx + 1) % ids.length];
-        if (nextId) this.state.currentTurn = nextId;
-     }
+    // For passing turn to next defender
+    const ids = Array.from(this.state.seatOrder);
+    const idx = ids.indexOf(this.state.currentTurn);
+    if (idx !== -1) {
+      const nextId = ids[(idx + 1) % ids.length];
+      if (nextId) this.state.currentTurn = nextId;
+    }
   }
 
   private handleAttack(client: Client, message: { cards: any[] }) {
     if (this.state.currentTurn !== client.sessionId) return;
-    
+
     const player = this.state.players.get(client.sessionId)!;
-    const cardsToPlay = message.cards.map(c => new Card(c.suit, c.rank, c.isJoker));
+    const cardsToPlay = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
 
     // Validation
     const isMass = cardsToPlay.length > 1;
@@ -200,10 +230,10 @@ export class DurakRoom extends Room<GameState> {
     } else if (this.state.table.length > 0 || this.state.activeAttackCards.length > 0) {
       // Adding to an ongoing attack: the rank must match something on the table or active attacks
       const playedRank = cardsToPlay[0].rank;
-      const rankExists = 
-        this.state.table.some(c => c.rank === playedRank) || 
-        this.state.activeAttackCards.some(c => c.rank === playedRank);
-      
+      const rankExists =
+        this.state.table.some((c) => c.rank === playedRank) ||
+        this.state.activeAttackCards.some((c) => c.rank === playedRank);
+
       if (!rankExists && !cardsToPlay[0].isJoker) {
         client.send("error", "You can only attack with a rank that is already on the table.");
         return;
@@ -211,8 +241,8 @@ export class DurakRoom extends Room<GameState> {
     }
 
     // Move cards from hand to active attack
-    cardsToPlay.forEach(c => {
-      const idx = player.hand.findIndex(hc => hc.suit === c.suit && hc.rank === c.rank);
+    cardsToPlay.forEach((c) => {
+      const idx = player.hand.findIndex((hc) => hc.suit === c.suit && hc.rank === c.rank);
       if (idx !== -1) {
         player.hand.splice(idx, 1);
         this.state.activeAttackCards.push(c);
@@ -232,7 +262,7 @@ export class DurakRoom extends Room<GameState> {
     if (this.state.currentTurn !== client.sessionId) return;
 
     const player = this.state.players.get(client.sessionId)!;
-    const defendingCards = message.cards.map(c => new Card(c.suit, c.rank, c.isJoker));
+    const defendingCards = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
 
     const atkCards = Array.from(this.state.activeAttackCards).filter((c): c is Card => c !== undefined);
     const success = DurakEngine.canDefendMass(defendingCards, atkCards, this.state.huzurSuit);
@@ -247,14 +277,14 @@ export class DurakRoom extends Room<GameState> {
     // we push the Attack Card first, then the Defending Card.
     for (let i = 0; i < defendingCards.length; i++) {
       const defCard = defendingCards[i];
-      const idx = player.hand.findIndex(hc => hc.suit === defCard.suit && hc.rank === defCard.rank);
+      const idx = player.hand.findIndex((hc) => hc.suit === defCard.suit && hc.rank === defCard.rank);
       if (idx !== -1) {
         player.hand.splice(idx, 1);
-        
+
         // Colyseus arrays shouldn't share references directly across state structures
         const originalAtk = atkCards[i];
         const clonedAtk = new Card(originalAtk.suit, originalAtk.rank, originalAtk.isJoker);
-        
+
         this.state.table.push(clonedAtk); // Attack card on bottom
         this.state.table.push(defCard);     // Defense card on top
       }
@@ -271,7 +301,7 @@ export class DurakRoom extends Room<GameState> {
       DurakEngine.endRound(this.state, null);
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
-      
+
       // Because this is the defender's turn (they just played their card), passing it to nextTurn
       // would skip them! But since they successfully beat all attacks, they should be the next attacker!
       // But wait! `handleAttack` passes the turn to the defender immediately. So right now, currentTurn is the defender!
@@ -279,7 +309,7 @@ export class DurakRoom extends Room<GameState> {
     } else {
       // Allow the attacker to throw in more cards instead of forcing the defender's defense to be a new attack.
       this.state.currentTurn = this.getPreviousTurn(client.sessionId);
-      
+
       // We don't draw yet (drawing happens at endRound). 
       this.checkGameOver(); 
     }

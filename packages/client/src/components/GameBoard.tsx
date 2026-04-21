@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
 import { Card as SharedCard } from '@durak/shared';
@@ -7,6 +7,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const GameBoard: React.FC = () => {
   const { room, gameState, gameMessage, clearGameMessage } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
+
+  const { teamBlueCount, teamRedCount } = useMemo(() => {
+    // Avoid throwing when we haven't joined a room / state not yet present.
+    if (!gameState) return { teamBlueCount: 0, teamRedCount: 0 };
+
+    const allPlayers = Array.from(gameState.players.values());
+    const teamBlueCount = allPlayers.filter((p) => p.team === 0).length;
+    const teamRedCount = allPlayers.filter((p) => p.team === 1).length;
+    return { teamBlueCount, teamRedCount };
+  }, [gameState]);
 
   if (!room || !gameState) {
     return null;
@@ -17,7 +27,17 @@ export const GameBoard: React.FC = () => {
   const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
   const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
   const attackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
-  
+
+  const myTeamLabel = gameState.mode === 'teams'
+    ? (myPlayer?.team === 0 ? 'BLUE' : 'RED')
+    : '—';
+
+  const myTeamBadge = gameState.mode === 'teams'
+    ? (myPlayer?.team === 0
+        ? 'bg-blue-600/70 text-blue-100 ring-1 ring-blue-300'
+        : 'bg-red-600/70 text-red-100 ring-1 ring-red-300')
+    : 'bg-gray-700/60 text-gray-200 ring-1 ring-white/10';
+
   const handleCardClick = (card: SharedCard) => {
     // Basic multi-select logic for mass attack/defend
     const alreadySelected = selectedCards.find(c => c.suit === card.suit && c.rank === card.rank);
@@ -75,7 +95,11 @@ export const GameBoard: React.FC = () => {
         <div>Phase: <span className="font-bold text-white">{gameState.phase}</span></div>
         <div>Turn: <span className={`font-bold ${isMyTurn ? 'text-yellow-400' : 'text-gray-400'}`}>{isMyTurn ? 'Yours' : 'Opponent'}</span></div>
         <div>Deck: <span className="font-bold text-white">{gameState.deck?.length || 0}</span></div>
-        <div>Colyseus Session ID: <span className="text-gray-400">{room.sessionId}</span></div>
+        {gameState.mode === 'teams' && (
+          <div className={`px-2 py-1 rounded ${myTeamBadge}`}>
+            Team: <span className="font-extrabold">{myTeamLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* Game Message Toast */}
@@ -133,6 +157,13 @@ export const GameBoard: React.FC = () => {
                 READY
               </div>
             )}
+            {/* Team badge */}
+            {gameState.mode === 'teams' && (
+              <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-extrabold shadow border ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
+                {player.team === 0 ? 'BLUE' : 'RED'}
+              </div>
+            )}
+
             <div className="text-sm text-gray-200 font-mono mb-3 bg-black/50 px-2 py-1 rounded w-full truncate">User: {id.slice(0, 5)}...</div>
             <div className="flex -space-x-4 mb-2 h-24 justify-center">
               <AnimatePresence>
@@ -170,32 +201,59 @@ export const GameBoard: React.FC = () => {
             <h2 className="text-2xl font-bold text-white mb-2 shadow-sm">
               Waiting for Players ({gameState.players.size}/{gameState.maxPlayers})
             </h2>
-            
+
             {gameState.mode === 'teams' && gameState.teamSelection === 'manual' && myPlayer && (
-              <div className="flex space-x-4 bg-black/60 p-4 rounded-xl backdrop-blur-md border border-white/10">
-                <div className="flex flex-col items-center">
-                  <span className="text-blue-300 font-bold mb-2">Team Blue</span>
-                  <button 
-                    onClick={() => handleTeamSelect(0)}
-                    className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 0 ? 'bg-blue-600 text-white ring-2 ring-white' : 'bg-blue-900/50 hover:bg-blue-800 text-blue-200'}`}
-                  >
-                    Join
-                  </button>
+              <div className="flex flex-col items-center space-y-3 bg-black/60 p-4 rounded-xl backdrop-blur-md border border-white/10">
+                <div className="flex items-center space-x-3 text-xs font-bold">
+                  <span className="inline-flex items-center space-x-2 text-blue-200">
+                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                    <span>BLUE: {teamBlueCount}</span>
+                  </span>
+                  <span className="text-white/40">vs</span>
+                  <span className="inline-flex items-center space-x-2 text-red-200">
+                    <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                    <span>RED: {teamRedCount}</span>
+                  </span>
+                  <span className={`ml-2 px-2 py-1 rounded ${teamBlueCount === teamRedCount ? 'bg-green-600/40 text-green-200' : 'bg-yellow-600/40 text-yellow-100'}`}>
+                    {teamBlueCount === teamRedCount ? 'Balanced' : 'Unbalanced'}
+                  </span>
                 </div>
-                <div className="flex flex-col items-center">
-                  <span className="text-red-300 font-bold mb-2">Team Red</span>
-                  <button 
-                    onClick={() => handleTeamSelect(1)}
-                    className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 1 ? 'bg-red-600 text-white ring-2 ring-white' : 'bg-red-900/50 hover:bg-red-800 text-red-200'}`}
-                  >
-                    Join
-                  </button>
+
+                <div className="flex space-x-4">
+                  <div className="flex flex-col items-center">
+                    <span className="text-blue-300 font-bold mb-2">Team Blue</span>
+                    <button 
+                      onClick={() => handleTeamSelect(0)}
+                      className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 0 ? 'bg-blue-600 text-white ring-2 ring-white' : 'bg-blue-900/50 hover:bg-blue-800 text-blue-200'}`}
+                    >
+                      {myPlayer.team === 0 ? 'Selected' : 'Join'}
+                    </button>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-red-300 font-bold mb-2">Team Red</span>
+                    <button 
+                      onClick={() => handleTeamSelect(1)}
+                      className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 1 ? 'bg-red-600 text-white ring-2 ring-white' : 'bg-red-900/50 hover:bg-red-800 text-red-200'}`}
+                    >
+                      {myPlayer.team === 1 ? 'Selected' : 'Join'}
+                    </button>
+                  </div>
+                </div>
+
+                {teamBlueCount !== teamRedCount && (
+                  <div className="text-xs text-yellow-200/90 bg-yellow-900/40 border border-yellow-600/30 px-3 py-2 rounded text-center max-w-[520px]">
+                    Teams must be balanced to start (2v2 or 3v3). Move players so BLUE and RED have the same number.
+                  </div>
+                )}
+
+                <div className={`text-xs font-extrabold px-3 py-1 rounded-full ${myTeamBadge}`}>
+                  You are on <span className="ml-1">{myTeamLabel}</span>
                 </div>
               </div>
             )}
-            
+
             <p className="text-sm text-gray-300">
-               Game will start automatically when the room is full ({gameState.maxPlayers}) and everyone is ready.
+              Game will start automatically when the room is full ({gameState.maxPlayers}) and everyone is ready.
             </p>
 
             <button 
