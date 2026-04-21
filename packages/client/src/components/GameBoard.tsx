@@ -133,34 +133,57 @@ export const GameBoard: React.FC = () => {
 
         {/* Opponents Flex Container */}
         <div className="flex flex-row overflow-x-auto md:flex-wrap md:justify-center gap-2 md:gap-4 z-10 pb-2 md:pb-0 custom-scrollbar">
-          {Array.from(gameState.players.entries()).filter(([id]) => id !== room.sessionId).map(([id, player]) => (
-            <div key={id} className={`bg-black/40 px-3 py-2 md:px-6 md:py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg min-w-[100px] md:min-w-0 md:sm:w-48 flex-shrink-0 ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : 'border-white/10'}`}>
-              {gameState.currentTurn === id && (
-                <div className="absolute -top-3 bg-yellow-500 text-yellow-900 text-[9px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-md animate-pulse whitespace-nowrap">
-                  PLAYING
-                </div>
-              )}
-              {gameState.phase === 'waiting' && player.isReady && (
-                <div className="absolute -top-3 bg-green-500 text-green-900 text-[9px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-md whitespace-nowrap">
-                  READY
-                </div>
-              )}
-              {/* Team badge */}
-              {gameState.mode === 'teams' && (
-                <div className={`absolute -bottom-3 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[9px] md:text-[10px] font-extrabold shadow border whitespace-nowrap ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
-                  {player.team === 0 ? 'BLUE' : 'RED'}
-                </div>
-              )}
+          {(() => {
+            const seatOrder = Array.from(gameState.seatOrder);
+            let opponents: { id: string, player: any }[] = [];
+            
+            if (seatOrder.length > 0) {
+              // Game started: order opponents circularly starting from the player to their left
+              const myIdx = seatOrder.indexOf(room.sessionId);
+              if (myIdx !== -1) {
+                for (let i = 1; i < seatOrder.length; i++) {
+                  const oppId = seatOrder[(myIdx + i) % seatOrder.length];
+                  const oppPlayer = gameState.players.get(oppId);
+                  if (oppPlayer) opponents.push({ id: oppId, player: oppPlayer });
+                }
+              }
+            } else {
+              // Waiting phase: Just list other players, maybe sorted by team
+              opponents = Array.from(gameState.players.entries())
+                .filter(([id]) => id !== room.sessionId)
+                .map(([id, player]) => ({ id, player }))
+                .sort((a, b) => (a.player.team || 0) - (b.player.team || 0));
+            }
 
-              <div className="text-xs md:text-sm text-gray-200 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded truncate w-full">
-                 {id.slice(0, 5)}...
+            return opponents.map(({ id, player }) => (
+              <div key={id} className={`bg-black/40 px-3 py-2 md:px-6 md:py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg min-w-[100px] md:min-w-0 md:sm:w-48 flex-shrink-0 ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : 'border-white/10'}`}>
+                {gameState.currentTurn === id && (
+                  <div className="absolute -top-3 bg-yellow-500 text-yellow-900 text-[9px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-md animate-pulse whitespace-nowrap">
+                    PLAYING
+                  </div>
+                )}
+                {gameState.phase === 'waiting' && player.isReady && (
+                  <div className="absolute -top-3 bg-green-500 text-green-900 text-[9px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-md whitespace-nowrap">
+                    READY
+                  </div>
+                )}
+                {/* Team badge */}
+                {gameState.mode === 'teams' && (
+                  <div className={`absolute -bottom-3 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[9px] md:text-[10px] font-extrabold shadow border whitespace-nowrap ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
+                    {player.team === 0 ? 'BLUE' : 'RED'}
+                  </div>
+                )}
+
+                <div className="text-xs md:text-sm text-gray-200 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded truncate w-full">
+                   {id.slice(0, 5)}...
+                </div>
+                <div className="mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex items-center space-x-1 md:space-x-2 bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none">
+                  <span className="text-xl md:text-2xl -mt-1 md:-mt-1">🃏</span>
+                  <span>{player.hand.length}</span>
+                </div>
               </div>
-              <div className="mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex items-center space-x-1 md:space-x-2 bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none">
-                <span className="text-xl md:text-2xl -mt-1 md:-mt-1">🃏</span>
-                <span>{player.hand.length}</span>
-              </div>
-            </div>
-          ))}
+            ));
+          })()}
         </div>
       </div>
 
