@@ -20,6 +20,7 @@ export class GameState extends Schema {
   @type("boolean") isPrivate: boolean = false;
   @type("string") mode: string = "classic"; // classic, teams, etc.
   @type("string") teamSelection: string = "random"; // random, manual
+  @type("number") targetHandSize: number = 5;
 
   @type([ "string" ]) seatOrder = new ArraySchema<string>(); // Used for turn progression and team alternating seats
   
