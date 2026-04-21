@@ -7,6 +7,7 @@ export const useAudio = () => {
     // Initialize AudioContext on first user interaction if possible, or just hold the ref.
     const initAudio = () => {
       if (!audioCtxRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       if (audioCtxRef.current.state === 'suspended') {
@@ -26,6 +27,7 @@ export const useAudio = () => {
   const playDealSound = useCallback(() => {
     if (!audioCtxRef.current) {
        // Best effort fallback instantiation
+       // eslint-disable-next-line @typescript-eslint/no-explicit-any
        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     
