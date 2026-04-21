@@ -8,6 +8,16 @@ export const GameBoard: React.FC = () => {
   const { room, gameState, gameMessage, clearGameMessage } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
 
+  const { teamBlueCount, teamRedCount } = useMemo(() => {
+    // Avoid throwing when we haven't joined a room / state not yet present.
+    if (!gameState) return { teamBlueCount: 0, teamRedCount: 0 };
+
+    const allPlayers = Array.from(gameState.players.values());
+    const teamBlueCount = allPlayers.filter((p) => p.team === 0).length;
+    const teamRedCount = allPlayers.filter((p) => p.team === 1).length;
+    return { teamBlueCount, teamRedCount };
+  }, [gameState]);
+
   if (!room || !gameState) {
     return null;
   }
@@ -17,13 +27,6 @@ export const GameBoard: React.FC = () => {
   const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
   const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
   const attackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
-
-  const { teamBlueCount, teamRedCount } = useMemo(() => {
-    const allPlayers = Array.from(gameState.players.values());
-    const teamBlueCount = allPlayers.filter((p) => p.team === 0).length;
-    const teamRedCount = allPlayers.filter((p) => p.team === 1).length;
-    return { teamBlueCount, teamRedCount };
-  }, [gameState.players]);
 
   const myTeamLabel = gameState.mode === 'teams'
     ? (myPlayer?.team === 0 ? 'BLUE' : 'RED')
