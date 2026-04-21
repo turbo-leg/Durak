@@ -225,6 +225,21 @@ describe('DurakEngine - Custom Rules', () => {
       expect(p1.hand[0]?.rank).toBe(Rank.Ace);
     });
 
+    test('swapHuzur - Disallowed if the 7 of Huzur suit was just drawn from the deck', () => {
+      const p1 = new Player("p1");
+      const sevenOfHearts = new Card(Suit.Hearts, Rank.Seven);
+      p1.hand.push(...[sevenOfHearts]);
+
+      // Simulate: the last drawn card was the 7-of-trump.
+      (p1 as any).__lastDrawnCardKey = `${Suit.Hearts}:${Rank.Seven}:0`;
+
+      const faceUpHuzur = new Card(Suit.Hearts, Rank.Ace);
+      const fakeState = { huzurSuit: Suit.Hearts, huzurCard: faceUpHuzur, deck: { length: 10 } } as any;
+
+      const success = DurakEngine.swapHuzur(p1, fakeState);
+      expect(success).toBe(false);
+    });
+
     test('swapHuzur - Fails if deck is empty', () => {
       const p1 = new Player("p1");
       p1.hand.push(...[new Card(Suit.Hearts, Rank.Seven)]);

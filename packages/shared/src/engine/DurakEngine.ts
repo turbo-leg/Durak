@@ -215,14 +215,47 @@ export class DurakEngine {
     return needed > 0 ? Math.min(deckSize, needed) : 0;
   }
 
+  /**
+   * Helper to draw cards for all players at the end of a round.
+   */
+  static replenishAll(state: GameState): void {
+    state.players.forEach(player => {
+      const amount = DurakEngine.computeDrawAmount(player, state.deck.length);
+      for (let i = 0; i < amount; i++) {
+        const card = state.deck.pop();
+        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+      }
+
+      // Track what the player most recently drew (used for swap-7 restriction).
+      // Note: `Player` is a Schema, so we add this property dynamically (not replicated).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyPlayer = player as any;
+      anyPlayer.__lastDrawnCardKey = undefined as string | undefined;
+      if (amount > 0) {
+        const last = player.hand[player.hand.length - 1];
+        if (last) anyPlayer.__lastDrawnCardKey = `${last.suit}:${last.rank}:${last.isJoker ? 1 : 0}`;
+      }
+    });
+  }
+
   static swapHuzur(player: Player, state: GameState): boolean {
     if (state.deck.length === 0) return false;
-    
+
     const handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
     if (handIndex === -1) return false;
 
+    // New restriction: if the 7-of-trump was the most recently drawn card from the deck,
+    // disallow swapping it with the bottom trump.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyPlayer = player as any;
+    const lastKey = anyPlayer.__lastDrawnCardKey as string | undefined;
+    if (lastKey) {
+      const sevenKey = `${state.huzurSuit}:${Rank.Seven}:0`;
+      if (lastKey === sevenKey) return false;
+    }
+
     const playerSeven = player.hand[handIndex]!;
-    
+
     // The visual table card
     const tableHuzur = state.huzurCard;
     // The actual deck bottom card
@@ -274,18 +307,5 @@ export class DurakEngine {
     state.table.splice(0, state.table.length);
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
     state.defenseChainCount = 0;
-  }
-
-  /**
-   * Helper to draw cards for all players at the end of a round.
-   */
-  static replenishAll(state: GameState): void {
-    state.players.forEach(player => {
-      const amount = DurakEngine.computeDrawAmount(player, state.deck.length);
-      for (let i = 0; i < amount; i++) {
-        const card = state.deck.pop();
-        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-      }
-    });
   }
 }
