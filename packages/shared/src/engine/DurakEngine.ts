@@ -4,6 +4,52 @@ import { GameState } from "../state/GameState";
 
 export class DurakEngine {
   /**
+   * Initializes a new Durak game given a GameState, player IDs, and hand size.
+   */
+  static initializeGame(state: GameState, playerIds: string[], handSize: number, mode: string = "classic"): void {
+    state.mode = mode;
+    state.phase = "playing";
+    state.seatOrder.splice(0, state.seatOrder.length);
+    state.players.clear();
+    state.deck.splice(0, state.deck.length);
+
+    for (const [index, id] of playerIds.entries()) {
+      const p = new Player(id);
+      // assign teams if needed
+      if (mode === "teams") {
+        p.team = index % 2; // Simple alternating teams
+      }
+      state.players.set(id, p);
+      state.seatOrder.push(id);
+    }
+
+    let deck = DurakEngine.createDeck();
+    deck = DurakEngine.shuffleDeck(deck);
+
+    // Set Huzur
+    const huzurCard = deck[deck.length - 1]!;
+    state.huzurCard.suit = huzurCard.suit;
+    state.huzurCard.rank = huzurCard.rank;
+    state.huzurCard.isJoker = huzurCard.isJoker;
+    state.huzurSuit = huzurCard.suit;
+
+    state.deck.push(...deck);
+
+    // Deal cards
+    for (let i = 0; i < handSize; i++) {
+      for (const id of state.seatOrder) {
+        if (state.deck.length > 0) {
+          const p = state.players.get(id);
+          p?.hand.push(state.deck.shift()!);
+        }
+      }
+    }
+
+    // Determine first turn ideally (for simplicity in tests just set to player 0)
+    state.currentTurn = state.seatOrder[0]!;
+  }
+
+  /**
    * Generates the custom 42-card deck: 10 ranks per suit + 2 jokers.
    * Excluding 4, 5, 6.
    */
@@ -86,7 +132,7 @@ export class DurakEngine {
    * 3-Card Mass: 1 pair + 1 random card. (Denied if anyone has < 3 cards)
    * 5-Card Mass: 2 pairs + 1 random card. (Only if deck empty AND everyone has >= 5 cards)
    */
-  static isValidMassAttack(cards: Card[], allPlayers: Player[], deckSize: number): boolean {
+  static isValidMassAttack(cards: Card[], allPlayers: Player[], deckSize: number, targetHandSize: number = 5): boolean {
     if (cards.length === 3) {
       for (const p of allPlayers) {
         if (p.hand.length < 3) return false;
@@ -104,7 +150,7 @@ export class DurakEngine {
       });
       return pairs >= 1;
     } else if (cards.length === 5) {
-      if (deckSize > 0) return false;
+      if (targetHandSize < 7 && deckSize > 0) return false;
       
       for (const p of allPlayers) {
         if (p.hand.length < 5) return false;
@@ -197,9 +243,11 @@ export class DurakEngine {
     tableHuzur.rank = tempRank;
     tableHuzur.isJoker = tempIsJoker;
 
-    actualDeckHuzur.suit = tempSuit;
-    actualDeckHuzur.rank = tempRank;
-    actualDeckHuzur.isJoker = tempIsJoker;
+    if (actualDeckHuzur) {
+      actualDeckHuzur.suit = tempSuit;
+      actualDeckHuzur.rank = tempRank;
+      actualDeckHuzur.isJoker = tempIsJoker;
+    }
 
     return true;
   }
