@@ -143,6 +143,7 @@ export const GameBoard: React.FC = () => {
               if (myIdx !== -1) {
                 for (let i = 1; i < seatOrder.length; i++) {
                   const oppId = seatOrder[(myIdx + i) % seatOrder.length];
+                  if (!oppId) continue;
                   const oppPlayer = gameState.players.get(oppId);
                   if (oppPlayer) opponents.push({ id: oppId, player: oppPlayer });
                 }
