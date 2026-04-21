@@ -57,6 +57,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
     roomInstance.onStateChange(() => setTick(t => t + 1));
+
     roomInstance.onMessage('error', (message: string) => {
       setGameMessage(`Error: ${message}`);
       setTimeout(() => setGameMessage(null), 4000);
@@ -107,7 +108,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const findPublicGames = async () => {
     return await client.getAvailableRooms('durak');
   };
-  
+
   const leaveGame = () => {
     if (room) {
       room.leave();
