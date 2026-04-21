@@ -47,8 +47,8 @@ export const Card: React.FC<CardProps> = ({ card, onClick, className = '', isPla
   return (
     <div
       className={`
-        relative w-24 h-36 bg-white rounded-lg shadow-md border border-gray-200 
-        flex flex-col justify-between p-2 select-none 
+        relative w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-36 bg-white rounded-lg shadow-md border border-gray-200 
+        flex flex-col justify-between p-1 md:p-2 select-none 
         transition-transform duration-200
         ${isPlayable ? 'cursor-pointer hover:-translate-y-4 hover:shadow-xl hover:ring-2 hover:ring-yellow-400' : 'opacity-90'}
         ${className}
@@ -56,9 +56,9 @@ export const Card: React.FC<CardProps> = ({ card, onClick, className = '', isPla
       onClick={() => isPlayable && onClick?.(card)}
     >
       {/* Top Left */}
-      <div className={`text-lg font-bold leading-none ${colorClass}`}>
+      <div className={`text-base md:text-lg font-bold leading-none ${colorClass}`}>
         <div>{name}</div>
-        <div className="text-xl -mt-1">{symbol}</div>
+        <div className="text-lg md:text-xl -mt-1 md:-mt-1">{symbol}</div>
       </div>
       
       {/* Center Large Symbol */}
