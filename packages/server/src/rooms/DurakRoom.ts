@@ -21,8 +21,12 @@ export class DurakRoom extends Room<GameState> {
     if (options.teamSelection) {
       this.state.teamSelection = String(options.teamSelection);
     }
+    
+    if (options.handSize) {
+      this.state.targetHandSize = parseInt(options.handSize, 10);
+    }
 
-    this.setMetadata({ mode: this.state.mode });
+    this.setMetadata({ mode: this.state.mode, discordInstanceId: options.discordInstanceId || null });
 
     // Initialize the deck
     const deck = DurakEngine.createDeck();
@@ -171,9 +175,9 @@ export class DurakRoom extends Room<GameState> {
       });
     }
 
-    // Initial Deal (5 cards each)
+    // Initial Deal (Dynamic targetHandSize cards each)
     this.state.players.forEach((player) => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < this.state.targetHandSize; i++) {
         const card = this.state.deck.pop();
         if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
       }
@@ -223,7 +227,7 @@ export class DurakRoom extends Room<GameState> {
     const isMass = cardsToPlay.length > 1;
     if (isMass) {
       const allPlayersArray = Array.from(this.state.players.values());
-      if (!DurakEngine.isValidMassAttack(cardsToPlay, allPlayersArray, this.state.deck.length)) {
+      if (!DurakEngine.isValidMassAttack(cardsToPlay, allPlayersArray, this.state.deck.length, this.state.targetHandSize)) {
         client.send("error", "Invalid Mass Attack composition or opponent hand size too small.");
         return;
       }
