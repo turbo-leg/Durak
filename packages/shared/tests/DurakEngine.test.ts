@@ -187,6 +187,37 @@ describe('DurakEngine - Custom Rules', () => {
       expect(DurakEngine.isValidMassAttack(atkCards, [p1], 0)).toBe(false); 
     });
 
+    test('5-Card Mass: Allowed in 7-card lobby even when deck is not empty', () => {
+      const atkCards = [
+        new Card(Suit.Hearts, Rank.Jack),
+        new Card(Suit.Spades, Rank.Jack),
+        new Card(Suit.Diamonds, Rank.Nine),
+        new Card(Suit.Clubs, Rank.Nine),
+        new Card(Suit.Hearts, Rank.Queen)
+      ];
+      const p1 = new Player("p1"); p1.hand.push(...new Array(7).fill(new Card()));
+      const p2 = new Player("p2"); p2.hand.push(...new Array(7).fill(new Card()));
+      // 7-card lobby allows 5-card mass even with deck
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 28, 7)).toBe(true);
+      // But 5-card lobby (default) blocks it when deck > 0
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 28)).toBe(false);
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 28, 5)).toBe(false);
+    });
+
+    test('5-Card Mass: Valid in 5-card lobby when deck is empty', () => {
+      const atkCards = [
+        new Card(Suit.Hearts, Rank.Jack),
+        new Card(Suit.Spades, Rank.Jack),
+        new Card(Suit.Diamonds, Rank.Nine),
+        new Card(Suit.Clubs, Rank.Nine),
+        new Card(Suit.Hearts, Rank.Queen)
+      ];
+      const p1 = new Player("p1"); p1.hand.push(...new Array(7).fill(new Card()));
+      const p2 = new Player("p2"); p2.hand.push(...new Array(7).fill(new Card()));
+      // 5-card lobby, deck empty — allowed
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 0, 5)).toBe(true);
+    });
+
     test('canDefendMass - matches defenders to attackers 1-to-1 using backtracking', () => {
       const attackers = [
         new Card(Suit.Hearts, Rank.Seven),

@@ -150,6 +150,8 @@ export class DurakEngine {
       });
       return pairs >= 1;
     } else if (cards.length === 5) {
+      // In 5-card lobbies, 5-card mass only allowed when deck is empty.
+      // In 7-card lobbies, 5-card mass is always allowed.
       if (targetHandSize < 7 && deckSize > 0) return false;
       
       for (const p of allPlayers) {
@@ -201,17 +203,17 @@ export class DurakEngine {
    * Evaluates how many cards a player should draw.
    * "If someone picks up... wait until they have less than 5 cards to draw."
    */
-  static computeDrawAmount(player: Player, deckSize: number): number {
+  static computeDrawAmount(player: Player, deckSize: number, targetHandSize: number = 5): number {
     if (deckSize <= 0) return 0;
 
     if (player.hasPickedUp) {
-      if (player.hand.length >= 5) return 0;
-      // Below 5, draw to 5
-      return Math.min(deckSize, 5 - player.hand.length);
+      if (player.hand.length >= targetHandSize) return 0;
+      // Below target, draw to target
+      return Math.min(deckSize, targetHandSize - player.hand.length);
     }
 
-    // Standard draw to 5
-    const needed = 5 - player.hand.length;
+    // Standard draw to target
+    const needed = targetHandSize - player.hand.length;
     return needed > 0 ? Math.min(deckSize, needed) : 0;
   }
 
@@ -315,5 +317,18 @@ export class DurakEngine {
     state.table.splice(0, state.table.length);
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
     state.defenseChainCount = 0;
+  }
+
+  /**
+   * Helper to draw cards for all players at the end of a round.
+   */
+  static replenishAll(state: GameState): void {
+    state.players.forEach(player => {
+      const amount = DurakEngine.computeDrawAmount(player, state.deck.length, state.targetHandSize);
+      for (let i = 0; i < amount; i++) {
+        const card = state.deck.pop();
+        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+      }
+    });
   }
 }
