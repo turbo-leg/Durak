@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
-import { Card as SharedCard } from '@durak/shared';
+import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAudio } from '../utils/audio';
 
@@ -131,7 +131,7 @@ export const GameBoard: React.FC = () => {
         <div className="flex flex-row overflow-x-auto md:flex-wrap md:justify-center gap-2 md:gap-4 z-10 pb-2 md:pb-0 custom-scrollbar">
           {(() => {
             const seatOrder = Array.from(gameState.seatOrder);
-            let opponents: { id: string, player: any }[] = [];
+            let opponents: { id: string, player: Player }[] = [];
             
             if (seatOrder.length > 0) {
               // Game started: order opponents circularly starting from the player to their left
