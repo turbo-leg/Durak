@@ -21,7 +21,7 @@ export class DurakRoom extends Room<GameState> {
     if (options.teamSelection) {
       this.state.teamSelection = String(options.teamSelection);
     }
-    
+
     if (options.handSize) {
       this.state.targetHandSize = parseInt(options.handSize, 10);
     }
@@ -113,9 +113,6 @@ export class DurakRoom extends Room<GameState> {
         }
       }
     });
-
-    // Add pass action for attacker
-    this.onMessage("pass", (client) => this.handlePass(client));
   }
 
   onJoin(client: Client, options: any) {
@@ -276,66 +273,43 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    // Success! Move defenders from hand to table history paired with attack cards.
-    // To ensure they are displayed with the attacked card underneath, 
-    // we push the Attack Card first, then the Defending Card.
-    for (let i = 0; i < defendingCards.length; i++) {
-      const defCard = defendingCards[i];
+    // Success! The cards they just defended against become table history.
+    atkCards.forEach(c => {
+      this.state.table.push(new Card(c.suit, c.rank, c.isJoker));
+    });
+
+    // The player's new defending cards become the NEW activeAttackCards
+    this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
+
+    defendingCards.forEach(defCard => {
       const idx = player.hand.findIndex((hc) => hc.suit === defCard.suit && hc.rank === defCard.rank);
       if (idx !== -1) {
         player.hand.splice(idx, 1);
-
-        // Colyseus arrays shouldn't share references directly across state structures
-        const originalAtk = atkCards[i];
-        const clonedAtk = new Card(originalAtk.suit, originalAtk.rank, originalAtk.isJoker);
-
-        this.state.table.push(clonedAtk); // Attack card on bottom
-        this.state.table.push(defCard);     // Defense card on top
+        this.state.activeAttackCards.push(new Card(defCard.suit, defCard.rank, defCard.isJoker));
       }
-    }
-
-    // Since we pushed active attacks as clones, clear the originals fully by splicing
-    this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
+    });
 
     // Increment chain
     this.state.defenseChainCount++;
 
     if (this.state.defenseChainCount >= this.state.players.size - 1) {
-      // Everyone defended! Round is dead.
+      // Everyone in the circle successfully defended!
       DurakEngine.endRound(this.state, null);
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
 
-      // Because this is the defender's turn (they just played their card), passing it to nextTurn
-      // would skip them! But since they successfully beat all attacks, they should be the next attacker!
-      // But wait! `handleAttack` passes the turn to the defender immediately. So right now, currentTurn is the defender!
-      // We don't want to skip them, so we just keep the turn on them so they can attack!
+      // The next trick is led by the player who made the LAST defense in this chain.
+      // Since currentTurn is already the client who just defended, we simply leave it alone!
     } else {
-      // Allow the attacker to throw in more cards instead of forcing the defender's defense to be a new attack.
-      this.state.currentTurn = this.getPreviousTurn(client.sessionId);
-
-      // We don't draw yet (drawing happens at endRound). 
-      this.checkGameOver(); 
+      // The circle continues! The next player must now beat the cards just played.
+      this.nextTurn();
     }
   }
-  
-  private handlePass(client: Client) {
-    // Only the current attacker can optionally pass to the next attacker
-    if (this.state.currentTurn !== client.sessionId) return;
-    
-    // If there is an active defense on the table but current attacker passes adding more cards,
-    // we would end the attack phase.
-    DurakEngine.endRound(this.state, null);
-    DurakEngine.replenishAll(this.state);
-    this.checkGameOver();
-    
-    // Next player starts fresh
-    this.nextTurn();
-  }
+
 
   private handlePickUp(client: Client) {
     if (this.state.currentTurn !== client.sessionId) return;
-    
+
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
     DurakEngine.replenishAll(this.state);
@@ -346,11 +320,11 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private handleSwapHuzur(client: Client) {
-     const player = this.state.players.get(client.sessionId)!;
-     const success = DurakEngine.swapHuzur(player, this.state);
-     if (!success) {
-       client.send("error", "Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.");
-     }
+    const player = this.state.players.get(client.sessionId)!;
+    const success = DurakEngine.swapHuzur(player, this.state);
+    if (!success) {
+      client.send("error", "Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.");
+    }
   }
 
   private checkGameOver() {
@@ -362,7 +336,7 @@ export class DurakRoom extends Room<GameState> {
     this.state.players.forEach((player, id) => {
       // check if player already in winners list
       const alreadyWon = this.state.winners.includes(id);
-      
+
       if (this.state.deck.length === 0 && player.hand.length === 0 && !alreadyWon) {
         this.state.winners.push(id);
         hasNewWinner = true;

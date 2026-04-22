@@ -222,7 +222,7 @@ export class DurakEngine {
    */
   static replenishAll(state: GameState): void {
     state.players.forEach(player => {
-      const amount = DurakEngine.computeDrawAmount(player, state.deck.length);
+      const amount = DurakEngine.computeDrawAmount(player, state.deck.length, state.targetHandSize);
       for (let i = 0; i < amount; i++) {
         const card = state.deck.pop();
         if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
@@ -311,16 +311,5 @@ export class DurakEngine {
     state.defenseChainCount = 0;
   }
 
-  /**
-   * Helper to draw cards for all players at the end of a round.
-   */
-  static replenishAll(state: GameState): void {
-    state.players.forEach(player => {
-      const amount = DurakEngine.computeDrawAmount(player, state.deck.length, state.targetHandSize);
-      for (let i = 0; i < amount; i++) {
-        const card = state.deck.pop();
-        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-      }
-    });
-  }
+
 }
