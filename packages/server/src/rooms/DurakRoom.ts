@@ -113,9 +113,6 @@ export class DurakRoom extends Room<GameState> {
         }
       }
     });
-
-    // Add pass action for attacker
-    this.onMessage("pass", (client) => this.handlePass(client));
   }
 
   onJoin(client: Client, options: any) {
@@ -300,38 +297,16 @@ export class DurakRoom extends Room<GameState> {
     // Increment chain
     this.state.defenseChainCount++;
 
-    if (this.state.defenseChainCount >= this.state.players.size - 1) {
-      // Everyone defended! Round is dead.
-      DurakEngine.endRound(this.state, null);
-      DurakEngine.replenishAll(this.state);
-      this.checkGameOver();
-
-      // Because this is the defender's turn (they just played their card), passing it to nextTurn
-      // would skip them! But since they successfully beat all attacks, they should be the next attacker!
-      // But wait! `handleAttack` passes the turn to the defender immediately. So right now, currentTurn is the defender!
-      // We don't want to skip them, so we just keep the turn on them so they can attack!
-    } else {
-      // Allow the attacker to throw in more cards instead of forcing the defender's defense to be a new attack.
-      this.state.currentTurn = this.getPreviousTurn(client.sessionId);
-
-      // We don't draw yet (drawing happens at endRound). 
-      this.checkGameOver(); 
-    }
-  }
-  
-  private handlePass(client: Client) {
-    // Only the current attacker can optionally pass to the next attacker
-    if (this.state.currentTurn !== client.sessionId) return;
-    
-    // If there is an active defense on the table but current attacker passes adding more cards,
-    // we would end the attack phase.
+    // Since 'pass' logic is removed, a successful defense immediately ends the round
+    // and clears the table.
     DurakEngine.endRound(this.state, null);
     DurakEngine.replenishAll(this.state);
     this.checkGameOver();
-    
-    // Next player starts fresh
-    this.nextTurn();
-  }
+
+    // Because this is the defender's turn (they just played their card), keeping the turn on them
+    // means they become the next attacker! We do not pass it back to the previous attacker.
+  
+
 
   private handlePickUp(client: Client) {
     if (this.state.currentTurn !== client.sessionId) return;
