@@ -273,38 +273,43 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    // Success! Move defenders from hand to table history paired with attack cards.
-    // To ensure they are displayed with the attacked card underneath, 
-    // we push the Attack Card first, then the Defending Card.
-    for (let i = 0; i < defendingCards.length; i++) {
-      const defCard = defendingCards[i];
+    // Success! The cards they just defended against become table history.
+    atkCards.forEach(c => {
+      this.state.table.push(new Card(c.suit, c.rank, c.isJoker));
+    });
+
+    // The player's new defending cards become the NEW activeAttackCards
+    this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
+
+    defendingCards.forEach(defCard => {
       const idx = player.hand.findIndex((hc) => hc.suit === defCard.suit && hc.rank === defCard.rank);
       if (idx !== -1) {
         player.hand.splice(idx, 1);
-
-        // Colyseus arrays shouldn't share references directly across state structures
-        const originalAtk = atkCards[i];
-        const clonedAtk = new Card(originalAtk.suit, originalAtk.rank, originalAtk.isJoker);
-
-        this.state.table.push(clonedAtk); // Attack card on bottom
-        this.state.table.push(defCard);     // Defense card on top
+        this.state.activeAttackCards.push(new Card(defCard.suit, defCard.rank, defCard.isJoker));
       }
-    }
-
-    // Since we pushed active attacks as clones, clear the originals fully by splicing
-    this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
+    });
 
     // Increment chain
     this.state.defenseChainCount++;
 
-    // Since 'pass' logic is removed, a successful defense immediately ends the round
-    // and clears the table.
-    DurakEngine.endRound(this.state, null);
-    DurakEngine.replenishAll(this.state);
-    this.checkGameOver();
+    if (this.state.defenseChainCount >= this.state.players.size - 1) {
+      // Everyone in the circle successfully defended!
+      DurakEngine.endRound(this.state, null);
+      DurakEngine.replenishAll(this.state);
+      this.checkGameOver();
 
-    // Because this is the defender's turn (they just played their card), keeping the turn on them
-    // means they become the next attacker! We do not pass it back to the previous attacker.
+      // The next trick is led by the player who made the FIRST defense in this chain.
+      // E.g., if P1 attacked, P2 was first defender.
+      const ids = Array.from(this.state.seatOrder);
+      const currentIdx = ids.indexOf(client.sessionId);
+      const firstDefenderIdx = (currentIdx - (this.state.defenseChainCount - 1) + ids.length * 10) % ids.length;
+      if (ids[firstDefenderIdx]) {
+        this.state.currentTurn = ids[firstDefenderIdx];
+      }
+    } else {
+      // The circle continues! The next player must now beat the cards just played.
+      this.nextTurn();
+    }
   
 
 
