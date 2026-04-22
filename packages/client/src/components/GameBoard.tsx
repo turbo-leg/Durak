@@ -82,10 +82,6 @@ export const GameBoard: React.FC = () => {
     room.send("pickUp");
   };
 
-  const handlePass = () => {
-    room.send("pass");
-  };
-
   const handleTeamSelect = (teamId: number) => {
     room.send("switchTeam", { team: teamId });
   };
@@ -368,11 +364,6 @@ export const GameBoard: React.FC = () => {
                 <button onClick={handleAttack} disabled={selectedCards.length === 0} className="px-6 py-2 md:px-8 md:py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
                    Attack ({selectedCards.length})
                 </button>
-                {tableCards.length > 0 && (
-                   <button onClick={handlePass} className="px-6 py-2 md:px-8 md:py-3 bg-blue-600 hover:bg-blue-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
-                      Pass
-                   </button>
-                )}
              </>
            )}
            {isMyTurn && gameState.phase === 'playing' && attackCards.length > 0 && (
