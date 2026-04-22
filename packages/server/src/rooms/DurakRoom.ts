@@ -21,7 +21,7 @@ export class DurakRoom extends Room<GameState> {
     if (options.teamSelection) {
       this.state.teamSelection = String(options.teamSelection);
     }
-    
+
     if (options.handSize) {
       this.state.targetHandSize = parseInt(options.handSize, 10);
     }
@@ -298,24 +298,18 @@ export class DurakRoom extends Room<GameState> {
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
 
-      // The next trick is led by the player who made the FIRST defense in this chain.
-      // E.g., if P1 attacked, P2 was first defender.
-      const ids = Array.from(this.state.seatOrder);
-      const currentIdx = ids.indexOf(client.sessionId);
-      const firstDefenderIdx = (currentIdx - (this.state.defenseChainCount - 1) + ids.length * 10) % ids.length;
-      if (ids[firstDefenderIdx]) {
-        this.state.currentTurn = ids[firstDefenderIdx];
-      }
+      // The next trick is led by the player who made the LAST defense in this chain.
+      // Since currentTurn is already the client who just defended, we simply leave it alone!
     } else {
       // The circle continues! The next player must now beat the cards just played.
       this.nextTurn();
     }
-  
+  }
 
 
   private handlePickUp(client: Client) {
     if (this.state.currentTurn !== client.sessionId) return;
-    
+
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
     DurakEngine.replenishAll(this.state);
@@ -326,11 +320,11 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private handleSwapHuzur(client: Client) {
-     const player = this.state.players.get(client.sessionId)!;
-     const success = DurakEngine.swapHuzur(player, this.state);
-     if (!success) {
-       client.send("error", "Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.");
-     }
+    const player = this.state.players.get(client.sessionId)!;
+    const success = DurakEngine.swapHuzur(player, this.state);
+    if (!success) {
+      client.send("error", "Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.");
+    }
   }
 
   private checkGameOver() {
@@ -342,7 +336,7 @@ export class DurakRoom extends Room<GameState> {
     this.state.players.forEach((player, id) => {
       // check if player already in winners list
       const alreadyWon = this.state.winners.includes(id);
-      
+
       if (this.state.deck.length === 0 && player.hand.length === 0 && !alreadyWon) {
         this.state.winners.push(id);
         hasNewWinner = true;
