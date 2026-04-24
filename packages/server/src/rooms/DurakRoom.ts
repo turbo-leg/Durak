@@ -248,6 +248,7 @@ export class DurakRoom extends Room<GameState> {
       if (nextId) {
         this.state.currentTurn = nextId;
         this.state.turnStartTime = Date.now();
+        this.startTurnTimer();
       }
     }
   }
@@ -347,6 +348,8 @@ export class DurakRoom extends Room<GameState> {
 
       // The next trick is led by the player who made the LAST defense in this chain.
       // Since currentTurn is already the client who just defended, we simply leave it alone!
+      this.state.turnStartTime = Date.now();
+      this.startTurnTimer();
     } else {
       // The circle continues! The next player must now beat the cards just played.
       this.nextTurn();
