@@ -1,5 +1,6 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 // Configuration
 const PROJECT_NUM = 3;
@@ -22,7 +23,8 @@ try {
   const projectItems = JSON.parse(itemsJson).items;
 
   // 2. Read local issues list
-  const localIssues = JSON.parse(fs.readFileSync('issues_list.json', 'utf-8'));
+  const issuesFilePath = path.join(__dirname, '..', 'data', 'issues_list.json');
+  const localIssues = JSON.parse(fs.readFileSync(issuesFilePath, 'utf-8'));
 
   let updatedCount = 0;
 

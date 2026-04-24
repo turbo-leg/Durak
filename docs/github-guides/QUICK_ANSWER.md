@@ -79,7 +79,7 @@ Your app will be running at:
 
 ## **Full Details**
 
-See: `github-guides/SETUP_AND_RUN.md` for complete setup guide with:
+See: `docs/github-guides/SETUP_AND_RUN.md` for complete setup guide with:
 - Step-by-step instructions
 - Troubleshooting tips
 - Environment variables explained

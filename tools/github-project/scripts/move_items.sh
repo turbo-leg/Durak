@@ -1,9 +1,11 @@
 #!/usr/bin/env zsh
-gh project item-list 3 --owner turbo-leg --limit 200 > items.txt
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DATA_DIR="$SCRIPT_DIR/../data"
+gh project item-list 3 --owner turbo-leg --limit 200 > "$DATA_DIR/items.txt"
 move_to() {
     local pattern="$1"
     local status_id="$2"
-    grep -i "$pattern" items.txt | while read -r line; do
+    grep -i "$pattern" "$DATA_DIR/items.txt" | while read -r line; do
         item_id=$(echo "$line" | awk '{print $NF}')
         if [[ -n "$item_id" ]]; then
             echo "Moving item $item_id for $pattern"

@@ -380,7 +380,7 @@ Once you're ready to submit as a Discord Activity:
 4. ✅ Run `npm run dev`
 5. ✅ Open http://localhost:5173
 6. ✅ Test game creation and gameplay
-7. ✅ Read github-guides/TUTORIAL.md for first pull request
+7. ✅ Read docs/github-guides/TUTORIAL.md for first pull request
 8. ✅ Deploy when ready!
 
 ---
@@ -408,7 +408,7 @@ If something doesn't work:
 2. Look at "Common Issues" section above
 3. Check browser console (F12 → Console)
 4. Check terminal output for error logs
-5. Read `github-guides/HOW_IT_WORKS.md` for deeper understanding
+5. Read `docs/github-guides/HOW_IT_WORKS.md` for deeper understanding
 
 ---
 

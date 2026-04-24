@@ -2,6 +2,38 @@
 
 This is a multiplayer Durak game built for Discord using Colyseus and React.
 
+## Repository Structure
+
+```text
+.
+├── packages/
+│   ├── client/          # React + Vite frontend
+│   ├── server/          # Colyseus + Express backend
+│   └── shared/          # Shared game engine/state/types/tests
+├── docs/
+│   ├── architecture.md
+│   ├── deployment/
+│   ├── reference/
+│   ├── notes/
+│   └── github-guides/
+└── tools/
+    └── github-project/
+        ├── scripts/
+        └── data/
+```
+
+### Documentation
+
+- `docs/architecture.md`
+- `docs/deployment/free-tier-fly-io.md`
+- `docs/reference/terminology.md`
+- `docs/github-guides/README.md`
+
+### GitHub Project Automation
+
+- Scripts: `tools/github-project/scripts/`
+- Data files: `tools/github-project/data/`
+
 ## Local Development
 
 ### Docker (Recommended)

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const issuesFilePath = path.join(__dirname, '..', 'issues_list.json');
+const issuesFilePath = path.join(__dirname, '..', 'data', 'issues_list.json');
 
 // Define the new statuses based on our project progress
 const kanbanMap = {
