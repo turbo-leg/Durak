@@ -16,9 +16,22 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number, playSound: 
 };
 
 export const GameBoard: React.FC = () => {
-  const { room, gameState, gameMessage, clearGameMessage } = useGame();
+  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const { playDealSound } = useAudio();
+
+  // Issue #80: keep defended card(s) visible for 5 seconds after a successful defend.
+  // Re-render locally every ~250ms so the UI can stop showing them exactly after 5s.
+  const [, forceTick] = React.useState(0);
+  React.useEffect(() => {
+    const id = window.setInterval(() => forceTick((x) => x + 1), 250);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const revealDefenseUntil = (gameState?.lastDefenseAt || 0) + 5000;
+  const shouldRevealDefense = (gameState?.lastDefenseAt || 0) > 0 && Date.now() < revealDefenseUntil;
+
+  const defenseVisible = !!defenseSnapshot && (Date.now() - defenseSnapshot.at) < 10000;
 
   const { teamBlueCount, teamRedCount } = useMemo(() => {
     // Avoid throwing when we haven't joined a room / state not yet present.
@@ -38,7 +51,16 @@ export const GameBoard: React.FC = () => {
   const myPlayer = gameState.players.get(room.sessionId);
   const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
   const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
-  const attackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
+
+  // Server uses activeAttackCards to represent the current cards that must be beaten.
+  // After a successful defend, the server also stores the defender's card(s) there.
+  // To preserve gameplay clarity, we ALWAYS render activeAttackCards as "Incoming".
+  const activeAttackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
+  const attackCards = activeAttackCards; // backward-compatible name used by controls
+
+  // Issue #80: during the 5s window after defend, ALSO show the defending cards explicitly.
+  // (This does not hide the incoming cards; it adds visibility.)
+  const defendedCardsToReveal = shouldRevealDefense ? activeAttackCards : [];
 
   const myTeamLabel = gameState.mode === 'teams'
     ? (myPlayer?.team === 0 ? 'BLUE' : 'RED')
@@ -341,8 +363,50 @@ export const GameBoard: React.FC = () => {
                      );
                  })}
 
+                 {/* Issue #80: Recently defended cards (explicit visibility block) */}
+                 {defendedCardsToReveal.length > 0 && (
+                   <div className="w-full flex justify-center">
+                     <div className="flex flex-row flex-wrap justify-center gap-3 bg-green-900/30 p-3 rounded-2xl border border-green-500/30 shadow-[0_0_25px_rgba(34,197,94,0.25)]">
+                       <div className="w-full text-center text-[10px] text-green-200 font-bold uppercase tracking-widest">
+                         Defense (visible 5s)
+                       </div>
+                       {defendedCardsToReveal.map((c, i) => (
+                         <div key={`def-reveal-${i}-${c.suit}-${c.rank}`} className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">
+                           <UICard card={c} />
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
+
+                 {/* Issue #80: show EXACT attack+defense cards for 10 seconds after a defend */}
+                 {defenseSnapshot && defenseVisible && (
+                   <div className="w-full flex justify-center">
+                     <div className="flex flex-row flex-wrap justify-center gap-6">
+                       {defenseSnapshot.attacking.map((atk, idx) => {
+                         const def = defenseSnapshot.defending[idx];
+                         if (!def) return null;
+
+                         return (
+                           <div key={`snap-pair-${idx}-${atk.suit}-${atk.rank}`} className="relative w-[120px] h-[178px]">
+                             {/* Bottom: attack card (solid, same size as defense) */}
+                             <div className="absolute left-0 top-0 scale-75 md:scale-90 origin-top-left opacity-100">
+                               <UICard card={atk as unknown as SharedCard} className="opacity-100" />
+                             </div>
+
+                             {/* Top: defend card stacked (solid, same scale) */}
+                             <div className="absolute left-7 top-7 scale-75 md:scale-90 origin-top-left shadow-[0_0_18px_rgba(34,197,94,0.4)] rounded-lg ring-2 ring-green-400/40 opacity-100">
+                               <UICard card={def as unknown as SharedCard} className="opacity-100" />
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 )}
+
                  {/* Active Attack Cards (Incoming) */}
-                 {attackCards.map((atk, i) => (
+                 {activeAttackCards.map((atk, i) => (
                     <div key={`atk-${i}-${atk.suit}-${atk.rank}`} className="flex flex-col bg-red-900/20 p-3 rounded-2xl border border-red-500/30 shadow-[0_0_20px_rgba(220,38,38,0.2)] items-center min-w-max">
                        <div className="text-[10px] text-red-400 font-bold mb-2 uppercase tracking-widest bg-black/50 px-2 py-0.5 rounded animate-pulse">Incoming</div>
                        <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">

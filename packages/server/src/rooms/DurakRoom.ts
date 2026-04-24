@@ -273,6 +273,19 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
+    // Issue #80: mark when a defense was just played.
+    // Client will keep those defense cards visible for a solid 5 seconds.
+    this.state.lastDefenseAt = Date.now();
+
+    // Issue #80: send an explicit snapshot of what was defended (attack -> defense), so the UI
+    // can show the exact cards used for this defense for 5 seconds.
+    this.broadcast("defensePlayed", {
+      at: this.state.lastDefenseAt,
+      defenderId: client.sessionId,
+      attacking: atkCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
+      defending: defendingCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
+    });
+
     // Success! The cards they just defended against become table history.
     atkCards.forEach(c => {
       this.state.table.push(new Card(c.suit, c.rank, c.isJoker));
