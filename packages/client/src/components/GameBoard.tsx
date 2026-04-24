@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
 import { Card as SharedCard, Player } from '@durak/shared';
@@ -18,7 +18,26 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number, playSound: 
 export const GameBoard: React.FC = () => {
   const { room, gameState, gameMessage, clearGameMessage } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const { playDealSound } = useAudio();
+
+  // Update timer every 100ms
+  useEffect(() => {
+    if (!gameState || gameState.phase !== 'playing') {
+      setTimeRemaining(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const elapsed = Date.now() - gameState.turnStartTime;
+      const remaining = Math.max(0, gameState.turnTimeLimit - elapsed);
+      setTimeRemaining(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 100);
+    return () => clearInterval(interval);
+  }, [gameState?.turnStartTime, gameState?.turnTimeLimit, gameState?.phase]);
 
   const { teamBlueCount, teamRedCount } = useMemo(() => {
     // Avoid throwing when we haven't joined a room / state not yet present.
@@ -49,6 +68,16 @@ export const GameBoard: React.FC = () => {
         ? 'bg-blue-600/70 text-blue-100 ring-1 ring-blue-300'
         : 'bg-red-600/70 text-red-100 ring-1 ring-red-300')
     : 'bg-gray-700/60 text-gray-200 ring-1 ring-white/10';
+
+  // Determine timer color and shake intensity based on remaining time
+  const getTimerColor = () => {
+    const percent = timeRemaining / gameState.turnTimeLimit;
+    if (percent > 0.5) return 'text-green-400';
+    if (percent > 0.25) return 'text-yellow-400';
+    return 'text-red-500';
+  };
+
+  const shouldShake = timeRemaining < 3000; // Shake when less than 3 seconds remain
 
   const handleCardClick = (card: SharedCard) => {
     // Basic multi-select logic for mass attack/defend
@@ -155,24 +184,24 @@ export const GameBoard: React.FC = () => {
             return opponents.map(({ id, player }) => (
               <div key={id} className={`bg-black/40 px-3 py-2 md:px-6 md:py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg min-w-[100px] md:min-w-0 md:sm:w-48 flex-shrink-0 ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : 'border-white/10'}`}>
                 {gameState.currentTurn === id && (
-                  <div className="absolute -top-3 bg-yellow-500 text-yellow-900 text-[9px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-md animate-pulse whitespace-nowrap">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-yellow-900 text-[8px] md:text-[9px] font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-md animate-pulse whitespace-nowrap">
                     PLAYING
                   </div>
                 )}
                 {gameState.phase === 'waiting' && player.isReady && (
-                  <div className="absolute -top-3 bg-green-500 text-green-900 text-[9px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full shadow-md whitespace-nowrap">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-green-900 text-[8px] md:text-[9px] font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-md whitespace-nowrap">
                     READY
                   </div>
                 )}
                 {/* Team badge */}
                 {gameState.mode === 'teams' && (
-                  <div className={`absolute -bottom-3 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[9px] md:text-[10px] font-extrabold shadow border whitespace-nowrap ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
+                  <div className={`absolute -bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 md:px-3 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-extrabold shadow border whitespace-nowrap ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
                     {player.team === 0 ? 'BLUE' : 'RED'}
                   </div>
                 )}
 
-                <div className="text-xs md:text-sm text-gray-200 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded truncate w-full">
-                   {id.slice(0, 5)}...
+                <div className="text-[10px] md:text-xs text-gray-300 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded w-full overflow-hidden" title={id}>
+                   <span className="block">{id.slice(0, 8)}</span>
                 </div>
                 <div className="mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex items-center space-x-1 md:space-x-2 bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none">
                   <span className="text-xl md:text-2xl -mt-1 md:-mt-1">🃏</span>
@@ -307,7 +336,28 @@ export const GameBoard: React.FC = () => {
               </div>
               
               {/* Center Column: Table Cards */}
-              <div className="flex-1 flex flex-row flex-wrap content-center justify-center gap-6 p-4 md:p-8 overflow-y-auto">
+              <div className="flex-1 flex flex-col flex-wrap content-center justify-center gap-6 p-4 md:p-8 overflow-y-auto relative">
+                 {/* Timer Display - Sand Clock outside table */}
+                 {isMyTurn && (
+                    <motion.div 
+                       initial={{ scale: 0.8, opacity: 0 }} 
+                       animate={{ scale: 1, opacity: 1 }}
+                       transition={{ type: 'spring', stiffness: 200 }}
+                       className="absolute -top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50"
+                    >
+                       <motion.div
+                          animate={shouldShake ? { x: [0, -4, 4, -4, 0], rotate: [0, -2, 2, -2, 0] } : { x: 0, rotate: 0 }}
+                          transition={shouldShake ? { duration: 0.3, repeat: Infinity } : { duration: 0 }}
+                          className={`text-6xl md:text-7xl drop-shadow-2xl`}
+                       >
+                          ⏳
+                       </motion.div>
+                       <div className={`text-2xl md:text-3xl font-black tabular-nums ${getTimerColor()} drop-shadow-lg`}>
+                          {(timeRemaining / 1000).toFixed(1)}s
+                       </div>
+                    </motion.div>
+                 )}
+
                  {/* Table Pairs */}
                  {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pairIndex) => {
                      const atk = tableCards[pairIndex * 2];
@@ -317,14 +367,14 @@ export const GameBoard: React.FC = () => {
                      return (
                         <div key={`table-pair-${pairIndex}-${atk.suit}-${atk.rank}`} className="flex space-x-2 bg-black/40 p-3 rounded-2xl border border-white/10 shadow-xl items-center min-w-max">
                            <div className="flex flex-col items-center">
-                             <div className="text-[10px] text-gray-400 font-bold mb-2 uppercase tracking-widest bg-black/50 px-2 py-0.5 rounded">Attack</div>
+                             <div className="text-[9px] md:text-[10px] text-gray-300 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">Attack</div>
                              {/* Keep card size scalable depending on screen using transforms or set widths */}
                              <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">
                                <UICard card={atk} />
                              </div>
                            </div>
                            <div className="flex flex-col items-center">
-                              <div className="text-[10px] text-green-400 font-bold mb-2 uppercase tracking-widest bg-black/50 px-2 py-0.5 rounded">Defend</div>
+                              <div className="text-[9px] md:text-[10px] text-green-400 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">Defend</div>
                               {def ? (
                                 <div className="scale-75 md:scale-90 origin-top shadow-[0_0_15px_rgba(34,197,94,0.3)] rounded-lg h-[140px] md:h-[160px]">
                                   <UICard card={def} />
@@ -344,7 +394,7 @@ export const GameBoard: React.FC = () => {
                  {/* Active Attack Cards (Incoming) */}
                  {attackCards.map((atk, i) => (
                     <div key={`atk-${i}-${atk.suit}-${atk.rank}`} className="flex flex-col bg-red-900/20 p-3 rounded-2xl border border-red-500/30 shadow-[0_0_20px_rgba(220,38,38,0.2)] items-center min-w-max">
-                       <div className="text-[10px] text-red-400 font-bold mb-2 uppercase tracking-widest bg-black/50 px-2 py-0.5 rounded animate-pulse">Incoming</div>
+                       <div className="text-[9px] md:text-[10px] text-red-400 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded animate-pulse whitespace-nowrap">Incoming</div>
                        <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">
                           <UICard card={atk} />
                        </div>
