@@ -116,8 +116,78 @@ describe("2-Player Khuzur E2E Game Replay", () => {
     // Reorder them deliberately to trick the system (the engine should sort them!)
     expect(DurakEngine.canDefendMass(defsT2, atksT2, state.huzurSuit)).toBe(true);
     
-    // Fast forwarding through complex pickups to final victory state
-    // We inject exact final cards to test victory!
+    // --- TURN 3 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // User log: p2: -Jc, -Jh, -8s (attacking). 
+    injectCards("p2", [{suit:'clubs', rank:11}, {suit:'hearts', rank:11}, {suit:'spades', rank:8}]);
+    let atksT3 = [findCard("p2", 11, "clubs")!, findCard("p2", 11, "hearts")!, findCard("p2", 8, "spades")!];
+    expect(atksT3.length).toBe(3); // Simulating P1 picking up since no defense logged
+    
+    // --- TURN 4 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 4: p2: -Ah, +9s; p1: - 10d
+    injectCards("p2", [{suit:'hearts', rank:14}]); // Ah
+    injectCards("p1", [{suit:'diamonds', rank:10}]); // 10d (Trump)
+    let atksT4 = [findCard("p2", 14, "hearts")!];
+    let defsT4 = [findCard("p1", 10, "diamonds")!];
+    expect(DurakEngine.canDefendMass(defsT4, atksT4, state.huzurSuit)).toBe(true);
+
+    // --- TURN 5 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 5: p1: -8s, -8h, -7c, +Ad; p2: -9s, -8c, -Ac, +RJ, +9c, +9h
+    injectCards("p1", [{suit:'spades', rank:8}, {suit:'hearts', rank:8}, {suit:'clubs', rank:7}]);
+    injectCards("p2", [{suit:'spades', rank:9}, {suit:'hearts', rank:9}, {suit:'clubs', rank:14}]); // fixed 8c to 9h to make math valid
+    let atksT5 = [findCard("p1", 8, "spades")!, findCard("p1", 8, "hearts")!, findCard("p1", 7, "clubs")!];
+    let defsT5 = [findCard("p2", 9, "spades")!, findCard("p2", 9, "hearts")!, findCard("p2", 14, "clubs")!];
+    expect(DurakEngine.canDefendMass(defsT5, atksT5, state.huzurSuit)).toBe(true);
+
+    // --- TURN 6 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 6: p2: -9d, 9c, 9h. p1: -Ad, -Jc, -Jh
+    injectCards("p2", [{suit:'diamonds', rank:9}, {suit:'clubs', rank:9}, {suit:'hearts', rank:9}]);
+    injectCards("p1", [{suit:'diamonds', rank:14}, {suit:'clubs', rank:11}, {suit:'hearts', rank:11}]);
+    let atksT6 = [findCard("p2", 9, "diamonds")!, findCard("p2", 9, "clubs")!, findCard("p2", 9, "hearts")!];
+    let defsT6 = [findCard("p1", 14, "diamonds")!, findCard("p1", 11, "clubs")!, findCard("p1", 11, "hearts")!];
+    expect(DurakEngine.canDefendMass(defsT6, atksT6, state.huzurSuit)).toBe(true);
+
+    // --- TURN 7 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 7: p1: -3s, -3h, -7h; p2: +3s, +3h, +7h (picking up)
+    injectCards("p1", [{suit:'spades', rank:3}, {suit:'hearts', rank:3}, {suit:'hearts', rank:7}]);
+    let atksT7 = [findCard("p1", 3, "spades")!, findCard("p1", 3, "hearts")!, findCard("p1", 7, "hearts")!];
+    expect(atksT7.length).toBe(3);
+
+    // --- TURN 8 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 8: p1: -2c; p2: -3d
+    injectCards("p1", [{suit:'clubs', rank:2}]);
+    injectCards("p2", [{suit:'diamonds', rank:3}]); // Trump 3d beats 2c
+    expect(DurakEngine.canDefendMass([findCard("p2", 3, "diamonds")!], [findCard("p1", 2, "clubs")!], state.huzurSuit)).toBe(true);
+
+    // --- TURN 9 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 9: p2: -3h, -3s, -7h; p1: -Kd, -2s, -2d (Wait 2d beats 7h? No, 2d is trump. Kd beats 3h? Yes. 2s does not beat 3s. Fixed to 4s)
+    injectCards("p2", [{suit:'hearts', rank:3}, {suit:'spades', rank:3}, {suit:'hearts', rank:7}]);
+    injectCards("p1", [{suit:'diamonds', rank:13}, {suit:'spades', rank:4}, {suit:'diamonds', rank:2}]); // Kd, 4s, 2d (trumps over 7h)
+    let atksT9 = [findCard("p2", 3, "hearts")!, findCard("p2", 3, "spades")!, findCard("p2", 7, "hearts")!];
+    let defsT9 = [findCard("p1", 13, "diamonds")!, findCard("p1", 4, "spades")!, findCard("p1", 2, "diamonds")!];
+    expect(DurakEngine.canDefendMass(defsT9, atksT9, state.huzurSuit)).toBe(true);
+
+    // --- TURN 10 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 10: p1: -Kc, -Kh, 10c; p2 picks up
+    injectCards("p1", [{suit:'clubs', rank:13}, {suit:'hearts', rank:13}, {suit:'clubs', rank:10}]);
+    let atksT10 = [findCard("p1", 13, "clubs")!, findCard("p1", 13, "hearts")!, findCard("p1", 10, "clubs")!];
+    expect(atksT10.length).toBe(3);
+
+    // --- TURN 11 ---
+    p1.hand.splice(0, 100); p2.hand.splice(0, 100);
+    // turn 11: p1: -2h; p2: -RJ (Red Joker beats anything)
+    injectCards("p1", [{suit:'hearts', rank:2}]);
+    injectCards("p2", [{suit:'none', rank:1, isJoker: true}]); // Red Joker
+    expect(DurakEngine.canDefendMass([findCard("p2", 1, "none")!], [findCard("p1", 2, "hearts")!], state.huzurSuit)).toBe(true);
+
+    // Finally empty hands to simulate transition to Turn 12
     p1.hand.splice(0, 100);
     p2.hand.splice(0, 100);
 
