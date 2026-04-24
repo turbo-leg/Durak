@@ -3,6 +3,7 @@ import { GameState, DurakEngine, Card, Player } from "@durak/shared";
 
 export class DurakRoom extends Room<GameState> {
   maxClients = 6;
+  private turnTimeoutId: NodeJS.Timeout | null = null;
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -194,6 +195,40 @@ export class DurakRoom extends Room<GameState> {
     });
 
     this.state.currentTurn = firstId;
+    this.state.turnStartTime = Date.now();
+
+    // Start turn timeout enforcement
+    this.startTurnTimer();
+  }
+
+  private startTurnTimer() {
+    // Clear any existing timer
+    if (this.turnTimeoutId) clearInterval(this.turnTimeoutId);
+
+    // Check every 500ms if the current turn has exceeded the time limit
+    this.turnTimeoutId = setInterval(() => {
+      if (this.state.phase !== "playing") {
+        if (this.turnTimeoutId) clearInterval(this.turnTimeoutId);
+        return;
+      }
+
+      const elapsed = Date.now() - this.state.turnStartTime;
+      if (elapsed > this.state.turnTimeLimit) {
+        // Turn has expired - if they're defending, they must pick up
+        const currentPlayerId = this.state.currentTurn;
+        this.broadcast("turnExpired", { playerId: currentPlayerId });
+        
+        // Auto-pickup: the defender (currentTurn) must pick up
+        const player = this.state.players.get(currentPlayerId);
+        if (player && this.state.activeAttackCards.length > 0) {
+          // Force pickup on the defender
+          DurakEngine.endRound(this.state, currentPlayerId);
+          DurakEngine.replenishAll(this.state);
+          this.checkGameOver();
+          this.nextTurn();
+        }
+      }
+    }, 500);
   }
 
   private getPreviousTurn(currentTurnId: string): string {
@@ -210,7 +245,10 @@ export class DurakRoom extends Room<GameState> {
     const idx = ids.indexOf(this.state.currentTurn);
     if (idx !== -1) {
       const nextId = ids[(idx + 1) % ids.length];
-      if (nextId) this.state.currentTurn = nextId;
+      if (nextId) {
+        this.state.currentTurn = nextId;
+        this.state.turnStartTime = Date.now();
+      }
     }
   }
 
@@ -352,6 +390,11 @@ export class DurakRoom extends Room<GameState> {
 
       if (remainingPlayers.length <= 1) {
         this.state.phase = "finished";
+        // Clean up the turn timer
+        if (this.turnTimeoutId) {
+          clearInterval(this.turnTimeoutId);
+          this.turnTimeoutId = null;
+        }
         if (remainingPlayers.length === 1) {
           this.state.loser = remainingPlayers[0];
           this.broadcast("gameOver", { loser: this.state.loser });
