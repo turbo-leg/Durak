@@ -24,7 +24,6 @@ export const GameBoard: React.FC = () => {
   // Update timer every 100ms
   useEffect(() => {
     if (!gameState || gameState.phase !== 'playing') {
-      setTimeRemaining(0);
       return;
     }
 
@@ -37,7 +36,7 @@ export const GameBoard: React.FC = () => {
     updateTimer();
     const interval = setInterval(updateTimer, 100);
     return () => clearInterval(interval);
-  }, [gameState?.turnStartTime, gameState?.turnTimeLimit, gameState?.phase]);
+  }, [gameState]);
 
   const { teamBlueCount, teamRedCount } = useMemo(() => {
     // Avoid throwing when we haven't joined a room / state not yet present.
