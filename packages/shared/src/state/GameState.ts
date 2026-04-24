@@ -28,4 +28,8 @@ export class GameState extends Schema {
   
   @type([ "string" ]) winners = new ArraySchema<string>(); // List of sessionIds who finished their hand
   @type("string") loser = ""; // sessionId of the Durak
+
+  // Issue #80: drive client-side 5s visibility window for newly played defense cards.
+  // (Client compares Date.now() against this value.)
+  @type("number") lastDefenseAt: number = 0;
 }

@@ -311,6 +311,15 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
+    // Issue #80: broadcast snapshot of what was defended so the UI can show it for 10 seconds.
+    this.broadcast("defensePlayed", {
+      at: Date.now(),
+      defenderId: client.sessionId,
+      attacking: atkCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
+      defending: defendingCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
+    });
+
+
     // Success! The cards they just defended against become table history.
     atkCards.forEach(c => {
       this.state.table.push(new Card(c.suit, c.rank, c.isJoker));

@@ -227,16 +227,6 @@ export class DurakEngine {
         const card = state.deck.pop();
         if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
       }
-
-      // Track what the player most recently drew (used for swap-7 restriction).
-      // Note: `Player` is a Schema, so we add this property dynamically (not replicated).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyPlayer = player as any;
-      anyPlayer.__lastDrawnCardKey = undefined as string | undefined;
-      if (amount > 0) {
-        const last = player.hand[player.hand.length - 1];
-        if (last) anyPlayer.__lastDrawnCardKey = `${last.suit}:${last.rank}:${last.isJoker ? 1 : 0}`;
-      }
     });
   }
 
@@ -246,14 +236,13 @@ export class DurakEngine {
     const handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
     if (handIndex === -1) return false;
 
-    // New restriction: if the 7-of-trump was the most recently drawn card from the deck,
-    // disallow swapping it with the bottom trump.
+    // New restriction (#76): if the 7-of-trump was obtained by picking up cards from another player,
+    // disallow swapping it with the bottom trump card.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyPlayer = player as any;
-    const lastKey = anyPlayer.__lastDrawnCardKey as string | undefined;
-    if (lastKey) {
-      const sevenKey = `${state.huzurSuit}:${Rank.Seven}:0`;
-      if (lastKey === sevenKey) return false;
+    const pickedUpKeys = (anyPlayer.__lastPickedUpCardKeys as Set<string> | undefined);
+    if (pickedUpKeys && pickedUpKeys.has(`${state.huzurSuit}:${Rank.Seven}:0`)) {
+      return false;
     }
 
     const playerSeven = player.hand[handIndex]!;
@@ -295,14 +284,33 @@ export class DurakEngine {
       // Player picked up the whole table
       const player = state.players.get(pickerUpperId);
       if (player) {
-        state.table.forEach(card => player.hand.push(new Card(card.suit, card.rank, card.isJoker)));
-        state.activeAttackCards.forEach(card => player.hand.push(new Card(card.suit, card.rank, card.isJoker)));
+        // Track the exact cards picked up in THIS pickup event.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyPlayer = player as any;
+        const pickedUp = new Set<string>();
+
+        state.table.forEach(card => {
+          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+          pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+        });
+        state.activeAttackCards.forEach(card => {
+          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+          pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+        });
+
+        anyPlayer.__lastPickedUpCardKeys = pickedUp;
         player.hasPickedUp = true;
       }
     } else {
       // Success! Cards are dead.
       state.table.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
       state.activeAttackCards.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+
+      // Clear last pickup tracking since no pickup happened.
+      state.players.forEach(p => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (p as any).__lastPickedUpCardKeys = undefined;
+      });
     }
 
     // Reset cycle

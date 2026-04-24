@@ -16,7 +16,7 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number, playSound: 
 };
 
 export const GameBoard: React.FC = () => {
-  const { room, gameState, gameMessage, clearGameMessage } = useGame();
+  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const { playDealSound } = useAudio();
@@ -38,6 +38,15 @@ export const GameBoard: React.FC = () => {
     return () => clearInterval(interval);
   }, [gameState]);
 
+  // Issue #80: Re-render every 250ms so defense visibility expires precisely at 10s.
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const defenseVisible = !!defenseSnapshot && (now - defenseSnapshot.at) < 10000;
+
   const { teamBlueCount, teamRedCount } = useMemo(() => {
     // Avoid throwing when we haven't joined a room / state not yet present.
     if (!gameState) return { teamBlueCount: 0, teamRedCount: 0 };
@@ -56,7 +65,12 @@ export const GameBoard: React.FC = () => {
   const myPlayer = gameState.players.get(room.sessionId);
   const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
   const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
-  const attackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
+
+  // Server uses activeAttackCards to represent the current cards that must be beaten.
+  // After a successful defend, the server also stores the defender's card(s) there.
+  // To preserve gameplay clarity, we ALWAYS render activeAttackCards as "Incoming".
+  const activeAttackCards = Array.from(gameState.activeAttackCards || []).filter((c): c is SharedCard => c !== undefined);
+  const attackCards = activeAttackCards; // backward-compatible name used by controls
 
   const myTeamLabel = gameState.mode === 'teams'
     ? (myPlayer?.team === 0 ? 'BLUE' : 'RED')
@@ -389,6 +403,32 @@ export const GameBoard: React.FC = () => {
                         </div>
                      );
                  })}
+
+                 {/* Issue #80: show EXACT attack+defense cards for 10 seconds after a defend */}
+                 {defenseSnapshot && defenseVisible && (
+                   <div className="w-full flex justify-center">
+                     <div className="flex flex-row flex-wrap justify-center gap-6">
+                       {defenseSnapshot.attacking.map((atk, idx) => {
+                         const def = defenseSnapshot.defending[idx];
+                         if (!def) return null;
+
+                         return (
+                           <div key={`snap-pair-${idx}-${atk.suit}-${atk.rank}`} className="relative w-[120px] h-[178px]">
+                             {/* Bottom: attack card */}
+                             <div className="absolute left-0 top-0 scale-75 md:scale-90 origin-top-left opacity-100">
+                               <UICard card={atk as unknown as SharedCard} className="opacity-100" />
+                             </div>
+
+                             {/* Top: defend card stacked */}
+                             <div className="absolute left-7 top-7 scale-75 md:scale-90 origin-top-left shadow-[0_0_18px_rgba(34,197,94,0.4)] rounded-lg ring-2 ring-green-400/40 opacity-100">
+                               <UICard card={def as unknown as SharedCard} className="opacity-100" />
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 )}
 
                  {/* Active Attack Cards (Incoming) */}
                  {attackCards.map((atk, i) => (
