@@ -15,6 +15,8 @@ export class GameState extends Schema {
   @type("string") currentTurn: string = ""; // ID of the active player (attacker or defender)
   @type("number") defenseChainCount: number = 0; // 0 to 5 (tracks 6-player cycle)
   @type("string") phase: string = "waiting"; // waiting, playing, finished
+  @type("number") turnStartTime: number = 0; // Timestamp when current turn began (ms since epoch)
+  @type("number") turnTimeLimit: number = 30000; // Time limit per turn in milliseconds (default 30s)
   
   @type("number") maxPlayers: number = 6;
   @type("boolean") isPrivate: boolean = false;

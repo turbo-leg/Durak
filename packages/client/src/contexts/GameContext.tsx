@@ -95,6 +95,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.draw) setGameMessage('Game Over! It is a draw.');
       else setGameMessage(data.loser === roomInstance.sessionId ? '😭 Game Over. You are the Durak (Fool)!' : `🎉 Game Over! ${data.loser} is the Durak.`);
     });
+    roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
+      setGameMessage(data.playerId === roomInstance.sessionId ? '⏰ Your time ran out! Skipping your turn...' : '⏰ Turn time expired!');
+      setTimeout(() => setGameMessage(null), 3000);
+    });
     roomInstance.onError((code, message) => {
       console.error('Room error:', code, message);
       setError(message || 'Unknown room error');
