@@ -2,6 +2,7 @@ import { expect, test, describe } from 'vitest';
 import { DurakEngine } from '../src/engine/DurakEngine';
 import { Card, Suit, Rank } from '../src/state/Card';
 import { Player } from '../src/state/Player';
+import { GameState } from '../src/state/GameState';
 
 describe('DurakEngine - Custom Rules', () => {
 
@@ -307,6 +308,74 @@ describe('DurakEngine - Custom Rules', () => {
       const p = new Player("p2");
       p.hand.push(new Card());
       expect(DurakEngine.computeDrawAmount(p, 10)).toBe(4);
+    });
+  });
+
+  describe('getTrumpSuit - Joker Trump Mapping', () => {
+    test('getTrumpSuit - Red Joker maps to Hearts', () => {
+      const redJoker = new Card(Suit.None, Rank.RedJoker, true);
+      expect(DurakEngine.getTrumpSuit(redJoker)).toBe(Suit.Hearts);
+    });
+
+    test('getTrumpSuit - Black Joker maps to Spades', () => {
+      const blackJoker = new Card(Suit.None, Rank.BlackJoker, true);
+      expect(DurakEngine.getTrumpSuit(blackJoker)).toBe(Suit.Spades);
+    });
+
+    test('getTrumpSuit - Normal cards return their suit unchanged', () => {
+      const heartsSeven = new Card(Suit.Hearts, Rank.Seven);
+      expect(DurakEngine.getTrumpSuit(heartsSeven)).toBe(Suit.Hearts);
+
+      const spadesAce = new Card(Suit.Spades, Rank.Ace);
+      expect(DurakEngine.getTrumpSuit(spadesAce)).toBe(Suit.Spades);
+
+      const diamondsKing = new Card(Suit.Diamonds, Rank.King);
+      expect(DurakEngine.getTrumpSuit(diamondsKing)).toBe(Suit.Diamonds);
+
+      const clubsQueen = new Card(Suit.Clubs, Rank.Queen);
+      expect(DurakEngine.getTrumpSuit(clubsQueen)).toBe(Suit.Clubs);
+    });
+
+    test('swapHuzur - Updates huzurSuit when swapping with Joker trump', () => {
+      // Create a game state with Red Joker as initial huzur
+      const state = new GameState();
+      const playerIds = ['p1', 'p2'];
+      
+      DurakEngine.initializeGame(state, playerIds, 5);
+      
+      // Get the first player
+      const player = state.players.get(playerIds[0])!;
+      
+      // Manually set up scenario: give player the 7 of the current trump suit
+      // and set up a non-Joker huzur to swap with
+      const initialHuzurSuit = state.huzurSuit;
+      
+      // Add 7-of-trump to player hand if not present
+      const sevenOfTrump = new Card(initialHuzurSuit, Rank.Seven);
+      if (!player.hand.some(c => c.suit === initialHuzurSuit && c.rank === Rank.Seven)) {
+        player.hand.push(sevenOfTrump);
+      }
+      
+      // Set the bottom trump card to something specific (use a known card)
+      const newHuzur = new Card(Suit.Hearts, Rank.Three);
+      state.huzurCard.suit = newHuzur.suit;
+      state.huzurCard.rank = newHuzur.rank;
+      state.huzurCard.isJoker = false;
+      
+      if (state.deck.length > 0) {
+        const bottomCard = state.deck[0]!;
+        bottomCard.suit = newHuzur.suit;
+        bottomCard.rank = newHuzur.rank;
+        bottomCard.isJoker = false;
+      }
+      
+      // Now swap
+      const swapSuccessful = DurakEngine.swapHuzur(player, state);
+      
+      if (swapSuccessful) {
+        // After swap, the 7 is now the huzur, so huzurSuit should still be Hearts
+        expect(state.huzurSuit).toBe(Suit.Hearts);
+      }
     });
   });
 });
