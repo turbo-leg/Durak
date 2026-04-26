@@ -233,16 +233,27 @@ export class DurakEngine {
   static swapHuzur(player: Player, state: GameState): boolean {
     if (state.deck.length === 0) return false;
 
-    const handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
+    const isJokerTrump = state.huzurCard.isJoker;
+
+    let handIndex = -1;
+    if (isJokerTrump) {
+      handIndex = player.hand.findIndex(c => c.suit === 'Spades' && c.rank === Rank.Ace);
+    } else {
+      handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
+    }
+
     if (handIndex === -1) return false;
 
-    // New restriction (#76): if the 7-of-trump was obtained by picking up cards from another player,
+    // New restriction (#76): if the swap card was obtained by picking up cards from another player,
     // disallow swapping it with the bottom trump card.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyPlayer = player as any;
     const pickedUpKeys = (anyPlayer.__lastPickedUpCardKeys as Set<string> | undefined);
-    if (pickedUpKeys && pickedUpKeys.has(`${state.huzurSuit}:${Rank.Seven}:0`)) {
-      return false;
+    
+    if (isJokerTrump) {
+      if (pickedUpKeys && pickedUpKeys.has(`Spades:${Rank.Ace}:0`)) return false;
+    } else {
+      if (pickedUpKeys && pickedUpKeys.has(`${state.huzurSuit}:${Rank.Seven}:0`)) return false;
     }
 
     const playerSeven = player.hand[handIndex]!;

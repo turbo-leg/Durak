@@ -18,6 +18,7 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number, playSound: 
 export const GameBoard: React.FC = () => {
   const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
+  const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const { playDealSound } = useAudio();
 
@@ -30,11 +31,15 @@ export const GameBoard: React.FC = () => {
     const updateTimer = () => {
       const elapsed = Date.now() - gameState.turnStartTime;
       const remaining = Math.max(0, gameState.turnTimeLimit - elapsed);
+      
+      // Debug logging to pinpoint the 0.0s issue
+      console.log(`[Timer Debug] Date.now(): ${Date.now()}, turnStartTime: ${gameState.turnStartTime}, turnTimeLimit: ${gameState.turnTimeLimit}, elapsed: ${elapsed}, remaining: ${remaining}`);
+      
       setTimeRemaining(remaining);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 100);
+    const interval = setInterval(updateTimer, 1000); // Log every second to avoid spam
     return () => clearInterval(interval);
   }, [gameState]);
 
@@ -137,6 +142,33 @@ export const GameBoard: React.FC = () => {
     room.send("swapHuzur");
   };
 
+  const isDevMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('dev') === 'true';
+
+  const devSpawnDummies = () => room.send("dev_action", { action: "spawn_dummies" });
+  const devForcePass = () => room.send("dev_action", { action: "force_pass" });
+  const devCopyLog = () => {
+    const logStr = Array.from(gameState.actionLog || []).join('\n');
+    navigator.clipboard.writeText(logStr).then(() => alert("Game Log Copied to Clipboard!"));
+  };
+  const handleDevCardClick = (oppId: string, card: SharedCard) => {
+    if (!isDevMode) return;
+    setDevSelectedCards((prev) => {
+      const selected = prev[oppId] || [];
+      const alreadySelected = selected.find(c => c.suit === card.suit && c.rank === card.rank);
+      if (alreadySelected) {
+        return { ...prev, [oppId]: selected.filter(c => c !== alreadySelected) };
+      }
+      return { ...prev, [oppId]: [...selected, card] };
+    });
+  };
+
+  const handleDevAction = (oppId: string, type: "attack" | "defend" | "pickUp" | "swapHuzur") => {
+    room.send("dev_action", { action: "play_as", asPlayerId: oppId, type, cards: devSelectedCards[oppId] || [] });
+    if (type === "attack" || type === "defend") {
+      setDevSelectedCards((prev) => ({ ...prev, [oppId]: [] }));
+    }
+  };
+
   return (
     <div className="flex flex-col md:grid md:grid-rows-[auto_1fr_auto] h-[100dvh] md:h-[95vh] w-full max-w-7xl mx-auto bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 md:rounded-2xl md:ring-4 md:ring-green-900/50 md:shadow-2xl overflow-y-auto md:overflow-hidden p-3 md:p-6 gap-3 md:gap-6 relative text-white">
 
@@ -194,21 +226,23 @@ export const GameBoard: React.FC = () => {
                 .sort((a, b) => (a.player.team || 0) - (b.player.team || 0));
             }
 
-            return opponents.map(({ id, player }) => (
-              <div key={id} className={`bg-black/40 px-3 py-2 md:px-6 md:py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg min-w-[100px] md:min-w-0 md:sm:w-48 flex-shrink-0 ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : 'border-white/10'}`}>
-                {gameState.currentTurn === id && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-yellow-900 text-[8px] md:text-[9px] font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-md animate-pulse whitespace-nowrap">
-                    PLAYING
+            return opponents.map(({ id, player }) => {
+              const isPlaying = gameState.currentTurn === id;
+              return (
+              <div key={id} className={`bg-black/40 px-3 py-2 md:px-6 md:py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg flex-shrink-0 transition-all duration-300 ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : (isPlaying ? 'border-yellow-400 ring-4 ring-yellow-400/50 scale-105 shadow-[0_0_30px_rgba(250,204,21,0.6)] z-30 bg-yellow-900/20' : 'border-white/10 opacity-80')} ${isDevMode ? 'w-auto min-w-[180px] md:min-w-[220px]' : 'min-w-[100px] md:sm:w-48'}`}>
+                {isPlaying && (
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-[10px] md:text-xs font-extrabold px-3 py-1 md:px-4 md:py-1.5 rounded-full shadow-lg animate-bounce whitespace-nowrap z-20 uppercase tracking-widest border border-yellow-200">
+                    Active Turn
                   </div>
                 )}
                 {gameState.phase === 'waiting' && player.isReady && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-green-900 text-[8px] md:text-[9px] font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-md whitespace-nowrap">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-green-900 text-[8px] md:text-[9px] font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-md whitespace-nowrap z-20">
                     READY
                   </div>
                 )}
                 {/* Team badge */}
                 {gameState.mode === 'teams' && (
-                  <div className={`absolute -bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 md:px-3 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-extrabold shadow border whitespace-nowrap ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
+                  <div className={`absolute -bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 md:px-3 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-extrabold shadow border whitespace-nowrap z-20 ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}>
                     {player.team === 0 ? 'BLUE' : 'RED'}
                   </div>
                 )}
@@ -216,15 +250,51 @@ export const GameBoard: React.FC = () => {
                 <div className="text-[10px] md:text-xs text-gray-300 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded w-full overflow-hidden" title={id}>
                    <span className="block">{id.slice(0, 8)}</span>
                 </div>
-                <div className="mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex items-center space-x-1 md:space-x-2 bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none">
-                  <span className="text-xl md:text-2xl -mt-1 md:-mt-1">🃏</span>
-                  <span>{player.hand.length}</span>
+                
+                <div className={`mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex flex-col items-center justify-center bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none w-full ${isDevMode ? 'py-4 gap-4' : 'flex-row space-x-1 md:space-x-2'}`}>
+                  {isDevMode ? (
+                    <>
+                      <div className="flex flex-row justify-center -space-x-8 scale-75 md:scale-90 origin-top min-h-[100px] pt-2">
+                        {Array.from(player.hand).filter((c): c is SharedCard => c !== undefined).map((c, i) => {
+                          const isSelected = !!(devSelectedCards[id] || []).find(sc => sc.suit === c.suit && sc.rank === c.rank);
+                          return (
+                          <div key={i} onClick={() => handleDevCardClick(id, c)} className={`cursor-pointer transition-all shadow-xl relative group ${isSelected ? 'ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] -translate-y-4 z-40 scale-110' : 'hover:-translate-y-6 hover:scale-110 z-10 hover:z-50'}`}>
+                            <UICard card={c} />
+                          </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-1 justify-center mt-2 w-full">
+                        <button onClick={() => handleDevAction(id, "attack")} className="bg-red-600 hover:bg-red-500 text-[10px] px-2 py-1 rounded shadow">Atk ({(devSelectedCards[id] || []).length})</button>
+                        <button onClick={() => handleDevAction(id, "defend")} className="bg-green-600 hover:bg-green-500 text-[10px] px-2 py-1 rounded shadow">Def</button>
+                        <button onClick={() => handleDevAction(id, "pickUp")} className="bg-yellow-600 hover:bg-yellow-500 text-[10px] text-yellow-900 px-2 py-1 rounded shadow">Pick</button>
+                        <button onClick={() => handleDevAction(id, "swapHuzur")} className="bg-purple-600 hover:bg-purple-500 text-[10px] px-2 py-1 rounded shadow">Swap</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl md:text-2xl -mt-1 md:-mt-1">🃏</span>
+                      <span>{player.hand.length}</span>
+                    </>
+                  )}
                 </div>
               </div>
-            ));
+              );
+            });
           })()}
         </div>
       </div>
+
+      {/* Dev Tools Panel */}
+      {isDevMode && (
+        <div className="absolute top-4 right-4 bg-red-950/90 text-white p-3 rounded-xl border-2 border-red-500 shadow-2xl z-50 flex flex-col space-y-2 backdrop-blur-md w-48">
+          <div className="font-bold text-xs uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">Dev Tools</div>
+          <button onClick={devSpawnDummies} className="bg-red-800 hover:bg-red-700 px-2 py-1.5 rounded text-xs transition border border-red-600 shadow-inner">Spawn Dummies</button>
+          <button onClick={devForcePass} className="bg-red-800 hover:bg-red-700 px-2 py-1.5 rounded text-xs transition border border-red-600 shadow-inner">Force Pass</button>
+          <button onClick={devCopyLog} className="bg-blue-800 hover:bg-blue-700 px-2 py-1.5 rounded text-xs transition border border-blue-600 shadow-inner">Copy Log ({gameState.actionLog?.length || 0})</button>
+          <div className="text-[10px] text-red-300/60 mt-1 italic">Click an opponent's card to play as them.</div>
+        </div>
+      )}
 
       {/* Center Table Area */}
       <div className="flex-1 flex w-full relative z-0 h-full overflow-hidden">
@@ -465,10 +535,16 @@ export const GameBoard: React.FC = () => {
                 </button>
              </>
            )}
-           {gameState.phase === 'playing' && myHand.some(c => c.suit === gameState.huzurSuit && c.rank === 7) && (gameState.deck?.length || 0) > 0 && (
-             <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
-               Swap 7
-             </button>
+           {gameState.phase === 'playing' && (gameState.deck?.length || 0) > 0 && gameState.huzurCard && (
+             (gameState.huzurCard.isJoker && myHand.some(c => c.suit === 'Spades' && c.rank === 14)) ? (
+               <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
+                 Swap Ace
+               </button>
+             ) : (!gameState.huzurCard.isJoker && myHand.some(c => c.suit === gameState.huzurSuit && c.rank === 7)) ? (
+               <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
+                 Swap 7
+               </button>
+             ) : null
            )}
          </div>
 

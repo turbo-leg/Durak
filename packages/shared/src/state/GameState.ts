@@ -32,4 +32,7 @@ export class GameState extends Schema {
   // Issue #80: drive client-side 5s visibility window for newly played defense cards.
   // (Client compares Date.now() against this value.)
   @type("number") lastDefenseAt: number = 0;
+
+  // Developer Mode: Full turn-by-turn game log for easy e2e test export
+  @type([ "string" ]) actionLog = new ArraySchema<string>();
 }
