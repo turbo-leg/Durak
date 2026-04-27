@@ -16,7 +16,7 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number, playSound: 
 };
 
 export const GameBoard: React.FC = () => {
-  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot } = useGame();
+  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot, serverTimeOffset } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
@@ -29,19 +29,17 @@ export const GameBoard: React.FC = () => {
     }
 
     const updateTimer = () => {
-      const elapsed = Date.now() - gameState.turnStartTime;
+      const now = Date.now() + serverTimeOffset;
+      const elapsed = now - gameState.turnStartTime;
       const remaining = Math.max(0, gameState.turnTimeLimit - elapsed);
-      
-      // Debug logging to pinpoint the 0.0s issue
-      console.log(`[Timer Debug] Date.now(): ${Date.now()}, turnStartTime: ${gameState.turnStartTime}, turnTimeLimit: ${gameState.turnTimeLimit}, elapsed: ${elapsed}, remaining: ${remaining}`);
       
       setTimeRemaining(remaining);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 1000); // Log every second to avoid spam
+    const interval = setInterval(updateTimer, 100); 
     return () => clearInterval(interval);
-  }, [gameState]);
+  }, [gameState, serverTimeOffset]);
 
   // Issue #80: Re-render every 250ms so defense visibility expires precisely at 10s.
   const [now, setNow] = React.useState(() => Date.now());
@@ -69,7 +67,7 @@ export const GameBoard: React.FC = () => {
   const isMyTurn = gameState.currentTurn === room.sessionId;
   const myPlayer = gameState.players.get(room.sessionId);
   const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
-  const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
+  const tableStacks = Array.from(gameState.tableStacks || []);
 
   // Server uses activeAttackCards to represent the current cards that must be beaten.
   // After a successful defend, the server also stores the defender's card(s) there.
@@ -254,11 +252,11 @@ export const GameBoard: React.FC = () => {
                 <div className={`mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex flex-col items-center justify-center bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none w-full ${isDevMode ? 'py-4 gap-4' : 'flex-row space-x-1 md:space-x-2'}`}>
                   {isDevMode ? (
                     <>
-                      <div className="flex flex-row justify-center -space-x-8 scale-75 md:scale-90 origin-top min-h-[100px] pt-2">
+                      <div className="flex flex-row overflow-x-auto custom-scrollbar -space-x-6 md:-space-x-8 scale-75 md:scale-90 origin-top min-h-[120px] pt-4 pb-4 px-4 w-full max-w-full justify-start">
                         {Array.from(player.hand).filter((c): c is SharedCard => c !== undefined).map((c, i) => {
                           const isSelected = !!(devSelectedCards[id] || []).find(sc => sc.suit === c.suit && sc.rank === c.rank);
                           return (
-                          <div key={i} onClick={() => handleDevCardClick(id, c)} className={`cursor-pointer transition-all shadow-xl relative group ${isSelected ? 'ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] -translate-y-4 z-40 scale-110' : 'hover:-translate-y-6 hover:scale-110 z-10 hover:z-50'}`}>
+                          <div key={i} onClick={() => handleDevCardClick(id, c)} className={`cursor-pointer transition-all shadow-xl relative group flex-shrink-0 ${isSelected ? 'ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] -translate-y-4 z-40 scale-110' : 'hover:-translate-y-6 hover:scale-110 z-10 hover:z-50'}`}>
                             <UICard card={c} />
                           </div>
                           );
@@ -411,9 +409,11 @@ export const GameBoard: React.FC = () => {
                        </div>
 
                        {/* The Fully Visible Trump Card */}
-                       <div className="relative z-0 mt-4">
-                          <UICard card={gameState.huzurCard} className="brightness-100 border-yellow-500 shadow-[0_0_15px_rgba(250,204,21,0.5)]" />
-                       </div>
+                       {(gameState.deck?.length || 0) > 0 && (
+                         <div className="relative z-0 mt-4">
+                            <UICard card={gameState.huzurCard} className="brightness-100 border-yellow-500 shadow-[0_0_15px_rgba(250,204,21,0.5)]" />
+                         </div>
+                       )}
                     </div>
                  )}
               </div>
@@ -441,35 +441,37 @@ export const GameBoard: React.FC = () => {
                     </motion.div>
                  )}
 
-                 {/* Table Pairs */}
-                 {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pairIndex) => {
-                     const atk = tableCards[pairIndex * 2];
-                     const def = tableCards[pairIndex * 2 + 1];
-                     if (!atk) return null;
+                 {/* Table Stacks */}
+                 {tableStacks.map((stack, stackIndex) => {
+                     const cards = Array.from(stack.cards).filter((c): c is SharedCard => c !== undefined);
+                     if (cards.length === 0) return null;
 
                      return (
-                        <div key={`table-pair-${pairIndex}-${atk.suit}-${atk.rank}`} className="flex space-x-2 bg-black/40 p-3 rounded-2xl border border-white/10 shadow-xl items-center min-w-max">
-                           <div className="flex flex-col items-center">
-                             <div className="text-[9px] md:text-[10px] text-gray-300 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">Attack</div>
-                             {/* Keep card size scalable depending on screen using transforms or set widths */}
-                             <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">
-                               <UICard card={atk} />
+                        <div key={`table-stack-${stackIndex}`} className="flex flex-col bg-black/40 px-3 pt-3 pb-8 rounded-2xl border border-white/10 shadow-xl items-center min-w-[120px]">
+                           {cards.map((card, cardIndex) => {
+                             const isDefend = cardIndex % 2 !== 0;
+                             return (
+                               <div key={`stack-${stackIndex}-card-${cardIndex}`} className={`flex flex-col items-center relative z-[${cardIndex}] ${cardIndex > 0 ? 'mt-[-100px]' : ''}`}>
+                                 <div className={`text-[9px] md:text-[10px] font-bold mb-1 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap ${isDefend ? 'text-green-400' : 'text-gray-300'}`}>
+                                   {isDefend ? 'Defend' : 'Attack'}
+                                 </div>
+                                 <div className={`scale-75 md:scale-90 origin-top h-[140px] md:h-[160px] ${isDefend ? 'shadow-[0_0_15px_rgba(34,197,94,0.3)] rounded-lg' : ''}`}>
+                                   <UICard card={card} />
+                                 </div>
+                               </div>
+                             );
+                           })}
+                           {/* Awaiting Defense Placeholder if top card is an Attack */}
+                           {cards.length % 2 !== 0 && (
+                             <div className="flex flex-col items-center relative z-[99] mt-[-100px]">
+                               <div className="text-[9px] md:text-[10px] text-green-400 font-bold mb-1 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap opacity-50">Defend</div>
+                               <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px] flex">
+                                 <div className="w-[120px] h-[178px] rounded-lg border-2 border-dashed border-white/10 flex items-center justify-center bg-black/30">
+                                   <span className="text-white/20 text-xs font-bold uppercase tracking-widest text-center px-2">Awaiting<br/>Defense</span>
+                                 </div>
+                               </div>
                              </div>
-                           </div>
-                           <div className="flex flex-col items-center">
-                              <div className="text-[9px] md:text-[10px] text-green-400 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">Defend</div>
-                              {def ? (
-                                <div className="scale-75 md:scale-90 origin-top shadow-[0_0_15px_rgba(34,197,94,0.3)] rounded-lg h-[140px] md:h-[160px]">
-                                  <UICard card={def} />
-                                </div>
-                              ) : (
-                                <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px] flex">
-                                  <div className="w-[120px] h-[178px] rounded-lg border-2 border-dashed border-white/10 flex items-center justify-center bg-black/30">
-                                    <span className="text-white/20 text-xs font-bold uppercase tracking-widest text-center px-2">Awaiting<br/>Defense</span>
-                                  </div>
-                                </div>
-                              )}
-                           </div>
+                           )}
                         </div>
                      );
                  })}

@@ -58,39 +58,6 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage("pickUp", (client) => this.handlePickUp(client));
     this.onMessage("swapHuzur", (client) => this.handleSwapHuzur(client));
 
-    // Developer Mode Action Handler
-    this.onMessage("dev_action", (client, message) => {
-      // NOTE: In a real app, verify process.env.NODE_ENV !== "production"
-      if (message.action === "spawn_dummies") {
-        const currentPlayers = this.state.players.size;
-        // Default to filling the room to maxPlayers (6)
-        const count = message.count || (this.state.maxPlayers - currentPlayers);
-        
-        let spawned = 0;
-        for (let i = 0; i < count; i++) {
-          if (this.state.players.size >= this.state.maxPlayers) break;
-          const id = `dummy-${Math.random().toString(36).substring(2, 7)}`;
-          const p = new Player(id);
-          p.isReady = true;
-          this.state.players.set(id, p);
-          spawned++;
-        }
-        this.broadcast("info", `Spawned ${spawned} dummy players. Room is at ${this.state.players.size}/${this.state.maxPlayers}`);
-      }
-
-      if (message.action === "play_as") {
-        const mockClient = { sessionId: message.asPlayerId, send: () => {} } as unknown as Client;
-        if (message.type === "attack") this.handleAttack(mockClient, { cards: message.cards });
-        if (message.type === "defend") this.handleDefend(mockClient, { cards: message.cards });
-        if (message.type === "pickUp") this.handlePickUp(mockClient);
-        if (message.type === "swapHuzur") this.handleSwapHuzur(mockClient);
-      }
-      
-      if (message.action === "force_pass") {
-        this.nextTurn();
-      }
-    });
-
     // Team selection handler in lobby
     this.onMessage("switchTeam", (client, message) => {
       if (this.state.phase === "waiting" && this.state.mode === "teams" && this.state.teamSelection === "manual") {
@@ -165,17 +132,6 @@ export class DurakRoom extends Room<GameState> {
     this.state.players.delete(client.sessionId);
   }
 
-  private formatCard(c: Card): string {
-    if (c.isJoker) return c.rank === 15 ? 'BJ' : 'RJ';
-    const suits: any = { Clubs: 'c', Diamonds: 'd', Hearts: 'h', Spades: 's' };
-    let r = c.rank.toString();
-    if (c.rank === 11) r = 'J';
-    else if (c.rank === 12) r = 'Q';
-    else if (c.rank === 13) r = 'K';
-    else if (c.rank === 14) r = 'A';
-    return `${r}${suits[c.suit] || c.suit.charAt(0).toLowerCase()}`;
-  }
-
   private startGame() {
     this.state.phase = "playing";
 
@@ -218,18 +174,11 @@ export class DurakRoom extends Room<GameState> {
     }
 
     // Initial Deal (Dynamic targetHandSize cards each)
-    this.state.actionLog.push(`ground huzur: ${this.formatCard(this.state.huzurCard)}`);
-    
-    this.state.players.forEach((player, id) => {
-      const drawnCards: string[] = [];
+    this.state.players.forEach((player) => {
       for (let i = 0; i < this.state.targetHandSize; i++) {
         const card = this.state.deck.pop();
-        if (card) {
-          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          drawnCards.push(`+${this.formatCard(card)}`);
-        }
+        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
       }
-      this.state.actionLog.push(`turn 0: ${id}: ${drawnCards.join(', ')}`);
     });
 
     // Set first attacker: player with the lowest Huzur (Trump) card in hand
@@ -299,7 +248,6 @@ export class DurakRoom extends Room<GameState> {
       if (nextId) {
         this.state.currentTurn = nextId;
         this.state.turnStartTime = Date.now();
-        this.startTurnTimer();
       }
     }
   }
@@ -340,9 +288,6 @@ export class DurakRoom extends Room<GameState> {
       }
     });
 
-    const playedLog = cardsToPlay.map((c) => `-${this.formatCard(c)}`).join(', ');
-    this.state.actionLog.push(`${client.sessionId} attacked: ${playedLog}`);
-
     this.checkGameOver();
 
     // User rule: players should always draw a card immediately after they play anything.
@@ -366,15 +311,6 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    // Issue #80: broadcast snapshot of what was defended so the UI can show it for 10 seconds.
-    this.broadcast("defensePlayed", {
-      at: Date.now(),
-      defenderId: client.sessionId,
-      attacking: atkCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
-      defending: defendingCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
-    });
-
-
     // Success! The cards they just defended against become table history.
     atkCards.forEach(c => {
       this.state.table.push(new Card(c.suit, c.rank, c.isJoker));
@@ -391,9 +327,6 @@ export class DurakRoom extends Room<GameState> {
       }
     });
 
-    const defLog = defendingCards.map((c) => `-${this.formatCard(c)}`).join(', ');
-    this.state.actionLog.push(`${client.sessionId} defended: ${defLog}`);
-
     // Increment chain
     this.state.defenseChainCount++;
 
@@ -405,8 +338,6 @@ export class DurakRoom extends Room<GameState> {
 
       // The next trick is led by the player who made the LAST defense in this chain.
       // Since currentTurn is already the client who just defended, we simply leave it alone!
-      this.state.turnStartTime = Date.now();
-      this.startTurnTimer();
     } else {
       // The circle continues! The next player must now beat the cards just played.
       this.nextTurn();
@@ -423,7 +354,6 @@ export class DurakRoom extends Room<GameState> {
     this.checkGameOver();
 
     // Next player starts fresh
-    this.state.actionLog.push(`${client.sessionId} picked up`);
     this.nextTurn();
   }
 

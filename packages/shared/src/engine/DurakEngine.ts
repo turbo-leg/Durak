@@ -177,10 +177,11 @@ export class DurakEngine {
   /**
    * Verifies if a set of defenders can beat a set of attackers in a 1-to-1 match.
    */
-  static canDefendMass(defenders: Card[], attackers: Card[], huzurSuit: string): boolean {
-    if (defenders.length !== attackers.length) return false;
+  static canDefendMass(defenders: Card[], attackers: Card[], huzurSuit: string): Card[] | null {
+    if (defenders.length !== attackers.length) return null;
 
     const usedDefenders = new Set<number>();
+    const matchedDefenders: Card[] = new Array(attackers.length);
     
     function backtrack(attackerIndex: number): boolean {
       if (attackerIndex === attackers.length) return true;
@@ -189,6 +190,7 @@ export class DurakEngine {
         if (usedDefenders.has(i)) continue;
         if (DurakEngine.canDefend(defenders[i], attackers[attackerIndex], huzurSuit)) {
           usedDefenders.add(i);
+          matchedDefenders[attackerIndex] = defenders[i];
           if (backtrack(attackerIndex + 1)) return true;
           usedDefenders.delete(i);
         }
@@ -196,7 +198,8 @@ export class DurakEngine {
       return false;
     }
 
-    return backtrack(0);
+    if (backtrack(0)) return matchedDefenders;
+    return null;
   }
 
   /**
@@ -300,13 +303,11 @@ export class DurakEngine {
         const anyPlayer = player as any;
         const pickedUp = new Set<string>();
 
-        state.table.forEach(card => {
-          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
-        });
-        state.activeAttackCards.forEach(card => {
-          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+        state.tableStacks.forEach(stack => {
+          stack.cards.forEach(card => {
+            player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+            pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+          });
         });
 
         anyPlayer.__lastPickedUpCardKeys = pickedUp;
@@ -314,8 +315,9 @@ export class DurakEngine {
       }
     } else {
       // Success! Cards are dead.
-      state.table.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
-      state.activeAttackCards.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+      state.tableStacks.forEach(stack => {
+        stack.cards.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+      });
 
       // Clear last pickup tracking since no pickup happened.
       state.players.forEach(p => {
@@ -325,7 +327,7 @@ export class DurakEngine {
     }
 
     // Reset cycle
-    state.table.splice(0, state.table.length);
+    state.tableStacks.splice(0, state.tableStacks.length);
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
     state.defenseChainCount = 0;
   }

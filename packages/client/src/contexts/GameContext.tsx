@@ -23,6 +23,7 @@ interface GameContextState {
   joinGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
+  serverTimeOffset: number;
 }
 
 const GameContext = createContext<GameContextState>({
@@ -38,6 +39,7 @@ const GameContext = createContext<GameContextState>({
   joinGame: async () => {},
   findPublicGames: async () => [],
   leaveGame: () => {},
+  serverTimeOffset: 0,
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -65,12 +67,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
   const [, setTick] = useState(0);
+  const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   const gameState = room?.state || null;
 
   const clearGameMessage = () => setGameMessage(null);
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
     roomInstance.onStateChange(() => setTick(t => t + 1));
+
+    // Time Synchronization Handshake
+    roomInstance.onMessage('pong', (message: { clientTime: number, serverTime: number }) => {
+      const latency = (Date.now() - message.clientTime) / 2;
+      const computedServerTime = message.serverTime + latency;
+      setServerTimeOffset(computedServerTime - Date.now());
+    });
+    
+    // Initial sync
+    roomInstance.send("ping", { time: Date.now() });
 
     // Issue #80: capture explicit defense snapshot for 5s UI visibility.
     roomInstance.onMessage('defensePlayed', (data: DefenseSnapshot) => {
@@ -154,7 +167,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <GameContext.Provider value={{
       client, room, error, isConnected, gameState, gameMessage, clearGameMessage,
       defenseSnapshot,
-      createGame, joinGame, findPublicGames, leaveGame
+      createGame, joinGame, findPublicGames, leaveGame, serverTimeOffset
     }}>
       {children}
     </GameContext.Provider>

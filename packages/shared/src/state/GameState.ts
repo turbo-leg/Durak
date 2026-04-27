@@ -2,11 +2,15 @@ import { type, Schema, MapSchema, ArraySchema } from "@colyseus/schema";
 import { Player } from "./Player";
 import { Card } from "./Card";
 
+export class CardStack extends Schema {
+  @type([ Card ]) cards = new ArraySchema<Card>();
+}
+
 export class GameState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type([ Card ]) deck = new ArraySchema<Card>();
   @type([ Card ]) discardPile = new ArraySchema<Card>();
-  @type([ Card ]) table = new ArraySchema<Card>();
+  @type([ CardStack ]) tableStacks = new ArraySchema<CardStack>();
   @type([ Card ]) activeAttackCards = new ArraySchema<Card>(); // Specifically what the CURRENT defender must beat
   
   @type(Card) huzurCard: Card = new Card();
