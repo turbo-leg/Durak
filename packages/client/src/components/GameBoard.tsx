@@ -443,6 +443,7 @@ export const GameBoard: React.FC = () => {
 
                  {/* Table Stacks */}
                  {tableStacks.map((stack, stackIndex) => {
+                     if (!stack) return null;
                      const cards = Array.from(stack.cards).filter((c): c is SharedCard => c !== undefined);
                      if (cards.length === 0) return null;
 

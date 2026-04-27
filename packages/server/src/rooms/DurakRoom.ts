@@ -1,5 +1,5 @@
 import { Room, Client } from "colyseus";
-import { GameState, DurakEngine, Card, Player } from "@durak/shared";
+import { GameState, DurakEngine, Card, Player, CardStack } from "@durak/shared";
 
 export class DurakRoom extends Room<GameState> {
   maxClients = 6;
@@ -58,7 +58,47 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage("pickUp", (client) => this.handlePickUp(client));
     this.onMessage("swapHuzur", (client) => this.handleSwapHuzur(client));
 
+    // Developer Mode Action Handler
+    this.onMessage("dev_action", (client, message) => {
+      // NOTE: In a real app, verify process.env.NODE_ENV !== "production"
+      if (message.action === "spawn_dummies") {
+        const currentPlayers = this.state.players.size;
+        // Default to filling the room to maxPlayers (6)
+        const count = message.count || (this.state.maxPlayers - currentPlayers);
+
+        let spawned = 0;
+        for (let i = 0; i < count; i++) {
+          if (this.state.players.size >= this.state.maxPlayers) break;
+          const id = `dummy-${Math.random().toString(36).substring(2, 7)}`;
+          const p = new Player(id);
+          p.isReady = true;
+          this.state.players.set(id, p);
+          spawned++;
+        }
+        this.broadcast("info", `Spawned ${spawned} dummy players. Room is at ${this.state.players.size}/${this.state.maxPlayers}`);
+      }
+
+      if (message.action === "play_as") {
+        const mockClient = { sessionId: message.asPlayerId, send: () => {} } as unknown as Client;
+        if (message.type === "attack") this.handleAttack(mockClient, { cards: message.cards });
+        if (message.type === "defend") this.handleDefend(mockClient, { cards: message.cards });
+        if (message.type === "pickUp") this.handlePickUp(mockClient);
+        if (message.type === "swapHuzur") this.handleSwapHuzur(mockClient);
+      }
+
+      if (message.action === "force_pass") {
+        this.nextTurn();
+      }
+    });
+
     // Team selection handler in lobby
+    this.onMessage("ping", (client, message) => {
+      client.send("pong", {
+        clientTime: message.time,
+        serverTime: Date.now()
+      });
+    });
+
     this.onMessage("switchTeam", (client, message) => {
       if (this.state.phase === "waiting" && this.state.mode === "teams" && this.state.teamSelection === "manual") {
         const player = this.state.players.get(client.sessionId);
@@ -266,11 +306,11 @@ export class DurakRoom extends Room<GameState> {
         client.send("error", "Invalid Mass Attack composition or opponent hand size too small.");
         return;
       }
-    } else if (this.state.table.length > 0 || this.state.activeAttackCards.length > 0) {
+    } else if (this.state.tableStacks.length > 0 || this.state.activeAttackCards.length > 0) {
       // Adding to an ongoing attack: the rank must match something on the table or active attacks
       const playedRank = cardsToPlay[0].rank;
       const rankExists =
-        this.state.table.some((c) => c.rank === playedRank) ||
+        this.state.tableStacks.some((stack) => stack.cards.some((c: Card) => c.rank === playedRank)) ||
         this.state.activeAttackCards.some((c) => c.rank === playedRank);
 
       if (!rankExists && !cardsToPlay[0].isJoker) {
@@ -312,9 +352,11 @@ export class DurakRoom extends Room<GameState> {
     }
 
     // Success! The cards they just defended against become table history.
-    atkCards.forEach(c => {
-      this.state.table.push(new Card(c.suit, c.rank, c.isJoker));
-    });
+    // We create a new CardStack for this Pair.
+    const stack = new CardStack();
+    atkCards.forEach(c => stack.cards.push(new Card(c.suit, c.rank, c.isJoker)));
+    defendingCards.forEach(c => stack.cards.push(new Card(c.suit, c.rank, c.isJoker)));
+    this.state.tableStacks.push(stack);
 
     // The player's new defending cards become the NEW activeAttackCards
     this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
