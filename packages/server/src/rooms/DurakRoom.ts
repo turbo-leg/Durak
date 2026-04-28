@@ -320,12 +320,9 @@ export class DurakRoom extends Room<GameState> {
       }
     } else if (this.state.table.length > 0 || this.state.activeAttackCards.length > 0) {
       // Adding to an ongoing attack: the rank must match something on the table or active attacks
-      const playedRank = cardsToPlay[0].rank;
-      const rankExists =
-        this.state.table.some((c) => c.rank === playedRank) ||
-        this.state.activeAttackCards.some((c) => c.rank === playedRank);
-
-      if (!rankExists && !cardsToPlay[0].isJoker) {
+      const tableCards = Array.from(this.state.table).filter((c): c is Card => !!c);
+      const activeAttacks = Array.from(this.state.activeAttackCards).filter((c): c is Card => !!c);
+      if (!DurakEngine.isValidAttackAddition(cardsToPlay[0], tableCards, activeAttacks)) {
         client.send("error", "You can only attack with a rank that is already on the table.");
         return;
       }
@@ -366,30 +363,12 @@ export class DurakRoom extends Room<GameState> {
 
     const player = this.state.players.get(client.sessionId)!;
     const defendingCards = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
-
     const atkCards = Array.from(this.state.activeAttackCards).filter((c): c is Card => c !== undefined);
     
-    // Sort attackers so they match reliably if possible, though canDefendMass is the source of truth
-    // We need to find WHICH defender beat WHICH attacker to store in tableStacks
-    const assignments: { atk: Card, def: Card }[] = [];
-    const usedDef = new Set<number>();
-    
-    const findAssignment = (idx: number): boolean => {
-      if (idx === atkCards.length) return true;
-      for (let i = 0; i < defendingCards.length; i++) {
-        if (usedDef.has(i)) continue;
-        if (DurakEngine.canDefend(defendingCards[i], atkCards[idx], this.state.huzurSuit)) {
-          usedDef.add(i);
-          assignments.push({ atk: atkCards[idx], def: defendingCards[i] });
-          if (findAssignment(idx + 1)) return true;
-          assignments.pop();
-          usedDef.delete(i);
-        }
-      }
-      return false;
-    };
+    // Use the shared engine logic to find a valid assignment of defenders to attackers
+    const assignments = DurakEngine.findDefenseAssignment(defendingCards, atkCards, this.state.huzurSuit);
 
-    if (!findAssignment(0)) {
+    if (!assignments) {
       client.send("error", "Your cards cannot beat the current attack.");
       return;
     }
@@ -398,8 +377,8 @@ export class DurakRoom extends Room<GameState> {
     this.broadcast("defensePlayed", {
       at: Date.now(),
       defenderId: client.sessionId,
-      attacking: atkCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
-      defending: defendingCards.map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker })),
+      attacking: assignments.map((pair) => ({ suit: pair.atk.suit, rank: pair.atk.rank, isJoker: pair.atk.isJoker })),
+      defending: assignments.map((pair) => ({ suit: pair.def.suit, rank: pair.def.rank, isJoker: pair.def.isJoker })),
     });
 
 
