@@ -8,6 +8,15 @@ import fs from "fs";
 
 import { DurakRoom } from "./src/rooms/DurakRoom";
 import "dotenv/config"; // Load environment variables from .env
+import mongoose from "mongoose";
+
+if (process.env.MONGO_URI) {
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('📦 Connected to MongoDB (Production)'))
+    .catch(err => console.error('❌ MongoDB connection error:', err));
+} else {
+  console.warn('⚠️ No MONGO_URI provided in .env, game logs will not be saved externally.');
+}
 
 const app = express();
 app.use(cors());
