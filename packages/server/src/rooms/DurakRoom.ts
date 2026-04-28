@@ -1,6 +1,9 @@
 import { Room, Client } from "colyseus";
 import { GameState, DurakEngine, Card, Player } from "@durak/shared";
 
+import { GameLog } from "../models/GameLog";
+import mongoose from "mongoose";
+
 export class DurakRoom extends Room<GameState> {
   maxClients = 6;
   private turnTimeoutId: NodeJS.Timeout | null = null;
@@ -529,11 +532,35 @@ export class DurakRoom extends Room<GameState> {
         if (remainingPlayers.length === 1) {
           this.state.loser = remainingPlayers[0];
           this.broadcast("gameOver", { loser: this.state.loser });
+          this.saveGameLog();
         } else {
           // It's a draw (multi-person win on last beat)
           this.broadcast("gameOver", { loser: null, draw: true });
+          this.saveGameLog();
         }
       }
     }
   }
+
+  private async saveGameLog() {
+    try {
+      // Only attempt to save if mongoose has an active connection (i.e. MONGO_URI is set)
+      if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+        const log = new GameLog({
+          roomId: this.roomId,
+          mode: this.state.mode,
+          players: Array.from(this.state.players.keys()),
+          winners: Array.from(this.state.winners),
+          durak: this.state.loser,
+          huzurSetting: this.state.huzurSuit,
+          actionLog: Array.from(this.state.actionLog)
+        });
+        await log.save();
+        console.log(`Saved GameLog to MongoDB for room ${this.roomId}`);
+      }
+    } catch (e) {
+      console.error("Failed to save GameLog to MongoDB:", e);
+    }
+  }
 }
+
