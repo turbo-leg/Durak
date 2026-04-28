@@ -7,6 +7,7 @@ export class GameState extends Schema {
   @type([ Card ]) deck = new ArraySchema<Card>();
   @type([ Card ]) discardPile = new ArraySchema<Card>();
   @type([ Card ]) table = new ArraySchema<Card>();
+  @type([ Card ]) tableStacks = new ArraySchema<Card>(); // Pairs of [attacker, defender] for visual history
   @type([ Card ]) activeAttackCards = new ArraySchema<Card>(); // Specifically what the CURRENT defender must beat
   
   @type(Card) huzurCard: Card = new Card();
@@ -32,4 +33,7 @@ export class GameState extends Schema {
   // Issue #80: drive client-side 5s visibility window for newly played defense cards.
   // (Client compares Date.now() against this value.)
   @type("number") lastDefenseAt: number = 0;
+
+  // Developer Mode: Full turn-by-turn game log for easy e2e test export
+  @type([ "string" ]) actionLog = new ArraySchema<string>();
 }

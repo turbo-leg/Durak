@@ -79,9 +79,20 @@ export class DurakEngine {
     const shuffled = [...deck];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]!];
     }
     return shuffled;
+  }
+
+  /**
+   * Returns the actual trump suit for a card, handling Jokers.
+   * Red Joker maps to Hearts, Black Joker maps to Spades.
+   */
+  static getTrumpSuit(card: Card): string {
+    if (card.isJoker) {
+      return card.rank === Rank.RedJoker ? Suit.Hearts : Suit.Spades;
+    }
+    return card.suit;
   }
   
   /**
@@ -133,54 +144,47 @@ export class DurakEngine {
    * 5-Card Mass: 2 pairs + 1 random card. (Only if deck empty AND everyone has >= 5 cards)
    */
   static isValidMassAttack(cards: Card[], allPlayers: Player[], deckSize: number, targetHandSize: number = 5): boolean {
-    if (cards.length === 3) {
-      for (const p of allPlayers) {
-        if (p.hand.length < 3) return false;
-      }
-      
-      const ranks = new Map<number, number>();
-      for (const c of cards) {
-        if (c.isJoker) continue;
-        ranks.set(c.rank, (ranks.get(c.rank) || 0) + 1);
-      }
+    const requiredSize = cards.length;
+    if (requiredSize !== 3 && requiredSize !== 5) return false;
 
-      let pairs = 0;
-      ranks.forEach((count) => {
-        pairs += Math.floor(count / 2);
-      });
-      return pairs >= 1;
-    } else if (cards.length === 5) {
+    // Check if everyone has enough cards
+    for (const p of allPlayers) {
+      if (p.hand.length < requiredSize) return false;
+    }
+
+    if (requiredSize === 3) {
+      return DurakEngine.countPairs(cards) >= 1;
+    } else {
       // In 5-card lobbies, 5-card mass only allowed when deck is empty.
       // In 7-card lobbies, 5-card mass is always allowed.
       if (targetHandSize < 7 && deckSize > 0) return false;
-      
-      for (const p of allPlayers) {
-        if (p.hand.length < 5) return false;
-      }
-      
-      const ranks = new Map<number, number>();
-      for (const c of cards) {
-        if (c.isJoker) continue;
-        ranks.set(c.rank, (ranks.get(c.rank) || 0) + 1);
-      }
-
-      let pairs = 0;
-      ranks.forEach((count) => {
-        pairs += Math.floor(count / 2);
-      });
-      return pairs >= 2;
+      return DurakEngine.countPairs(cards) >= 2;
     }
-    
-    return false;
+  }
+
+  private static countPairs(cards: Card[]): number {
+    const ranks = new Map<number, number>();
+    for (const c of cards) {
+      if (c.isJoker) continue;
+      ranks.set(c.rank, (ranks.get(c.rank) || 0) + 1);
+    }
+
+    let pairs = 0;
+    ranks.forEach((count) => {
+      pairs += Math.floor(count / 2);
+    });
+    return pairs;
   }
 
   /**
-   * Verifies if a set of defenders can beat a set of attackers in a 1-to-1 match.
+   * Finds a valid 1-to-1 assignment of defenders to attackers.
+   * Returns an array of pairs { atk, def } if successful, else null.
    */
-  static canDefendMass(defenders: Card[], attackers: Card[], huzurSuit: string): boolean {
-    if (defenders.length !== attackers.length) return false;
+  static findDefenseAssignment(defenders: Card[], attackers: Card[], huzurSuit: string): { atk: Card, def: Card }[] | null {
+    if (defenders.length !== attackers.length) return null;
 
     const usedDefenders = new Set<number>();
+    const assignments: { atk: Card, def: Card }[] = [];
     
     function backtrack(attackerIndex: number): boolean {
       if (attackerIndex === attackers.length) return true;
@@ -189,14 +193,24 @@ export class DurakEngine {
         if (usedDefenders.has(i)) continue;
         if (DurakEngine.canDefend(defenders[i], attackers[attackerIndex], huzurSuit)) {
           usedDefenders.add(i);
+          assignments.push({ atk: attackers[attackerIndex], def: defenders[i] });
           if (backtrack(attackerIndex + 1)) return true;
+          assignments.pop();
           usedDefenders.delete(i);
         }
       }
       return false;
     }
 
-    return backtrack(0);
+    if (backtrack(0)) return assignments;
+    return null;
+  }
+
+  /**
+   * Verifies if a set of defenders can beat a set of attackers in a 1-to-1 match.
+   */
+  static canDefendMass(defenders: Card[], attackers: Card[], huzurSuit: string): boolean {
+    return DurakEngine.findDefenseAssignment(defenders, attackers, huzurSuit) !== null;
   }
 
   /**
@@ -222,10 +236,16 @@ export class DurakEngine {
    */
   static replenishAll(state: GameState): void {
     state.players.forEach(player => {
+      // Clear previous draw log
+      player.lastDrawLog.splice(0, player.lastDrawLog.length);
+
       const amount = DurakEngine.computeDrawAmount(player, state.deck.length, state.targetHandSize);
       for (let i = 0; i < amount; i++) {
         const card = state.deck.pop();
-        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+        if (card) {
+          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
+        }
       }
     });
   }
@@ -233,16 +253,27 @@ export class DurakEngine {
   static swapHuzur(player: Player, state: GameState): boolean {
     if (state.deck.length === 0) return false;
 
-    const handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
+    const isJokerTrump = state.huzurCard.isJoker;
+
+    let handIndex = -1;
+    if (isJokerTrump) {
+      handIndex = player.hand.findIndex(c => c.suit === 'Spades' && c.rank === Rank.Ace);
+    } else {
+      handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
+    }
+
     if (handIndex === -1) return false;
 
-    // New restriction (#76): if the 7-of-trump was obtained by picking up cards from another player,
+    // New restriction (#76): if the swap card was obtained by picking up cards from another player,
     // disallow swapping it with the bottom trump card.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyPlayer = player as any;
     const pickedUpKeys = (anyPlayer.__lastPickedUpCardKeys as Set<string> | undefined);
-    if (pickedUpKeys && pickedUpKeys.has(`${state.huzurSuit}:${Rank.Seven}:0`)) {
-      return false;
+    
+    if (isJokerTrump) {
+      if (pickedUpKeys && pickedUpKeys.has(`Spades:${Rank.Ace}:0`)) return false;
+    } else {
+      if (pickedUpKeys && pickedUpKeys.has(`${state.huzurSuit}:${Rank.Seven}:0`)) return false;
     }
 
     const playerSeven = player.hand[handIndex]!;
@@ -273,6 +304,9 @@ export class DurakEngine {
       actualDeckHuzur.isJoker = tempIsJoker;
     }
 
+    // Update huzurSuit in states where it might change (e.g. swapping with a Joker trump)
+    state.huzurSuit = DurakEngine.getTrumpSuit(tableHuzur);
+
     return true;
   }
 
@@ -284,6 +318,9 @@ export class DurakEngine {
       // Player picked up the whole table
       const player = state.players.get(pickerUpperId);
       if (player) {
+        // Clear previous draw log
+        player.lastDrawLog.splice(0, player.lastDrawLog.length);
+
         // Track the exact cards picked up in THIS pickup event.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const anyPlayer = player as any;
@@ -292,10 +329,12 @@ export class DurakEngine {
         state.table.forEach(card => {
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
           pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
         });
         state.activeAttackCards.forEach(card => {
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
           pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
         });
 
         anyPlayer.__lastPickedUpCardKeys = pickedUp;
@@ -315,9 +354,19 @@ export class DurakEngine {
 
     // Reset cycle
     state.table.splice(0, state.table.length);
+    state.tableStacks.splice(0, state.tableStacks.length);
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
     state.defenseChainCount = 0;
   }
 
+  /**
+   * Addition = 1 card.
+   * Rank must match something on table or activeAttackCards.
+   */
+  static isValidAttackAddition(card: Card, table: Card[], activeAttacks: Card[]): boolean {
+    if (card.isJoker) return true;
+    const playedRank = card.rank;
+    return table.some((c) => c.rank === playedRank) || activeAttacks.some((c) => c.rank === playedRank);
+  }
 
 }

@@ -1,7 +1,13 @@
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { DurakRoom } from "../src/rooms/DurakRoom";
-import appConfig from "../index";
+
+const appConfig = {
+  initializeGameServer: (gameServer: any) => {
+    gameServer.define("durak", DurakRoom);
+  },
+  initializeExpress: (app: any) => {},
+};
 
 describe("E2E Durak Match", () => {
   let testingServer: ColyseusTestServer;
