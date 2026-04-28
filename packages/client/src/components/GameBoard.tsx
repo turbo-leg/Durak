@@ -69,7 +69,7 @@ export const GameBoard: React.FC = () => {
   const isMyTurn = gameState.currentTurn === room.sessionId;
   const myPlayer = gameState.players.get(room.sessionId);
   const myHand = myPlayer ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined) : [];
-  const tableCards = Array.from(gameState.table || []).filter((c): c is SharedCard => c !== undefined);
+  const tableCards = Array.from(gameState.tableStacks || []).filter((c): c is SharedCard => c !== undefined);
 
   // Server uses activeAttackCards to represent the current cards that must be beaten.
   // After a successful defend, the server also stores the defender's card(s) there.
@@ -250,6 +250,20 @@ export const GameBoard: React.FC = () => {
                 <div className="text-[10px] md:text-xs text-gray-300 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded w-full overflow-hidden" title={id}>
                    <span className="block">{id.slice(0, 8)}</span>
                 </div>
+
+                {/* Draw Log for Developer Mode / Ground Tracking */}
+                {player.lastDrawLog && player.lastDrawLog.length > 0 && (
+                  <div className="mb-2 w-full bg-black/50 rounded p-1.5 border border-white/5 animate-pulse">
+                    <div className="text-[8px] uppercase tracking-tighter text-gray-500 mb-1">Last from ground:</div>
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {Array.from(player.lastDrawLog).map((cardStr, idx) => (
+                        <span key={idx} className="bg-yellow-900/40 text-yellow-400 text-[9px] px-1 rounded border border-yellow-700/30 font-bold">
+                          {cardStr}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <div className={`mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex flex-col items-center justify-center bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none w-full ${isDevMode ? 'py-4 gap-4' : 'flex-row space-x-1 md:space-x-2'}`}>
                   {isDevMode ? (

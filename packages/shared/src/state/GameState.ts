@@ -7,6 +7,7 @@ export class GameState extends Schema {
   @type([ Card ]) deck = new ArraySchema<Card>();
   @type([ Card ]) discardPile = new ArraySchema<Card>();
   @type([ Card ]) table = new ArraySchema<Card>();
+  @type([ Card ]) tableStacks = new ArraySchema<Card>(); // Pairs of [attacker, defender] for visual history
   @type([ Card ]) activeAttackCards = new ArraySchema<Card>(); // Specifically what the CURRENT defender must beat
   
   @type(Card) huzurCard: Card = new Card();

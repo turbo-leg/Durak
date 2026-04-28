@@ -345,7 +345,16 @@ export class DurakRoom extends Room<GameState> {
 
     this.checkGameOver();
 
-    // User rule: players should always draw a card immediately after they play anything.
+    // User rule: players should always draw a card immediately if they are below target size.
+    this.state.players.forEach(p => {
+      const amount = DurakEngine.computeDrawAmount(p, this.state.deck.length, this.state.targetHandSize);
+      if (amount > 0) {
+        const drawnRaw = this.state.deck.slice(-amount).reverse();
+        const drawnFormatted = drawnRaw.map(c => `+${this.formatCard(c)}`).join(", ");
+        this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
+      }
+    });
+
     DurakEngine.replenishAll(this.state);
 
     // Pass turn to next defender
@@ -359,9 +368,28 @@ export class DurakRoom extends Room<GameState> {
     const defendingCards = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
 
     const atkCards = Array.from(this.state.activeAttackCards).filter((c): c is Card => c !== undefined);
-    const success = DurakEngine.canDefendMass(defendingCards, atkCards, this.state.huzurSuit);
+    
+    // Sort attackers so they match reliably if possible, though canDefendMass is the source of truth
+    // We need to find WHICH defender beat WHICH attacker to store in tableStacks
+    const assignments: { atk: Card, def: Card }[] = [];
+    const usedDef = new Set<number>();
+    
+    const findAssignment = (idx: number): boolean => {
+      if (idx === atkCards.length) return true;
+      for (let i = 0; i < defendingCards.length; i++) {
+        if (usedDef.has(i)) continue;
+        if (DurakEngine.canDefend(defendingCards[i], atkCards[idx], this.state.huzurSuit)) {
+          usedDef.add(i);
+          assignments.push({ atk: atkCards[idx], def: defendingCards[i] });
+          if (findAssignment(idx + 1)) return true;
+          assignments.pop();
+          usedDef.delete(i);
+        }
+      }
+      return false;
+    };
 
-    if (!success) {
+    if (!findAssignment(0)) {
       client.send("error", "Your cards cannot beat the current attack.");
       return;
     }
@@ -375,9 +403,13 @@ export class DurakRoom extends Room<GameState> {
     });
 
 
-    // Success! The cards they just defended against become table history.
-    atkCards.forEach(c => {
-      this.state.table.push(new Card(c.suit, c.rank, c.isJoker));
+    // Success! Move pairs to tableStacks (for visual rendering) and table (for history)
+    assignments.forEach(pair => {
+      this.state.tableStacks.push(new Card(pair.atk.suit, pair.atk.rank, pair.atk.isJoker));
+      this.state.tableStacks.push(new Card(pair.def.suit, pair.def.rank, pair.def.isJoker));
+      
+      this.state.table.push(new Card(pair.atk.suit, pair.atk.rank, pair.atk.isJoker));
+      this.state.table.push(new Card(pair.def.suit, pair.def.rank, pair.def.isJoker));
     });
 
     // The player's new defending cards become the NEW activeAttackCards
@@ -394,12 +426,36 @@ export class DurakRoom extends Room<GameState> {
     const defLog = defendingCards.map((c) => `-${this.formatCard(c)}`).join(', ');
     this.state.actionLog.push(`${client.sessionId} defended: ${defLog}`);
 
+    // Track draw log for clipboard
+    this.state.players.forEach(p => {
+      const amount = DurakEngine.computeDrawAmount(p, this.state.deck.length, this.state.targetHandSize);
+      if (amount > 0) {
+        const drawnRaw = this.state.deck.slice(-amount).reverse();
+        const drawnFormatted = drawnRaw.map(c => `+${this.formatCard(c)}`).join(", ");
+        this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
+      }
+    });
+    
+    DurakEngine.replenishAll(this.state);
+    this.checkGameOver();
+
     // Increment chain
     this.state.defenseChainCount++;
 
     if (this.state.defenseChainCount >= this.state.players.size - 1) {
       // Everyone in the circle successfully defended!
       DurakEngine.endRound(this.state, null);
+      
+      // Log replenishment
+      this.state.players.forEach(p => {
+        const amount = DurakEngine.computeDrawAmount(p, this.state.deck.length, this.state.targetHandSize);
+        if (amount > 0) {
+          const drawnRaw = this.state.deck.slice(-amount).reverse(); // simulate draw for log
+          const drawnFormatted = drawnRaw.map(c => `+${this.formatCard(c)}`).join(", ");
+          this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
+        }
+      });
+
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
 
@@ -417,13 +473,31 @@ export class DurakRoom extends Room<GameState> {
   private handlePickUp(client: Client) {
     if (this.state.currentTurn !== client.sessionId) return;
 
+    // Track cards BEFORE they are moved to hand by endRound
+    const pickedUpCards: string[] = [];
+    this.state.table.forEach(c => pickedUpCards.push(`+${this.formatCard(c)}`));
+    this.state.activeAttackCards.forEach(c => pickedUpCards.push(`+${this.formatCard(c)}`));
+
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
+
+    // Also check for replenishment if picker-upper had few cards (per standard rules or variant)
+    // Though usually picker-upper doesn't draw if they pick up, but we let replenishAll handle checks
+    this.state.players.forEach(p => {
+       if (p.id === client.sessionId) return; // Picker upper already got cards from table
+       const amount = DurakEngine.computeDrawAmount(p, this.state.deck.length, this.state.targetHandSize);
+       if (amount > 0) {
+         const drawnRaw = this.state.deck.slice(-amount).reverse();
+         const drawnFormatted = drawnRaw.map(c => `+${this.formatCard(c)}`).join(", ");
+         this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
+       }
+    });
+
     DurakEngine.replenishAll(this.state);
     this.checkGameOver();
 
     // Next player starts fresh
-    this.state.actionLog.push(`${client.sessionId} picked up`);
+    this.state.actionLog.push(`${client.sessionId} picked up: ${pickedUpCards.join(", ")}`);
     this.nextTurn();
   }
 

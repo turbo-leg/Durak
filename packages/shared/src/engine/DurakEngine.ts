@@ -79,9 +79,20 @@ export class DurakEngine {
     const shuffled = [...deck];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]!];
     }
     return shuffled;
+  }
+
+  /**
+   * Returns the actual trump suit for a card, handling Jokers.
+   * Red Joker maps to Hearts, Black Joker maps to Spades.
+   */
+  static getTrumpSuit(card: Card): string {
+    if (card.isJoker) {
+      return card.rank === Rank.RedJoker ? Suit.Hearts : Suit.Spades;
+    }
+    return card.suit;
   }
   
   /**
@@ -222,10 +233,16 @@ export class DurakEngine {
    */
   static replenishAll(state: GameState): void {
     state.players.forEach(player => {
+      // Clear previous draw log
+      player.lastDrawLog.splice(0, player.lastDrawLog.length);
+
       const amount = DurakEngine.computeDrawAmount(player, state.deck.length, state.targetHandSize);
       for (let i = 0; i < amount; i++) {
         const card = state.deck.pop();
-        if (card) player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+        if (card) {
+          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
+          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
+        }
       }
     });
   }
@@ -284,6 +301,9 @@ export class DurakEngine {
       actualDeckHuzur.isJoker = tempIsJoker;
     }
 
+    // Update huzurSuit in states where it might change (e.g. swapping with a Joker trump)
+    state.huzurSuit = DurakEngine.getTrumpSuit(tableHuzur);
+
     return true;
   }
 
@@ -295,6 +315,9 @@ export class DurakEngine {
       // Player picked up the whole table
       const player = state.players.get(pickerUpperId);
       if (player) {
+        // Clear previous draw log
+        player.lastDrawLog.splice(0, player.lastDrawLog.length);
+
         // Track the exact cards picked up in THIS pickup event.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const anyPlayer = player as any;
@@ -303,10 +326,12 @@ export class DurakEngine {
         state.table.forEach(card => {
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
           pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
         });
         state.activeAttackCards.forEach(card => {
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
           pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
         });
 
         anyPlayer.__lastPickedUpCardKeys = pickedUp;
@@ -326,6 +351,7 @@ export class DurakEngine {
 
     // Reset cycle
     state.table.splice(0, state.table.length);
+    state.tableStacks.splice(0, state.tableStacks.length);
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
     state.defenseChainCount = 0;
   }
