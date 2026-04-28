@@ -11,6 +11,8 @@ services:
       dockerfile: packages/server/Dockerfile
     ports:
       - "2567:2567"
+    env_file:
+      - .env
     environment:
       - PORT=2567
       - REDIS_URI=redis://redis:6379
