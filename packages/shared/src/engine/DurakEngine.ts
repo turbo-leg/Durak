@@ -325,17 +325,19 @@ export class DurakEngine {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const anyPlayer = player as any;
         const pickedUp = new Set<string>();
+        const collectedKeys = new Set<string>();
+        const collectCard = (card: Card) => {
+          const key = `${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`;
+          if (collectedKeys.has(key)) return;
 
-        state.table.forEach(card => {
+          collectedKeys.add(key);
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+          pickedUp.add(key);
           player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
-        });
-        state.activeAttackCards.forEach(card => {
-          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          pickedUp.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
-          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
-        });
+        };
+
+        state.table.forEach(collectCard);
+        state.activeAttackCards.forEach(collectCard);
 
         anyPlayer.__lastPickedUpCardKeys = pickedUp;
         player.hasPickedUp = true;

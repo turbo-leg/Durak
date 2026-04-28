@@ -48,6 +48,27 @@ describe('DurakEngine - Stacking and Round End', () => {
     expect(player.lastDrawLog.length).toBeGreaterThan(0);
   });
 
+  test('endRound - does not duplicate cards that appear in both table and active attacks', () => {
+    const state = new GameState();
+    const player = new Player();
+    player.id = 'player1';
+    state.players.set(player.id, player);
+
+    const sharedCard = new Card(Suit.Hearts, Rank.Nine);
+    const tableCard = new Card(Suit.Spades, Rank.Eight);
+
+    state.table.push(tableCard);
+    state.table.push(sharedCard);
+    state.activeAttackCards.push(sharedCard);
+
+    DurakEngine.endRound(state, 'player1');
+
+    expect(player.hand).toHaveLength(2);
+    expect(player.hand.filter((card) => card.suit === Suit.Hearts && card.rank === Rank.Nine)).toHaveLength(1);
+    expect(player.hand.filter((card) => card.suit === Suit.Spades && card.rank === Rank.Eight)).toHaveLength(1);
+    expect(player.lastDrawLog).toHaveLength(2);
+  });
+
   test('handleDefend Logic Simulation - Pairing verification', () => {
     // We simulate the logic inside handleDefend for pairing
     const huzurSuit = Suit.Diamonds;
