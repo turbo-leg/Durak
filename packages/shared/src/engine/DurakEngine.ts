@@ -3,6 +3,20 @@ import { Player } from "../state/Player";
 import { GameState } from "../state/GameState";
 
 export class DurakEngine {
+  private static syncPickedUpKeysWithHand(player: Player): void {
+    const currentHandKeys = new Set<string>();
+    for (const card of player.hand) {
+      currentHandKeys.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+    }
+
+    for (let i = player.pickedUpCardKeys.length - 1; i >= 0; i--) {
+      const key = player.pickedUpCardKeys[i];
+      if (!key || !currentHandKeys.has(key)) {
+        player.pickedUpCardKeys.splice(i, 1);
+      }
+    }
+  }
+
   /**
    * Initializes a new Durak game given a GameState, player IDs, and hand size.
    */
@@ -266,14 +280,12 @@ export class DurakEngine {
 
     // New restriction (#76): if the swap card was obtained by picking up cards from another player,
     // disallow swapping it with the bottom trump card.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anyPlayer = player as any;
-    const pickedUpKeys = (anyPlayer.__lastPickedUpCardKeys as Set<string> | undefined);
-    
+    const pickedUpKeys = player.pickedUpCardKeys;
+
     if (isJokerTrump) {
-      if (pickedUpKeys && pickedUpKeys.has(`Spades:${Rank.Ace}:0`)) return false;
+      if (pickedUpKeys.includes(`Spades:${Rank.Ace}:0`)) return false;
     } else {
-      if (pickedUpKeys && pickedUpKeys.has(`${state.huzurSuit}:${Rank.Seven}:0`)) return false;
+      if (pickedUpKeys.includes(`${state.huzurSuit}:${Rank.Seven}:0`)) return false;
     }
 
     const playerSeven = player.hand[handIndex]!;
@@ -314,6 +326,10 @@ export class DurakEngine {
    * Resets the round state. Clears table if successful, or hands cards to player if they pick up.
    */
   static endRound(state: GameState, pickerUpperId: string | null): void {
+    // IMPORTANT: copy cards out before clearing so we don't accidentally lose them.
+    const tableCards = Array.from(state.table).filter((c): c is Card => c !== undefined);
+    const activeCards = Array.from(state.activeAttackCards).filter((c): c is Card => c !== undefined);
+
     if (pickerUpperId) {
       // Player picked up the whole table
       const player = state.players.get(pickerUpperId);
@@ -321,36 +337,37 @@ export class DurakEngine {
         // Clear previous draw log
         player.lastDrawLog.splice(0, player.lastDrawLog.length);
 
+        // Keep existing tracked pickup restrictions for cards still in hand.
+        DurakEngine.syncPickedUpKeysWithHand(player);
+
         // Track the exact cards picked up in THIS pickup event.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const anyPlayer = player as any;
-        const pickedUp = new Set<string>();
         const collectedKeys = new Set<string>();
         const collectCard = (card: Card) => {
           const key = `${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`;
           if (collectedKeys.has(key)) return;
 
           collectedKeys.add(key);
-          player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          pickedUp.add(key);
+          const cloned = new Card(card.suit, card.rank, card.isJoker);
+          player.hand.push(cloned);
+          if (!player.pickedUpCardKeys.includes(key)) {
+            player.pickedUpCardKeys.push(key);
+          }
           player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
         };
+        tableCards.forEach(collectCard);
+        activeCards.forEach(collectCard);
 
-        state.table.forEach(collectCard);
-        state.activeAttackCards.forEach(collectCard);
-
-        anyPlayer.__lastPickedUpCardKeys = pickedUp;
         player.hasPickedUp = true;
       }
     } else {
       // Success! Cards are dead.
-      state.table.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
-      state.activeAttackCards.forEach(card => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+      tableCards.forEach((card) => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+      activeCards.forEach((card) => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
 
-      // Clear last pickup tracking since no pickup happened.
-      state.players.forEach(p => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (p as any).__lastPickedUpCardKeys = undefined;
+      // Clear pickup tracking only for cards that are no longer in hand.
+      // Cards that were picked up permanently cannot be swapped, so we keep their keys.
+      state.players.forEach((p) => {
+        DurakEngine.syncPickedUpKeysWithHand(p);
       });
     }
 

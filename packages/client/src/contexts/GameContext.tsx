@@ -45,11 +45,18 @@ export const useGame = () => useContext(GameContext);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const defaultServerUrl = useMemo(() => {
-    // In dev we rely on Vite's proxy so the backend port can change (2567/2568/etc)
-    // without changing the client code.
     if (typeof window === 'undefined') return 'ws://localhost:2567';
+
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${window.location.host}/api-ws`;
+
+    // Vite dev server runs on 5173 and proxies /api-ws to Colyseus.
+    if (window.location.port === '5173') {
+      return `${wsProtocol}//${window.location.host}/api-ws`;
+    }
+
+    // When the app is served by the server container itself (Docker / production),
+    // connect directly to the same origin instead of going through the Vite proxy.
+    return `${wsProtocol}//${window.location.host}`;
   }, []);
 
   // Prefer explicit env var if provided, otherwise use same-origin + Vite proxy

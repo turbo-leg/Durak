@@ -4,6 +4,7 @@ import { Card } from "./Card";
 export class Player extends Schema {
   @type("string") id: string = "";
   @type([ Card ]) hand = new ArraySchema<Card>();
+  @type([ "string" ]) pickedUpCardKeys = new ArraySchema<string>();
   @type("boolean") hasPickedUp: boolean = false;
   @type("number") team: number = 0; // 0 or 1 for 3v3
   @type("boolean") isReady: boolean = false;

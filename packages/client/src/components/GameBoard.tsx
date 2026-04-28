@@ -43,7 +43,7 @@ export const GameBoard: React.FC = () => {
     return () => clearInterval(interval);
   }, [gameState]);
 
-  // Issue #80: Re-render every 250ms so defense visibility expires precisely at 10s.
+  // Issue #80: drive time-based visibility without calling Date.now() during render
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
@@ -550,15 +550,19 @@ export const GameBoard: React.FC = () => {
              </>
            )}
            {gameState.phase === 'playing' && (gameState.deck?.length || 0) > 0 && gameState.huzurCard && (
-             (gameState.huzurCard.isJoker && myHand.some(c => c.suit === 'Spades' && c.rank === 14)) ? (
-               <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
-                 Swap Ace
-               </button>
-             ) : (!gameState.huzurCard.isJoker && myHand.some(c => c.suit === gameState.huzurSuit && c.rank === 7)) ? (
-               <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
-                 Swap 7
-               </button>
-             ) : null
+             gameState.huzurCard.isJoker ? (
+               myHand.some(c => c.suit === 'Spades' && c.rank === 16) && !myPlayer?.pickedUpCardKeys.includes('Spades:16:0') ? (
+                 <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
+                   Swap Ace
+                 </button>
+               ) : null
+             ) : (
+               myHand.some(c => c.suit === gameState.huzurSuit && c.rank === 7) && !myPlayer?.pickedUpCardKeys.includes(`${gameState.huzurSuit}:7:0`) ? (
+                 <button onClick={handleSwapHuzur} className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base">
+                   Swap 7
+                 </button>
+               ) : null
+             )
            )}
          </div>
 
