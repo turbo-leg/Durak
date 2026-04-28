@@ -272,6 +272,40 @@ describe('DurakEngine - Custom Rules', () => {
       expect(success).toBe(false);
     });
 
+    test('swapHuzur - Remains disallowed after later pickup/round transitions while picked-up 7 is still in hand', () => {
+      const state = new GameState();
+      const p1 = new Player("p1");
+      const p2 = new Player("p2");
+      state.players.set(p1.id, p1);
+      state.players.set(p2.id, p2);
+
+      state.huzurSuit = Suit.Hearts;
+      state.huzurCard.suit = Suit.Hearts;
+      state.huzurCard.rank = Rank.Ace;
+      state.huzurCard.isJoker = false;
+      state.deck.push(new Card(Suit.Hearts, Rank.Ace, false));
+
+      // p1 initially picks up trump 7 from table.
+      state.table.push(new Card(Suit.Hearts, Rank.Seven, false));
+      DurakEngine.endRound(state, p1.id);
+      expect(p1.pickedUpCardKeys.includes(`${Suit.Hearts}:${Rank.Seven}:0`)).toBe(true);
+
+      // p1 later plays another card (not the 7), and a success round happens.
+      p1.hand.push(new Card(Suit.Clubs, Rank.Nine, false));
+      const nonTrumpIndex = p1.hand.findIndex((c) => c.suit === Suit.Clubs && c.rank === Rank.Nine);
+      expect(nonTrumpIndex).toBeGreaterThanOrEqual(0);
+      p1.hand.splice(nonTrumpIndex, 1);
+      DurakEngine.endRound(state, null);
+
+      // p1 also has another pickup event; previously this would clear old tracked keys.
+      state.table.push(new Card(Suit.Spades, Rank.Ten, false));
+      DurakEngine.endRound(state, p1.id);
+
+      // As long as p1 still holds the picked-up trump 7, swap must be blocked.
+      const canSwap = DurakEngine.swapHuzur(p1, state);
+      expect(canSwap).toBe(false);
+    });
+
     test('swapHuzur - Fails if deck is empty', () => {
       const p1 = new Player("p1");
       p1.hand.push(...[new Card(Suit.Hearts, Rank.Seven)]);

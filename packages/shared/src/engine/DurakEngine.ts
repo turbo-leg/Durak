@@ -3,6 +3,20 @@ import { Player } from "../state/Player";
 import { GameState } from "../state/GameState";
 
 export class DurakEngine {
+  private static syncPickedUpKeysWithHand(player: Player): void {
+    const currentHandKeys = new Set<string>();
+    for (const card of player.hand) {
+      currentHandKeys.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
+    }
+
+    for (let i = player.pickedUpCardKeys.length - 1; i >= 0; i--) {
+      const key = player.pickedUpCardKeys[i];
+      if (!key || !currentHandKeys.has(key)) {
+        player.pickedUpCardKeys.splice(i, 1);
+      }
+    }
+  }
+
   /**
    * Initializes a new Durak game given a GameState, player IDs, and hand size.
    */
@@ -323,6 +337,9 @@ export class DurakEngine {
         // Clear previous draw log
         player.lastDrawLog.splice(0, player.lastDrawLog.length);
 
+        // Keep existing tracked pickup restrictions for cards still in hand.
+        DurakEngine.syncPickedUpKeysWithHand(player);
+
         // Track the exact cards picked up in THIS pickup event.
         const collectedKeys = new Set<string>();
         const collectCard = (card: Card) => {
@@ -332,12 +349,11 @@ export class DurakEngine {
           collectedKeys.add(key);
           const cloned = new Card(card.suit, card.rank, card.isJoker);
           player.hand.push(cloned);
-          player.pickedUpCardKeys.push(key);
+          if (!player.pickedUpCardKeys.includes(key)) {
+            player.pickedUpCardKeys.push(key);
+          }
           player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
         };
-
-        player.pickedUpCardKeys.clear();
-
         tableCards.forEach(collectCard);
         activeCards.forEach(collectCard);
 
@@ -351,23 +367,7 @@ export class DurakEngine {
       // Clear pickup tracking only for cards that are no longer in hand.
       // Cards that were picked up permanently cannot be swapped, so we keep their keys.
       state.players.forEach((p) => {
-        const currentHandKeys = new Set<string>();
-        for (const card of p.hand) {
-          currentHandKeys.add(`${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`);
-        }
-
-        // Remove keys for cards that are no longer in this player's hand
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < p.pickedUpCardKeys.length; i++) {
-          const key = p.pickedUpCardKeys[i];
-          if (!currentHandKeys.has(key)) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach((key) => {
-          const idx = p.pickedUpCardKeys.indexOf(key);
-          if (idx >= 0) p.pickedUpCardKeys.splice(idx, 1);
-        });
+        DurakEngine.syncPickedUpKeysWithHand(p);
       });
     }
 
