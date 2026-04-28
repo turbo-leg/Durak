@@ -263,7 +263,7 @@ describe('DurakEngine - Custom Rules', () => {
       p1.hand.push(...[sevenOfHearts]);
 
       // Simulate: the 7-of-trump came from a pickup event.
-      (p1 as any).__lastPickedUpCardKeys = new Set([`${Suit.Hearts}:${Rank.Seven}:0`]);
+      p1.pickedUpCardKeys.push(`${Suit.Hearts}:${Rank.Seven}:0`);
 
       const faceUpHuzur = new Card(Suit.Hearts, Rank.Ace);
       const fakeState = { huzurSuit: Suit.Hearts, huzurCard: faceUpHuzur, deck: { length: 10 } } as any;
