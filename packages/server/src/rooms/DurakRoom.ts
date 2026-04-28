@@ -72,6 +72,14 @@ export class DurakRoom extends Room<GameState> {
           const id = `dummy-${Math.random().toString(36).substring(2, 7)}`;
           const p = new Player(id);
           p.isReady = true;
+
+          // Auto-assign teams to keep them balanced in team mode
+          if (this.state.mode === "teams") {
+            const team0Count = Array.from(this.state.players.values()).filter((plyr) => plyr.team === 0).length;
+            const team1Count = Array.from(this.state.players.values()).filter((plyr) => plyr.team === 1).length;
+            p.team = team0Count <= team1Count ? 0 : 1;
+          }
+
           this.state.players.set(id, p);
           spawned++;
         }
