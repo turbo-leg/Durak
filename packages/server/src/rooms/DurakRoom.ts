@@ -393,19 +393,22 @@ export class DurakRoom extends Room<GameState> {
     });
 
 
-    // Success! Move pairs to tableStacks (for visual rendering) and table (for history)
+    // Move resolved attack cards to table (history) and push visual pairs to tableStacks.
+    // Defense cards do NOT go to table — they become the new activeAttackCards only.
     assignments.forEach(pair => {
+      // Visual pairing for UI
       this.state.tableStacks.push(new Card(pair.atk.suit, pair.atk.rank, pair.atk.isJoker));
       this.state.tableStacks.push(new Card(pair.def.suit, pair.def.rank, pair.def.isJoker));
-      
+      // Attack cards are now resolved history
       this.state.table.push(new Card(pair.atk.suit, pair.atk.rank, pair.atk.isJoker));
-      this.state.table.push(new Card(pair.def.suit, pair.def.rank, pair.def.isJoker));
     });
 
-    // The player's new defending cards become the NEW activeAttackCards
+    // Clear activeAttackCards (resolved above into table history)
     this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
 
-    defendingCards.forEach(defCard => {
+    // The matched defense cards become the NEW activeAttackCards (next player must beat these)
+    assignments.forEach(pair => {
+      const defCard = pair.def;
       const idx = player.hand.findIndex((hc) => hc.suit === defCard.suit && hc.rank === defCard.rank);
       if (idx !== -1) {
         player.hand.splice(idx, 1);

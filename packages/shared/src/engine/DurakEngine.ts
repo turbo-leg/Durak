@@ -340,15 +340,11 @@ export class DurakEngine {
         // Keep existing tracked pickup restrictions for cards still in hand.
         DurakEngine.syncPickedUpKeysWithHand(player);
 
-        // Track the exact cards picked up in THIS pickup event.
-        const collectedKeys = new Set<string>();
+        // Collect all cards from the table (resolved history) and activeAttackCards (pending)
         const collectCard = (card: Card) => {
-          const key = `${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`;
-          if (collectedKeys.has(key)) return;
-
-          collectedKeys.add(key);
           const cloned = new Card(card.suit, card.rank, card.isJoker);
           player.hand.push(cloned);
+          const key = `${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`;
           if (!player.pickedUpCardKeys.includes(key)) {
             player.pickedUpCardKeys.push(key);
           }
