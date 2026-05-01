@@ -26,7 +26,7 @@ describe('Card Conservation - No Duplication on Pickup', () => {
     state.table.splice(0, state.table.length);
     state.tableStacks.splice(0, state.tableStacks.length);
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
-    state.players.forEach(p => p.hand.splice(0, p.hand.length));
+    state.players.forEach((p) => p.hand.splice(0, p.hand.length));
 
     state.huzurSuit = Suit.Spades;
   });
@@ -61,7 +61,7 @@ describe('Card Conservation - No Duplication on Pickup', () => {
     expect(p1.hand).toHaveLength(6);
 
     // Verify each card appears exactly once
-    const cardKeys = p1.hand.map(c => `${c.suit}:${c.rank}`);
+    const cardKeys = p1.hand.map((c) => `${c.suit}:${c.rank}`);
     const uniqueKeys = new Set(cardKeys);
     // All 6 should be unique (since all 6 inputs were unique)
     expect(uniqueKeys.size).toBe(6);
@@ -100,7 +100,7 @@ describe('Card Conservation - No Duplication on Pickup', () => {
       let total = state.deck.length + state.discardPile.length;
       total += state.table.length;
       total += state.activeAttackCards.length;
-      state.players.forEach(p => total += p.hand.length);
+      state.players.forEach((p) => (total += p.hand.length));
       return total;
     };
 
@@ -135,23 +135,23 @@ describe('Card Conservation - No Duplication on Pickup', () => {
     state.activeAttackCards.push(atk1, atk2, atk3);
 
     // Give p2 cards that can beat the attacks
-    const def1 = new Card(Suit.Hearts, Rank.King);   // beats 8h
-    const def2 = new Card(Suit.Spades, Rank.Ten);    // beats 9s
-    const def3 = new Card(Suit.Clubs, Rank.Queen);   // beats 7c
+    const def1 = new Card(Suit.Hearts, Rank.King); // beats 8h
+    const def2 = new Card(Suit.Spades, Rank.Ten); // beats 9s
+    const def3 = new Card(Suit.Clubs, Rank.Queen); // beats 7c
     p2.hand.push(def1, def2, def3);
 
     // Find the assignment
     const assignments = DurakEngine.findDefenseAssignment(
       [def1, def2, def3],
       [atk1, atk2, atk3],
-      state.huzurSuit
+      state.huzurSuit,
     );
     expect(assignments).not.toBeNull();
     expect(assignments).toHaveLength(3);
 
     // Simulate what handleDefend does AFTER the fix:
     // 1. Move attack cards to table (history) + tableStacks (visual)
-    assignments!.forEach(pair => {
+    assignments!.forEach((pair) => {
       state.tableStacks.push(new Card(pair.atk.suit, pair.atk.rank, pair.atk.isJoker));
       state.tableStacks.push(new Card(pair.def.suit, pair.def.rank, pair.def.isJoker));
       state.table.push(new Card(pair.atk.suit, pair.atk.rank, pair.atk.isJoker));
@@ -161,9 +161,9 @@ describe('Card Conservation - No Duplication on Pickup', () => {
     state.activeAttackCards.splice(0, state.activeAttackCards.length);
 
     // 3. Defense cards become new active attacks
-    assignments!.forEach(pair => {
+    assignments!.forEach((pair) => {
       const defCard = pair.def;
-      const idx = p2.hand.findIndex(hc => hc.suit === defCard.suit && hc.rank === defCard.rank);
+      const idx = p2.hand.findIndex((hc) => hc.suit === defCard.suit && hc.rank === defCard.rank);
       if (idx !== -1) {
         p2.hand.splice(idx, 1);
         state.activeAttackCards.push(new Card(defCard.suit, defCard.rank, defCard.isJoker));
@@ -176,9 +176,11 @@ describe('Card Conservation - No Duplication on Pickup', () => {
     expect(p2.hand).toHaveLength(0);
 
     // Verify NO overlap between table and activeAttackCards
-    const tableKeys = new Set(Array.from(state.table).map(c => `${c.suit}:${c.rank}`));
-    const activeKeys = new Set(Array.from(state.activeAttackCards).map(c => `${c.suit}:${c.rank}`));
-    
+    const tableKeys = new Set(Array.from(state.table).map((c) => `${c.suit}:${c.rank}`));
+    const activeKeys = new Set(
+      Array.from(state.activeAttackCards).map((c) => `${c.suit}:${c.rank}`),
+    );
+
     for (const key of activeKeys) {
       expect(tableKeys.has(key)).toBe(false);
     }

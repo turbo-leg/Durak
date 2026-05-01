@@ -5,14 +5,16 @@
 All these files are in: `/Users/khanboldbattulga/Documents/GitHub/Durak/`
 
 ### **1. QUICK_START.md** ⚡ START HERE!
+
 - **Time: 5 minutes**
 - **Best for:** First-time setup
-- **What it covers:** 
+- **What it covers:**
   - One-time authentication
   - Seeing issues immediately
   - Your first commands
 
 ### **2. GITHUB_CHEATSHEET.md** 📋 KEEP HANDY!
+
 - **Time: 2 minutes lookup**
 - **Best for:** Quick reference while coding
 - **What it covers:**
@@ -21,6 +23,7 @@ All these files are in: `/Users/khanboldbattulga/Documents/GitHub/Durak/`
   - Real-world examples
 
 ### **3. HOW_IT_WORKS.md** 🧠 UNDERSTAND THE SYSTEM!
+
 - **Time: 15 minutes read**
 - **Best for:** Understanding the big picture
 - **What it covers:**
@@ -30,6 +33,7 @@ All these files are in: `/Users/khanboldbattulga/Documents/GitHub/Durak/`
   - Real example walkthrough
 
 ### **4. VISUAL_DIAGRAMS.md** 📊 SEE IT IN PICTURES!
+
 - **Time: 10 minutes read**
 - **Best for:** Visual learners
 - **What it covers:**
@@ -39,6 +43,7 @@ All these files are in: `/Users/khanboldbattulga/Documents/GitHub/Durak/`
   - Authentication flow
 
 ### **5. TUTORIAL.md** 🎓 HANDS-ON LEARNING!
+
 - **Time: 30 minutes (includes doing it)**
 - **Best for:** Learning by doing
 - **What it covers:**
@@ -48,6 +53,7 @@ All these files are in: `/Users/khanboldbattulga/Documents/GitHub/Durak/`
   - Common questions
 
 ### **6. GITHUB_WORKFLOW.md** 📖 DEEP REFERENCE!
+
 - **Time: 20 minutes read**
 - **Best for:** Understanding each component
 - **What it covers:**
@@ -94,43 +100,48 @@ All these files are in: `/Users/khanboldbattulga/Documents/GitHub/Durak/`
 
 ### **What Each Part Does**
 
-| Component | Job | Examples |
-|-----------|-----|----------|
-| **GitHub.com** | Store code online | issues, PRs, code |
-| **Git (.git)** | Track changes locally | commits, branches |
-| **GitHub CLI** | Talk to GitHub | gh issue, gh pr |
-| **VS Code** | Edit files | write code, see changes |
-| **Git commands** | Sync everything | push, pull, commit |
+| Component        | Job                   | Examples                |
+| ---------------- | --------------------- | ----------------------- |
+| **GitHub.com**   | Store code online     | issues, PRs, code       |
+| **Git (.git)**   | Track changes locally | commits, branches       |
+| **GitHub CLI**   | Talk to GitHub        | gh issue, gh pr         |
+| **VS Code**      | Edit files            | write code, see changes |
+| **Git commands** | Sync everything       | push, pull, commit      |
 
 ---
 
 ## **📋 Start Reading**
 
 ### **If you have 5 minutes:**
+
 → Read: `QUICK_START.md`  
 → Do: `gh auth login`  
 → Do: `gh issue list`  
 ✅ You're ready to code!
 
 ### **If you have 15 minutes:**
+
 → Read: `HOW_IT_WORKS.md`  
 → Understand the three systems  
 → See how they connect  
 ✅ You understand the big picture!
 
 ### **If you have 30 minutes:**
+
 → Read: `TUTORIAL.md`  
 → Follow along with a real example  
 → Do each step  
 ✅ You can do it from memory now!
 
 ### **If you have 10 minutes:**
+
 → Read: `VISUAL_DIAGRAMS.md`  
 → See all the ASCII diagrams  
 → Visual understanding clicks!  
 ✅ You see how it all fits!
 
 ### **If you need a command:**
+
 → Use: `GITHUB_CHEATSHEET.md`  
 → Find what you need  
 → Copy-paste the command  
@@ -221,34 +232,39 @@ git checkout main                       # Switch branch
 ## **🎓 Learning Path**
 
 ### **Level 1: Beginner (15 min)**
+
 1. Read: QUICK_START.md
 2. Do: gh auth login
 3. Do: gh issue list
-✅ You can see issues
+   ✅ You can see issues
 
 ### **Level 2: Basic User (30 min)**
+
 1. Read: TUTORIAL.md
 2. Do: Follow all 15 steps
 3. Do: Create a real PR
-✅ You can work on issues
+   ✅ You can work on issues
 
 ### **Level 3: Intermediate (1 hour)**
+
 1. Read: HOW_IT_WORKS.md
 2. Read: VISUAL_DIAGRAMS.md
 3. Do: 3 PRs with confidence
-✅ You understand everything
+   ✅ You understand everything
 
 ### **Level 4: Advanced (ongoing)**
+
 1. Use: GITHUB_CHEATSHEET.md for reference
 2. Use: GITHUB_WORKFLOW.md for edge cases
 3. Solve: Complex merge conflicts
-✅ You're a Git expert!
+   ✅ You're a Git expert!
 
 ---
 
 ## **⚡ TL;DR (Too Long; Didn't Read)**
 
 **How it works:**
+
 - GitHub.com = cloud storage for code
 - Your computer = local copy
 - VS Code = editor
@@ -257,6 +273,7 @@ git checkout main                       # Switch branch
 - Pull = get from cloud
 
 **What to do:**
+
 1. `gh auth login` (verify you)
 2. `gh issue list` (see work)
 3. `gh issue develop 5` (pick issue)
@@ -267,6 +284,7 @@ git checkout main                       # Switch branch
 8. ✅ Done!
 
 **Key files:**
+
 - `QUICK_START.md` - Get started fast
 - `TUTORIAL.md` - Learn by doing
 - `GITHUB_CHEATSHEET.md` - Find commands

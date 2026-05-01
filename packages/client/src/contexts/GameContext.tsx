@@ -77,7 +77,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearGameMessage = () => setGameMessage(null);
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
-    roomInstance.onStateChange(() => setTick(t => t + 1));
+    roomInstance.onStateChange(() => setTick((t) => t + 1));
 
     // Issue #80: capture explicit defense snapshot for 5s UI visibility.
     roomInstance.onMessage('defensePlayed', (data: DefenseSnapshot) => {
@@ -95,15 +95,26 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setTimeout(() => setGameMessage(null), 4000);
     });
     roomInstance.onMessage('playerWon', (playerId: string) => {
-      setGameMessage(playerId === roomInstance.sessionId ? '🎉 You won!' : `🎉 Player ${playerId} has won!`);
+      setGameMessage(
+        playerId === roomInstance.sessionId ? '🎉 You won!' : `🎉 Player ${playerId} has won!`,
+      );
       setTimeout(() => setGameMessage(null), 4000);
     });
-    roomInstance.onMessage('gameOver', (data: { loser?: string, draw?: boolean }) => {
+    roomInstance.onMessage('gameOver', (data: { loser?: string; draw?: boolean }) => {
       if (data.draw) setGameMessage('Game Over! It is a draw.');
-      else setGameMessage(data.loser === roomInstance.sessionId ? '😭 Game Over. You are the Durak (Fool)!' : `🎉 Game Over! ${data.loser} is the Durak.`);
+      else
+        setGameMessage(
+          data.loser === roomInstance.sessionId
+            ? '😭 Game Over. You are the Durak (Fool)!'
+            : `🎉 Game Over! ${data.loser} is the Durak.`,
+        );
     });
     roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
-      setGameMessage(data.playerId === roomInstance.sessionId ? '⏰ Your time ran out! Skipping your turn...' : '⏰ Turn time expired!');
+      setGameMessage(
+        data.playerId === roomInstance.sessionId
+          ? '⏰ Your time ran out! Skipping your turn...'
+          : '⏰ Turn time expired!',
+      );
       setTimeout(() => setGameMessage(null), 3000);
     });
     roomInstance.onError((code, message) => {
@@ -158,11 +169,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [room]);
 
   return (
-    <GameContext.Provider value={{
-      client, room, error, isConnected, gameState, gameMessage, clearGameMessage,
-      defenseSnapshot,
-      createGame, joinGame, findPublicGames, leaveGame
-    }}>
+    <GameContext.Provider
+      value={{
+        client,
+        room,
+        error,
+        isConnected,
+        gameState,
+        gameMessage,
+        clearGameMessage,
+        defenseSnapshot,
+        createGame,
+        joinGame,
+        findPublicGames,
+        leaveGame,
+      }}
+    >
       {children}
     </GameContext.Provider>
   );

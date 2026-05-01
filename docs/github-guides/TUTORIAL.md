@@ -29,7 +29,7 @@ gh issue list
 
 ✅ GitHub CLI connected to GitHub.com  
 ✅ Fetched all open issues  
-✅ Displayed them in terminal  
+✅ Displayed them in terminal
 
 ### **Pick One Issue:**
 
@@ -99,7 +99,7 @@ Creating branch for issue #7
 ✅ GitHub CLI contacted GitHub.com  
 ✅ Created a new branch: `7-implement-game-over-conditions`  
 ✅ Git switched your local repo to this branch  
-✅ You're now isolated from main branch  
+✅ You're now isolated from main branch
 
 ### **Verify You're on the Branch:**
 
@@ -108,6 +108,7 @@ git branch
 ```
 
 Output:
+
 ```
 * 7-implement-game-over-conditions    ← (you are here)
   main
@@ -132,7 +133,7 @@ private checkGameOver() {
   let hasNewWinner = false;
   this.state.players.forEach((player, id) => {
     const alreadyWon = this.state.winners.includes(id);
-    
+
     if (this.state.deck.length === 0 && player.hand.length === 0 && !alreadyWon) {
       this.state.winners.push(id);
       hasNewWinner = true;
@@ -178,7 +179,7 @@ private checkGameOver() {
   // TODO: Check for winners: track players who empty their hand
   // A player wins when deck is empty AND they have 0 cards
   // The LAST player remaining is the "Durak" (fool)
-  
+
   let hasNewWinner = false;
   // ... rest of code
 }
@@ -188,7 +189,7 @@ private checkGameOver() {
 
 ✅ Added descriptive comments  
 ✅ Clarified the win condition  
-✅ Code is now easier to understand  
+✅ Code is now easier to understand
 
 ---
 
@@ -208,14 +209,14 @@ index 1234567..abcdefg 100644
 --- a/packages/server/src/rooms/DurakRoom.ts
 +++ b/packages/server/src/rooms/DurakRoom.ts
 @@ -320,6 +320,11 @@ export class DurakRoom extends Room<GameState> {
-   
+
    private checkGameOver() {
      if (this.state.phase !== "playing") return;
-+    
++
 +    // Check for winners: track players who empty their hand
 +    // A player wins when deck is empty AND they have 0 cards
 +    // The LAST player remaining is the "Durak" (fool)
-     
+
      let hasNewWinner = false;
 ```
 
@@ -249,6 +250,7 @@ git status
 ```
 
 Output:
+
 ```
 On branch 7-implement-game-over-conditions
 
@@ -270,7 +272,7 @@ git commit -m "docs: add clarifying comments to checkGameOver logic"
 
 ✅ Creates a snapshot in `.git/`  
 ✅ Saves with your message  
-✅ Commit is now in history  
+✅ Commit is now in history
 
 ### **Output:**
 
@@ -286,6 +288,7 @@ git log --oneline -3
 ```
 
 Output:
+
 ```
 abc1234 docs: add clarifying comments to checkGameOver logic    ← Your commit!
 def5678 Initial setup
@@ -306,7 +309,7 @@ git push origin 7-implement-game-over-conditions
 
 ✅ Sends your local commits to GitHub  
 ✅ Creates/updates the branch on GitHub  
-✅ Your teammates can now see your work  
+✅ Your teammates can now see your work
 
 ### **Output:**
 
@@ -348,7 +351,7 @@ This PR implements the game over logic:
 
 ✅ Creates a PR on GitHub  
 ✅ Links it to issue #7  
-✅ Shows your changes for review  
+✅ Shows your changes for review
 
 ### **Output:**
 
@@ -357,7 +360,7 @@ Creating pull request for 7-implement-game-over-conditions into main in turbo-le
 
 remote: Create a pull request for '7-implement-game-over-conditions' on GitHub by visiting:
 remote:      https://github.com/turbo-leg/Durak/pull/1
-remote: 
+remote:
 
 ✓ Pull request created: #1
 ```
@@ -377,6 +380,7 @@ gh pr view --web
 Browser opens to: `https://github.com/turbo-leg/Durak/pull/1`
 
 You see:
+
 - ✅ Your title and description
 - ✅ Your commits (1 commit)
 - ✅ Your changes (diff view)
@@ -386,6 +390,7 @@ You see:
 ### **What Others See:**
 
 Your teammates can:
+
 - 📖 Read the description
 - 👀 Review the code
 - 💬 Leave comments
@@ -455,7 +460,7 @@ gh pr merge 1
 ✅ Merges your branch into main  
 ✅ Closes the PR  
 ✅ Auto-closes issue #7  
-✅ Your code is now on main!  
+✅ Your code is now on main!
 
 ### **Output:**
 
@@ -481,7 +486,7 @@ git pull origin main
 
 ✅ Switches to main branch  
 ✅ Downloads the latest code  
-✅ Your change is now in main!  
+✅ Your change is now in main!
 
 ### **Verify:**
 
@@ -490,6 +495,7 @@ git log --oneline -5
 ```
 
 Output:
+
 ```
 abc1234 Merge pull request #1 from turbo-leg/7-implement-game-over-conditions    ← Merged!
 def5678 docs: add clarifying comments to checkGameOver logic
@@ -520,23 +526,23 @@ YOU DID IT! 🎮
 
 ## **Quick Recap**
 
-| Step | Command | What It Does |
-|------|---------|------------|
-| 1 | `gh issue list` | See all issues |
-| 2 | `gh issue view 7` | View issue details |
-| 3 | `gh issue develop 7` | Create branch & switch |
-| 4 | Edit in VS Code | Write the code |
-| 5 | `git diff` | Review changes |
-| 6 | `git add .` | Stage changes |
-| 7 | `git commit -m "..."` | Save snapshot |
-| 8 | `git push origin ...` | Send to GitHub |
-| 9 | `gh pr create` | Create pull request |
-| 10 | `gh pr view --web` | Open in browser |
-| 11 | (Wait for review) | Teammates review |
-| 12 | (Make updates if needed) | Fix feedback |
-| 13 | `gh pr merge` | Merge to main |
-| 14 | `git pull origin main` | Get merged code |
-| 15 | 🎉 Celebrate! | You're done! |
+| Step | Command                  | What It Does           |
+| ---- | ------------------------ | ---------------------- |
+| 1    | `gh issue list`          | See all issues         |
+| 2    | `gh issue view 7`        | View issue details     |
+| 3    | `gh issue develop 7`     | Create branch & switch |
+| 4    | Edit in VS Code          | Write the code         |
+| 5    | `git diff`               | Review changes         |
+| 6    | `git add .`              | Stage changes          |
+| 7    | `git commit -m "..."`    | Save snapshot          |
+| 8    | `git push origin ...`    | Send to GitHub         |
+| 9    | `gh pr create`           | Create pull request    |
+| 10   | `gh pr view --web`       | Open in browser        |
+| 11   | (Wait for review)        | Teammates review       |
+| 12   | (Make updates if needed) | Fix feedback           |
+| 13   | `gh pr merge`            | Merge to main          |
+| 14   | `git pull origin main`   | Get merged code        |
+| 15   | 🎉 Celebrate!            | You're done!           |
 
 ---
 

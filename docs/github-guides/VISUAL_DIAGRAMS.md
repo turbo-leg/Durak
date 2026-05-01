@@ -83,13 +83,13 @@ File States in Git:
 
    file.ts             git add .          git commit
    (new file)    ────────────────►      ◄─────────────
-                                         
+
    No git info         Ready to commit     In .git/
                        waiting to save     tracked
-                       
+
                        (preview of        history
                        next commit)
-                       
+
 ───────────────────────────────────────────────────────
 
    EXAMPLE FLOW:
@@ -139,7 +139,7 @@ Branch: 5-fix-bug                Branch: 5-fix-bug
 
                     git push
                     ────────►
-                    
+
        SYNC happens!
        Local matches Remote
 ```
@@ -303,8 +303,8 @@ Your Branch: 5-fix-attack        Main Branch
 commit 1 ✓                        commit 1 ✓
 commit 2 ✓                        commit 2 ✓
 commit 3 ✓                        commit 3 ✓
-commit 4 ✓ NEW                    
-commit 5 ✓ NEW                    
+commit 4 ✓ NEW
+commit 5 ✓ NEW
 
                 ┌─ PULL REQUEST ─┐
                 │                 │
@@ -322,7 +322,7 @@ commit 5 ✓ NEW
                          │
                          ▼
         Both branches merge to main:
-        
+
         commit 1 ✓
         commit 2 ✓
         commit 3 ✓

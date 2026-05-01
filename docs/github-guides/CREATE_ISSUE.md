@@ -9,11 +9,13 @@ gh issue create --title "Your issue title" --body "Description of the issue"
 ```
 
 **Example:**
+
 ```bash
 gh issue create --title "Fix attack validation bug" --body "The attack validation function is not checking card ranks correctly"
 ```
 
 **Output:**
+
 ```
 Creating issue in turbo-leg/Durak
 
@@ -94,15 +96,15 @@ Fixes #5" \
 
 ## **All Options Explained**
 
-| Option | What It Does | Example |
-|--------|------------|---------|
-| `--title` | Issue title (required) | `--title "Fix bug"` |
-| `--body` | Description | `--body "Description..."` |
-| `--assignee` | Assign to person | `--assignee @me` |
-| `--label` | Add labels (tags) | `--label "bug"` |
-| `--project` | Add to project | `--project "Roadmap"` |
-| `--milestone` | Link to milestone | `--milestone "v1.0"` |
-| `--web` | Open in browser | `--web` |
+| Option        | What It Does           | Example                   |
+| ------------- | ---------------------- | ------------------------- |
+| `--title`     | Issue title (required) | `--title "Fix bug"`       |
+| `--body`      | Description            | `--body "Description..."` |
+| `--assignee`  | Assign to person       | `--assignee @me`          |
+| `--label`     | Add labels (tags)      | `--label "bug"`           |
+| `--project`   | Add to project         | `--project "Roadmap"`     |
+| `--milestone` | Link to milestone      | `--milestone "v1.0"`      |
+| `--web`       | Open in browser        | `--web`                   |
 
 ---
 
@@ -262,16 +264,16 @@ if (!isValidMassAttack(cards, players, deck)) return false;
 
 ## **Quick Command Reference**
 
-| What You Want | Command |
-|---------------|---------|
-| Simple issue | `gh issue create --title "Title"` |
-| With description | `gh issue create --title "Title" --body "Description"` |
-| Assign to you | Add `--assignee @me` |
-| Add label | Add `--label "bug"` |
-| Multiple labels | `--label "bug" --label "urgent"` |
-| Assign to person | `--assignee username` |
-| Open in browser | Add `--web` |
-| View in browser after | `gh issue view <NUM> --web` |
+| What You Want         | Command                                                |
+| --------------------- | ------------------------------------------------------ |
+| Simple issue          | `gh issue create --title "Title"`                      |
+| With description      | `gh issue create --title "Title" --body "Description"` |
+| Assign to you         | Add `--assignee @me`                                   |
+| Add label             | Add `--label "bug"`                                    |
+| Multiple labels       | `--label "bug" --label "urgent"`                       |
+| Assign to person      | `--assignee username`                                  |
+| Open in browser       | Add `--web`                                            |
+| View in browser after | `gh issue view <NUM> --web`                            |
 
 ---
 
@@ -314,17 +316,18 @@ gh pr merge
 
 ## **Differences Between Methods**
 
-| Method | Speed | Features | Keyboard |
-|--------|-------|----------|----------|
+| Method       | Speed   | Features    | Keyboard    |
+| ------------ | ------- | ----------- | ----------- |
 | **Terminal** | ⚡ Fast | All options | ✅ Pure CLI |
-| **Browser** | 🐢 Slow | Visual | 🖱️ Mouse |
-| **VS Code** | ⚡ Fast | Most | ✅ Keyboard |
+| **Browser**  | 🐢 Slow | Visual      | 🖱️ Mouse    |
+| **VS Code**  | ⚡ Fast | Most        | ✅ Keyboard |
 
 ---
 
 ## **What's a Good Issue?**
 
 ### **✅ Good Issue:**
+
 ```
 Title: Fix attack validation with jokers
 
@@ -342,6 +345,7 @@ Actual: Joker beats validation function
 ```
 
 ### **❌ Bad Issue:**
+
 ```
 Title: Bug
 
@@ -376,11 +380,13 @@ Description: it dont work
 ## **Summary**
 
 **Fastest way to create issue:**
+
 ```bash
 gh issue create --title "Title" --body "Description"
 ```
 
 **Common additions:**
+
 ```bash
 --assignee @me           # Assign to yourself
 --label "bug"            # Add a label
@@ -388,6 +394,7 @@ gh issue create --title "Title" --body "Description"
 ```
 
 **Then work on it:**
+
 ```bash
 gh issue develop 8       # Creates branch
 # Edit files...
@@ -403,11 +410,13 @@ gh pr create             # Create PR
 **Ready to create your first issue?**
 
 Try this now:
+
 ```bash
 gh issue create --title "Test: Learn GitHub" --body "Testing issue creation workflow"
 ```
 
 Then:
+
 ```bash
 gh issue list
 ```

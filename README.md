@@ -13,6 +13,7 @@ docker compose up --build -d
 ```
 
 You can view the logs with:
+
 ```bash
 docker compose logs -f server
 ```

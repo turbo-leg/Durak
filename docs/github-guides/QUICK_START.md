@@ -9,6 +9,7 @@ gh auth login
 ```
 
 **Follow the prompts:**
+
 1. Choose `GitHub.com`
 2. Choose `HTTPS`
 3. Choose `Y` to authenticate with a web login
@@ -16,6 +17,7 @@ gh auth login
 5. Copy the device code and paste it back in terminal
 
 **Verify it worked:**
+
 ```bash
 gh auth status
 ```
@@ -33,9 +35,10 @@ gh issue list --repo turbo-leg/Durak
 ```
 
 **Example output:**
+
 ```
 #1  Implement Full Game Loop                 open   Apr 19
-#2  Set up Client Connection Context         open   Apr 19  
+#2  Set up Client Connection Context         open   Apr 19
 #3  Fix Attack Validation Logic              open   Apr 19
 #5  Add Card Animations                      open   Apr 19
 ```
@@ -51,6 +54,7 @@ gh issue develop 1
 ```
 
 **What this does:**
+
 - ✅ Creates a new branch named `1-implement-full-game-loop`
 - ✅ Switches to that branch automatically
 - ✅ Links it to the GitHub issue
@@ -93,6 +97,7 @@ gh pr create --title "Implement Game Loop" --body "Fixes #1"
 ```
 
 This will:
+
 - ✅ Create a PR
 - ✅ Auto-link to issue #1
 - ✅ Show a link to view it on GitHub
@@ -106,6 +111,7 @@ gh pr view --web
 ```
 
 Opens the PR in your browser so you can:
+
 - See code changes
 - Request a review
 - Monitor status
@@ -115,12 +121,14 @@ Opens the PR in your browser so you can:
 ## **IN VS CODE: See Issues Visually**
 
 ### **Option A: Issue Notebooks**
+
 1. Press `Cmd + Shift + P`
 2. Type: `GitHub Issue Notebooks`
 3. Create a notebook
 4. See all issues in a nice table
 
 ### **Option B: Pull Request Monitor**
+
 - Look in left sidebar for GitHub icon
 - Shows all PRs with status
 
@@ -129,11 +137,13 @@ Opens the PR in your browser so you can:
 ## **See Your Changes on GitHub**
 
 After you push, visit:
+
 ```
 https://github.com/turbo-leg/Durak/tree/1-implement-full-game-loop
 ```
 
 You'll see:
+
 - Your new branch
 - Your commits
 - Your changes
@@ -143,22 +153,23 @@ You'll see:
 
 ## **Everything You Need to Know**
 
-| Do This | Command |
-|---------|---------|
-| See issues | `gh issue list` |
-| Work on issue #1 | `gh issue develop 1` |
-| See your changes | `git diff` |
-| Commit changes | `git add . && git commit -m "..."` |
-| Push to GitHub | `git push` |
-| Create a PR | `gh pr create` |
-| View PR online | `gh pr view --web` |
-| Merge PR | `gh pr merge` |
+| Do This          | Command                            |
+| ---------------- | ---------------------------------- |
+| See issues       | `gh issue list`                    |
+| Work on issue #1 | `gh issue develop 1`               |
+| See your changes | `git diff`                         |
+| Commit changes   | `git add . && git commit -m "..."` |
+| Push to GitHub   | `git push`                         |
+| Create a PR      | `gh pr create`                     |
+| View PR online   | `gh pr view --web`                 |
+| Merge PR         | `gh pr merge`                      |
 
 ---
 
 ## **That's It!**
 
 You now have:
+
 - ✅ Full GitHub integration in VS Code
 - ✅ Can see all issues and PRs
 - ✅ Can work on issues locally

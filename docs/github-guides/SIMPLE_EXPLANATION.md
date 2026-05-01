@@ -5,6 +5,7 @@
 ### **Three Things You Need to Know**
 
 #### **1. GitHub.com = Cloud Storage**
+
 ```
 Like Google Drive, but for code.
 Your code lives in the cloud.
@@ -12,6 +13,7 @@ Everyone can see it (if public).
 ```
 
 #### **2. Your Computer = Working Copy**
+
 ```
 You have a copy on your computer.
 You edit files here in VS Code.
@@ -19,6 +21,7 @@ Changes are tracked by Git (.git folder).
 ```
 
 #### **3. The Sync = Push & Pull**
+
 ```
 Push = Send your changes to GitHub
 Pull = Get latest changes from GitHub
@@ -260,6 +263,7 @@ gh pr view --web
 ## **Three Key Concepts**
 
 ### **Concept 1: Branches**
+
 ```
 Think of a branch like a copy of the project.
 You work on your copy (branch).
@@ -278,6 +282,7 @@ When done, merge it back to main.
 ```
 
 ### **Concept 2: Commits**
+
 ```
 A commit is a snapshot of your code at a point in time.
 Each commit has:
@@ -293,6 +298,7 @@ commit 3: "Fix bug in auth"
 ```
 
 ### **Concept 3: Pull Requests**
+
 ```
 A PR is a "request" to merge your changes.
 It allows code review before merging.
@@ -309,28 +315,36 @@ You push → PR created → team reviews → merge → live
 ## **Questions & Answers**
 
 ### **Q: Where is my code stored?**
+
 A:
+
 - GitHub.com (cloud, everyone can see)
 - Your computer .git/ (local, only you)
 - Both copies are synced
 
 ### **Q: What if I make a mistake?**
+
 A: You can undo with:
+
 ```bash
 git reset --soft HEAD~1  # Undo, keep changes
 git reset --hard HEAD~1  # Undo, discard changes
 ```
 
 ### **Q: What does "git" mean?**
+
 A: It's a version control system. Tracks all changes to code.
 
 ### **Q: Why do I need GitHub CLI?**
+
 A: To manage issues and PRs without a browser.
 
 ### **Q: Can I undo after I push?**
+
 A: Yes, with `git revert` or `git reset` + force push.
 
 ### **Q: What if there's a merge conflict?**
+
 A: Git marks the conflicting lines. You manually fix them.
 
 ---
@@ -366,13 +380,14 @@ YOU MERGE IT
 ✅ Push often  
 ✅ Commit with clear messages  
 ✅ Pull before pushing  
-✅ Ask for help if needed  
+✅ Ask for help if needed
 
 ---
 
 ## **You're Ready!**
 
 You now understand:
+
 - What GitHub is (cloud storage for code)
 - What Git is (version control)
 - How they work together

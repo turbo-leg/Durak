@@ -26,18 +26,18 @@ export const useAudio = () => {
 
   const playDealSound = useCallback(() => {
     if (!audioCtxRef.current) {
-       // Best effort fallback instantiation
-       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Best effort fallback instantiation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-    
+
     // Some browsers block if not resumed via user gesture
     if (audioCtxRef.current.state === 'suspended') {
       audioCtxRef.current.resume().catch(() => {});
     }
 
     const ctx = audioCtxRef.current;
-    
+
     // Create an empty, short buffer (0.15 seconds of noise)
     const duration = 0.15;
     const bufferSize = ctx.sampleRate * duration;
@@ -46,10 +46,10 @@ export const useAudio = () => {
 
     // Fill buffer with white noise, fading out very quickly
     for (let i = 0; i < bufferSize; i++) {
-        // Simple envelope multiplier for crisp snap vs swoosh
-        const t = i / bufferSize;
-        const envelope = Math.max(0, 1 - (t * t * t * 5)); // sharp decay
-        data[i] = (Math.random() * 2 - 1) * envelope;
+      // Simple envelope multiplier for crisp snap vs swoosh
+      const t = i / bufferSize;
+      const envelope = Math.max(0, 1 - t * t * t * 5); // sharp decay
+      data[i] = (Math.random() * 2 - 1) * envelope;
     }
 
     const noiseSource = ctx.createBufferSource();

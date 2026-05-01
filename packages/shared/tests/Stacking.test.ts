@@ -5,7 +5,6 @@ import { GameState } from '../src/state/GameState';
 import { Player } from '../src/state/Player';
 
 describe('DurakEngine - Stacking and Round End', () => {
-
   test('endRound - successfully moves cards to discardPile when no pickerUpperId', () => {
     const state = new GameState();
     const c1 = new Card(Suit.Hearts, Rank.Eight);
@@ -34,7 +33,7 @@ describe('DurakEngine - Stacking and Round End', () => {
 
     const c1 = new Card(Suit.Hearts, Rank.Eight);
     const c2 = new Card(Suit.Hearts, Rank.Nine);
-    
+
     state.table.push(c1);
     state.activeAttackCards.push(c2);
     state.tableStacks.push(c1);
@@ -56,9 +55,9 @@ describe('DurakEngine - Stacking and Round End', () => {
 
     // After the fix, table = resolved history, activeAttackCards = pending defense.
     // These sets are always disjoint.
-    const historyCard = new Card(Suit.Spades, Rank.Eight);     // resolved attack
-    const pendingAtk = new Card(Suit.Hearts, Rank.Nine);       // pending attack
-    const pendingAtk2 = new Card(Suit.Clubs, Rank.Ten);        // another pending attack
+    const historyCard = new Card(Suit.Spades, Rank.Eight); // resolved attack
+    const pendingAtk = new Card(Suit.Hearts, Rank.Nine); // pending attack
+    const pendingAtk2 = new Card(Suit.Clubs, Rank.Ten); // another pending attack
 
     state.table.push(historyCard);
     state.activeAttackCards.push(pendingAtk);
@@ -67,27 +66,27 @@ describe('DurakEngine - Stacking and Round End', () => {
     DurakEngine.endRound(state, 'player1');
 
     expect(player.hand).toHaveLength(3);
-    expect(player.hand.filter((card) => card.suit === Suit.Hearts && card.rank === Rank.Nine)).toHaveLength(1);
-    expect(player.hand.filter((card) => card.suit === Suit.Spades && card.rank === Rank.Eight)).toHaveLength(1);
-    expect(player.hand.filter((card) => card.suit === Suit.Clubs && card.rank === Rank.Ten)).toHaveLength(1);
+    expect(
+      player.hand.filter((card) => card.suit === Suit.Hearts && card.rank === Rank.Nine),
+    ).toHaveLength(1);
+    expect(
+      player.hand.filter((card) => card.suit === Suit.Spades && card.rank === Rank.Eight),
+    ).toHaveLength(1);
+    expect(
+      player.hand.filter((card) => card.suit === Suit.Clubs && card.rank === Rank.Ten),
+    ).toHaveLength(1);
     expect(player.lastDrawLog).toHaveLength(3);
   });
 
   test('handleDefend Logic Simulation - Pairing verification', () => {
     // We simulate the logic inside handleDefend for pairing
     const huzurSuit = Suit.Diamonds;
-    const atkCards = [
-        new Card(Suit.Hearts, Rank.Nine),
-        new Card(Suit.Clubs, Rank.Eight)
-    ];
-    const defCards = [
-        new Card(Suit.Clubs, Rank.Ten),
-        new Card(Suit.Hearts, Rank.Ace)
-    ];
+    const atkCards = [new Card(Suit.Hearts, Rank.Nine), new Card(Suit.Clubs, Rank.Eight)];
+    const defCards = [new Card(Suit.Clubs, Rank.Ten), new Card(Suit.Hearts, Rank.Ace)];
 
-    const assignments: { atk: Card, def: Card }[] = [];
+    const assignments: { atk: Card; def: Card }[] = [];
     const usedDef = new Set<number>();
-    
+
     const findAssignment = (idx: number): boolean => {
       if (idx === atkCards.length) return true;
       for (let i = 0; i < defCards.length; i++) {
@@ -106,19 +105,19 @@ describe('DurakEngine - Stacking and Round End', () => {
     const success = findAssignment(0);
     expect(success).toBe(true);
     expect(assignments).toHaveLength(2);
-    
+
     // Check if 9H is paired with AH and 8C with 10C
-    const pair1 = assignments.find(a => a.atk.rank === Rank.Nine && a.atk.suit === Suit.Hearts);
+    const pair1 = assignments.find((a) => a.atk.rank === Rank.Nine && a.atk.suit === Suit.Hearts);
     expect(pair1?.def.rank).toBe(Rank.Ace);
-    
-    const pair2 = assignments.find(a => a.atk.rank === Rank.Eight && a.atk.suit === Suit.Clubs);
+
+    const pair2 = assignments.find((a) => a.atk.rank === Rank.Eight && a.atk.suit === Suit.Clubs);
     expect(pair2?.def.rank).toBe(Rank.Ten);
   });
 
   test('ReplenishAll - draws correct amount and formats lastDrawLog with + prefix', () => {
     const state = new GameState();
     state.targetHandSize = 5;
-    
+
     const player = new Player();
     player.id = 'p1';
     // Give player 3 cards
@@ -128,7 +127,7 @@ describe('DurakEngine - Stacking and Round End', () => {
     state.players.set(player.id, player);
 
     // Deck has 10 cards
-    for(let i=0; i<10; i++) state.deck.push(new Card(Suit.Hearts, Rank.Seven));
+    for (let i = 0; i < 10; i++) state.deck.push(new Card(Suit.Hearts, Rank.Seven));
 
     DurakEngine.replenishAll(state);
 
@@ -136,5 +135,4 @@ describe('DurakEngine - Stacking and Round End', () => {
     expect(player.lastDrawLog.length).toBe(2);
     expect(player.lastDrawLog[0]).toContain('+');
   });
-
 });
