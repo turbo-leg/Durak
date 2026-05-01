@@ -16,34 +16,36 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: 
 };
 
 export const GameBoard: React.FC = () => {
-  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot } = useGame();
+  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot, serverTimeOffset } =
+    useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const { playDealSound } = useAudio();
 
-  // Update timer every 100ms
+  // Update timer smoothly using requestAnimationFrame
   useEffect(() => {
     if (!gameState || gameState.phase !== 'playing') {
       return;
     }
 
+    let animationFrameId: number;
+
     const updateTimer = () => {
-      const elapsed = Date.now() - gameState.turnStartTime;
+      // Adjusted clock: Add our measured server offset to local time
+      const currentServerTime = Date.now() + serverTimeOffset;
+      const elapsed = currentServerTime - gameState.turnStartTime;
       const remaining = Math.max(0, gameState.turnTimeLimit - elapsed);
 
-      // Debug logging to pinpoint the 0.0s issue
-      console.log(
-        `[Timer Debug] Date.now(): ${Date.now()}, turnStartTime: ${gameState.turnStartTime}, turnTimeLimit: ${gameState.turnTimeLimit}, elapsed: ${elapsed}, remaining: ${remaining}`,
-      );
-
       setTimeRemaining(remaining);
+
+      // Loop for smooth progress bar
+      animationFrameId = requestAnimationFrame(updateTimer);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 1000); // Log every second to avoid spam
-    return () => clearInterval(interval);
-  }, [gameState]);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [gameState?.phase, gameState?.turnStartTime, gameState?.turnTimeLimit, serverTimeOffset]);
 
   // Issue #80: drive time-based visibility without calling Date.now() during render
   const [now, setNow] = React.useState(() => Date.now());

@@ -23,6 +23,7 @@ interface GameContextState {
   joinGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
+  serverTimeOffset: number;
 }
 
 const GameContext = createContext<GameContextState>({
@@ -38,6 +39,7 @@ const GameContext = createContext<GameContextState>({
   joinGame: async () => {},
   findPublicGames: async () => [],
   leaveGame: () => {},
+  serverTimeOffset: 0,
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -70,6 +72,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [gameMessage, setGameMessage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
+  const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
   const [, setTick] = useState(0);
   const gameState = room?.state || null;
@@ -78,6 +81,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
     roomInstance.onStateChange(() => setTick((t) => t + 1));
+
+    // Calculate server time offset
+    roomInstance.onMessage('pong', (data: { clientTime: number; serverTime: number }) => {
+      const now = Date.now();
+      const latency = (now - data.clientTime) / 2;
+      const offset = data.serverTime - data.clientTime - latency;
+      setServerTimeOffset(offset);
+    });
+
+    // Request a ping immediately to sync clocks
+    roomInstance.send('ping', { clientTime: Date.now() });
 
     // Issue #80: capture explicit defense snapshot for 5s UI visibility.
     roomInstance.onMessage('defensePlayed', (data: DefenseSnapshot) => {
@@ -183,6 +197,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         joinGame,
         findPublicGames,
         leaveGame,
+        serverTimeOffset,
       }}
     >
       {children}
