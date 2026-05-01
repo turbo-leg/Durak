@@ -1,6 +1,7 @@
 # 🎮 Durak GitHub Integration - Quick Reference Card
 
 ## **Authentication (DO THIS FIRST)**
+
 ```bash
 gh auth login
 # → Choose: GitHub.com
@@ -12,50 +13,52 @@ gh auth login
 
 ## **VIEW ISSUES**
 
-| Command | What It Does |
-|---------|------------|
-| `gh issue list` | Show all open issues |
-| `gh issue list --assignee @me` | Issues assigned to you |
-| `gh issue view 5` | View issue #5 details |
-| `gh issue list --state closed` | Show closed issues |
-| `gh issue list --label "bug"` | Show issues with "bug" label |
+| Command                        | What It Does                 |
+| ------------------------------ | ---------------------------- |
+| `gh issue list`                | Show all open issues         |
+| `gh issue list --assignee @me` | Issues assigned to you       |
+| `gh issue view 5`              | View issue #5 details        |
+| `gh issue list --state closed` | Show closed issues           |
+| `gh issue list --label "bug"`  | Show issues with "bug" label |
 
 ---
+
 gi
+
 ## **WORK ON ISSUES**
 
-| Command | What It Does |
-|---------|------------|
-| `gh issue develop 5` | Create branch for issue #5 |
-| `gh issue comment 5 -b "I'm working on this"` | Comment on issue |
-| `gh issue close 5` | Close issue #5 |
-| `gh issue reopen 5` | Reopen issue #5 |
+| Command                                       | What It Does               |
+| --------------------------------------------- | -------------------------- |
+| `gh issue develop 5`                          | Create branch for issue #5 |
+| `gh issue comment 5 -b "I'm working on this"` | Comment on issue           |
+| `gh issue close 5`                            | Close issue #5             |
+| `gh issue reopen 5`                           | Reopen issue #5            |
 
 ---
 
 ## **PULL REQUESTS**
 
-| Command | What It Does |
-|---------|------------|
-| `gh pr list` | Show all open PRs |
-| `gh pr view 1` | View PR #1 details |
-| `gh pr create --title "My PR" --body "Description"` | Create a PR |
-| `gh pr merge 1` | Merge PR #1 |
-| `gh pr review 1 --approve` | Approve PR #1 |
-| `gh pr diff 1` | See changes in PR #1 |
+| Command                                             | What It Does         |
+| --------------------------------------------------- | -------------------- |
+| `gh pr list`                                        | Show all open PRs    |
+| `gh pr view 1`                                      | View PR #1 details   |
+| `gh pr create --title "My PR" --body "Description"` | Create a PR          |
+| `gh pr merge 1`                                     | Merge PR #1          |
+| `gh pr review 1 --approve`                          | Approve PR #1        |
+| `gh pr diff 1`                                      | See changes in PR #1 |
 
 ---
 
 ## **GIT COMMANDS**
 
-| Command | What It Does |
-|---------|------------|
-| `git status` | See current changes |
-| `git add .` | Stage all changes |
-| `git commit -m "message"` | Commit changes |
-| `git push origin branch-name` | Push to GitHub |
-| `git pull origin main` | Pull latest from main |
-| `git checkout -b feature/xyz` | Create new branch |
+| Command                       | What It Does          |
+| ----------------------------- | --------------------- |
+| `git status`                  | See current changes   |
+| `git add .`                   | Stage all changes     |
+| `git commit -m "message"`     | Commit changes        |
+| `git push origin branch-name` | Push to GitHub        |
+| `git pull origin main`        | Pull latest from main |
+| `git checkout -b feature/xyz` | Create new branch     |
 
 ---
 
@@ -89,12 +92,15 @@ gi
 ## **IN VS CODE**
 
 **Open Issue Notebooks:**
+
 - `Cmd + Shift + P` → `GitHub Issue Notebooks: Create Issue Notebook`
 
 **See Git Blame:**
+
 - Hover over line of code → see who changed it
 
 **See Pull Request Monitor:**
+
 - Left sidebar → GitHub Pull Request Monitor icon
 
 ---
@@ -138,12 +144,12 @@ gh pr merge
 
 ## **COMMON ISSUES**
 
-| Problem | Solution |
-|---------|----------|
-| "Not authenticated" | `gh auth login` |
-| "Cannot push" | `git remote set-url origin https://github.com/turbo-leg/Durak.git` |
-| "Merge conflict" | `git status`, fix files, `git add .`, `git commit` |
-| "Out of date" | `git fetch origin && git rebase origin/main` |
+| Problem             | Solution                                                           |
+| ------------------- | ------------------------------------------------------------------ |
+| "Not authenticated" | `gh auth login`                                                    |
+| "Cannot push"       | `git remote set-url origin https://github.com/turbo-leg/Durak.git` |
+| "Merge conflict"    | `git status`, fix files, `git add .`, `git commit`                 |
+| "Out of date"       | `git fetch origin && git rebase origin/main`                       |
 
 ---
 
@@ -154,7 +160,7 @@ gh pr merge
 ✅ Link PRs to issues with "Fixes #5"  
 ✅ Keep branches small (one issue = one PR)  
 ✅ Review changes before committing: `git diff`  
-✅ Pull before pushing: `git pull origin main`  
+✅ Pull before pushing: `git pull origin main`
 
 ---
 

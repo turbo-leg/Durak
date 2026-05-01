@@ -1,6 +1,6 @@
-import { Card, Suit, Rank } from "../state/Card";
-import { Player } from "../state/Player";
-import { GameState } from "../state/GameState";
+import { Card, Suit, Rank } from '../state/Card';
+import { Player } from '../state/Player';
+import { GameState } from '../state/GameState';
 
 export class DurakEngine {
   private static syncPickedUpKeysWithHand(player: Player): void {
@@ -20,9 +20,14 @@ export class DurakEngine {
   /**
    * Initializes a new Durak game given a GameState, player IDs, and hand size.
    */
-  static initializeGame(state: GameState, playerIds: string[], handSize: number, mode: string = "classic"): void {
+  static initializeGame(
+    state: GameState,
+    playerIds: string[],
+    handSize: number,
+    mode: string = 'classic',
+  ): void {
     state.mode = mode;
-    state.phase = "playing";
+    state.phase = 'playing';
     state.seatOrder.splice(0, state.seatOrder.length);
     state.players.clear();
     state.deck.splice(0, state.deck.length);
@@ -30,7 +35,7 @@ export class DurakEngine {
     for (const [index, id] of playerIds.entries()) {
       const p = new Player(id);
       // assign teams if needed
-      if (mode === "teams") {
+      if (mode === 'teams') {
         p.team = index % 2; // Simple alternating teams
       }
       state.players.set(id, p);
@@ -71,9 +76,16 @@ export class DurakEngine {
     const deck: Card[] = [];
     const suits = [Suit.Spades, Suit.Hearts, Suit.Diamonds, Suit.Clubs];
     const ranks = [
-      Rank.Seven, Rank.Eight, Rank.Nine, Rank.Ten,
-      Rank.Jack, Rank.Queen, Rank.King,
-      Rank.Three, Rank.Two, Rank.Ace
+      Rank.Seven,
+      Rank.Eight,
+      Rank.Nine,
+      Rank.Ten,
+      Rank.Jack,
+      Rank.Queen,
+      Rank.King,
+      Rank.Three,
+      Rank.Two,
+      Rank.Ace,
     ];
 
     for (const suit of suits) {
@@ -108,7 +120,7 @@ export class DurakEngine {
     }
     return card.suit;
   }
-  
+
   /**
    * Returns > 0 if cardA beats cardB outright based on standard power rules + Huzur + Jokers.
    */
@@ -130,7 +142,7 @@ export class DurakEngine {
 
     // Normal comparison requires matching suits (unless one was Huzur)
     if (cardA.suit !== cardB.suit) {
-      return 0; 
+      return 0;
     }
 
     return cardA.rank - cardB.rank;
@@ -148,7 +160,7 @@ export class DurakEngine {
     if (defendingCard.suit === attackingCard.suit || defendingCard.suit === huzurSuit) {
       return DurakEngine.compareStrength(defendingCard, attackingCard, huzurSuit) > 0;
     }
-    
+
     return false;
   }
 
@@ -157,7 +169,12 @@ export class DurakEngine {
    * 3-Card Mass: 1 pair + 1 random card. (Denied if anyone has < 3 cards)
    * 5-Card Mass: 2 pairs + 1 random card. (Only if deck empty AND everyone has >= 5 cards)
    */
-  static isValidMassAttack(cards: Card[], allPlayers: Player[], deckSize: number, targetHandSize: number = 5): boolean {
+  static isValidMassAttack(
+    cards: Card[],
+    allPlayers: Player[],
+    deckSize: number,
+    targetHandSize: number = 5,
+  ): boolean {
     const requiredSize = cards.length;
     if (requiredSize !== 3 && requiredSize !== 5) return false;
 
@@ -194,15 +211,19 @@ export class DurakEngine {
    * Finds a valid 1-to-1 assignment of defenders to attackers.
    * Returns an array of pairs { atk, def } if successful, else null.
    */
-  static findDefenseAssignment(defenders: Card[], attackers: Card[], huzurSuit: string): { atk: Card, def: Card }[] | null {
+  static findDefenseAssignment(
+    defenders: Card[],
+    attackers: Card[],
+    huzurSuit: string,
+  ): { atk: Card; def: Card }[] | null {
     if (defenders.length !== attackers.length) return null;
 
     const usedDefenders = new Set<number>();
-    const assignments: { atk: Card, def: Card }[] = [];
-    
+    const assignments: { atk: Card; def: Card }[] = [];
+
     function backtrack(attackerIndex: number): boolean {
       if (attackerIndex === attackers.length) return true;
-      
+
       for (let i = 0; i < defenders.length; i++) {
         if (usedDefenders.has(i)) continue;
         if (DurakEngine.canDefend(defenders[i], attackers[attackerIndex], huzurSuit)) {
@@ -249,7 +270,7 @@ export class DurakEngine {
    * Helper to draw cards for all players at the end of a round.
    */
   static replenishAll(state: GameState): void {
-    state.players.forEach(player => {
+    state.players.forEach((player) => {
       // Clear previous draw log
       player.lastDrawLog.splice(0, player.lastDrawLog.length);
 
@@ -258,7 +279,9 @@ export class DurakEngine {
         const card = state.deck.pop();
         if (card) {
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
+          player.lastDrawLog.push(
+            `+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`,
+          );
         }
       }
     });
@@ -271,9 +294,9 @@ export class DurakEngine {
 
     let handIndex = -1;
     if (isJokerTrump) {
-      handIndex = player.hand.findIndex(c => c.suit === 'Spades' && c.rank === Rank.Ace);
+      handIndex = player.hand.findIndex((c) => c.suit === 'Spades' && c.rank === Rank.Ace);
     } else {
-      handIndex = player.hand.findIndex(c => c.suit === state.huzurSuit && c.rank === Rank.Seven);
+      handIndex = player.hand.findIndex((c) => c.suit === state.huzurSuit && c.rank === Rank.Seven);
     }
 
     if (handIndex === -1) return false;
@@ -328,7 +351,9 @@ export class DurakEngine {
   static endRound(state: GameState, pickerUpperId: string | null): void {
     // IMPORTANT: copy cards out before clearing so we don't accidentally lose them.
     const tableCards = Array.from(state.table).filter((c): c is Card => c !== undefined);
-    const activeCards = Array.from(state.activeAttackCards).filter((c): c is Card => c !== undefined);
+    const activeCards = Array.from(state.activeAttackCards).filter(
+      (c): c is Card => c !== undefined,
+    );
 
     if (pickerUpperId) {
       // Player picked up the whole table
@@ -348,7 +373,9 @@ export class DurakEngine {
           if (!player.pickedUpCardKeys.includes(key)) {
             player.pickedUpCardKeys.push(key);
           }
-          player.lastDrawLog.push(`+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`);
+          player.lastDrawLog.push(
+            `+${card.rank}${card.suit[0].toLowerCase()}${card.isJoker ? '(J)' : ''}`,
+          );
         };
         tableCards.forEach(collectCard);
         activeCards.forEach(collectCard);
@@ -357,8 +384,12 @@ export class DurakEngine {
       }
     } else {
       // Success! Cards are dead.
-      tableCards.forEach((card) => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
-      activeCards.forEach((card) => state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)));
+      tableCards.forEach((card) =>
+        state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)),
+      );
+      activeCards.forEach((card) =>
+        state.discardPile.push(new Card(card.suit, card.rank, card.isJoker)),
+      );
 
       // Clear pickup tracking only for cards that are no longer in hand.
       // Cards that were picked up permanently cannot be swapped, so we keep their keys.
@@ -381,7 +412,8 @@ export class DurakEngine {
   static isValidAttackAddition(card: Card, table: Card[], activeAttacks: Card[]): boolean {
     if (card.isJoker) return true;
     const playedRank = card.rank;
-    return table.some((c) => c.rank === playedRank) || activeAttacks.some((c) => c.rank === playedRank);
+    return (
+      table.some((c) => c.rank === playedRank) || activeAttacks.some((c) => c.rank === playedRank)
+    );
   }
-
 }

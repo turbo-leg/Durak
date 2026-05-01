@@ -1,19 +1,23 @@
-import { GameState } from "../state/GameState";
-import { DurakEngine } from "../engine/DurakEngine";
-import { Card } from "../state/Card";
+import { GameState } from '../state/GameState';
+import { DurakEngine } from '../engine/DurakEngine';
+import { Card } from '../state/Card';
 
 export interface Move {
-  type: "attack" | "defend" | "pickup";
+  type: 'attack' | 'defend' | 'pickup';
   cards: Card[];
 }
 
 export class GameTreeSearch {
-  
   /**
    * Performs Monte Carlo Tree Search to find the best move.
    * For MVP: We perform 100 random playouts for each possible move.
    */
-  static findBestMove(state: GameState, playerId: string, possibleMoves: Move[], iterations: number = 100): Move {
+  static findBestMove(
+    state: GameState,
+    playerId: string,
+    possibleMoves: Move[],
+    iterations: number = 100,
+  ): Move {
     if (possibleMoves.length === 1) return possibleMoves[0];
 
     const scores = new Map<number, number>();
@@ -47,9 +51,9 @@ export class GameTreeSearch {
     // 2. Perform the firstMove
     // 3. Play randomly until someone wins
     // 4. Return 1 if my team wins, 0 otherwise
-    
+
     // NOTE: This is a stub for the heavy simulation logic.
     // In a full implementation, we would use DurakEngine to advance the state.
-    return Math.random() > 0.5 ? 1 : 0; 
+    return Math.random() > 0.5 ? 1 : 0;
   }
 }

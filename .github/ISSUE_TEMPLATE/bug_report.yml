@@ -1,0 +1,34 @@
+name: Bug Report
+description: Create a report to help us improve Durak
+title: '[BUG] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How do we trigger this bug?
+      placeholder: |
+        1. Start a game with X players
+        2. Attack with Y card
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: game-logs
+    attributes:
+      label: Game Logs
+      description: If you have the action log string for this game, paste it here.
+      render: text

@@ -28,12 +28,14 @@ You have **THREE** separate systems working together:
 ## **System 1: GitHub.com (The Cloud)**
 
 **What is it?**
+
 - Your project lives on GitHub servers
 - Contains all your code, issues, PRs, history
 - Everyone can see it (if public)
 - The "source of truth" for your code
 
 **What's stored there:**
+
 - ✅ All your code files
 - ✅ All Git history (commits)
 - ✅ All branches
@@ -47,11 +49,13 @@ You have **THREE** separate systems working together:
 ## **System 2: Local Git Repository (.git folder)**
 
 **What is it?**
+
 - A copy of everything from GitHub on **your computer**
 - Hidden folder: `/Users/khanboldbattulga/Documents/GitHub/Durak/.git`
 - Tracks all your changes locally before you push
 
 **What happens here:**
+
 1. You make changes to files
 2. You `git add` them (stage changes)
 3. You `git commit` (save a snapshot)
@@ -59,6 +63,7 @@ You have **THREE** separate systems working together:
 5. You `git pull` (get updates from GitHub)
 
 **Key folders:**
+
 ```
 /Users/khanboldbattulga/Documents/GitHub/Durak/
 ├── .git/                    ← Git repo (tracks everything)
@@ -76,12 +81,14 @@ You have **THREE** separate systems working together:
 ## **System 3: VS Code (Your Editor)**
 
 **What is it?**
+
 - The text editor where you write code
 - Can see the `.git` folder info (via Git extensions)
 - Shows you which files changed
 - Integrates with GitHub CLI
 
 **What you see:**
+
 - Files you can edit
 - Source Control panel (shows git status)
 - GitHub extensions (Issue Notebooks, PR Monitor)
@@ -102,7 +109,7 @@ You have **THREE** separate systems working together:
    └────────┬────────┘
             │
             ▼
-   
+
 2. STAGE CHANGES (git add .)
    ┌──────────────────┐
    │  Git Staging     │
@@ -113,7 +120,7 @@ You have **THREE** separate systems working together:
    └────────┬─────────┘
             │
             ▼
-            
+
 3. CREATE SNAPSHOT (git commit)
    ┌──────────────────┐
    │  Local Git Repo  │
@@ -124,7 +131,7 @@ You have **THREE** separate systems working together:
    └────────┬─────────┘
             │
             ▼
-            
+
 4. SEND TO GITHUB (git push)
    ┌──────────────────┐
    │  GitHub.com      │
@@ -140,6 +147,7 @@ You have **THREE** separate systems working together:
 ## **The GitHub CLI (`gh` Command)**
 
 **What is it?**
+
 - A command-line tool that talks to GitHub.com
 - Lets you manage issues, PRs, branches WITHOUT opening a browser
 - Already installed on your computer
@@ -161,6 +169,7 @@ CLI shows you the list in terminal
 ```
 
 **Example:**
+
 ```bash
 gh issue list
 # → Connects to GitHub
@@ -174,6 +183,7 @@ gh issue list
 ## **Authentication: The Key**
 
 **Why you need to authenticate:**
+
 - GitHub needs to know it's really you
 - Without auth, you can't push code or access private repos
 - Auth happens once, then you're verified forever (on that computer)
@@ -208,6 +218,7 @@ gh issue list
 ```
 
 **Where the token is stored:**
+
 ```
 ~/.config/gh/config.yml  (macOS/Linux)
 or
@@ -296,6 +307,7 @@ Shows the PR on GitHub.com
 Let me walk you through an actual example:
 
 ### **Step 1: See Issues**
+
 ```bash
 $ gh issue list
 
@@ -305,17 +317,20 @@ $ gh issue list
 ```
 
 What happened:
+
 - ✅ Your terminal connected to GitHub.com
 - ✅ Asked for all open issues
 - ✅ GitHub sent back the list
 - ✅ You can now see them
 
 ### **Step 2: Start Working on Issue #3**
+
 ```bash
 $ gh issue develop 3
 ```
 
 What happened:
+
 - ✅ GitHub CLI connected to GitHub
 - ✅ Found issue #3 info
 - ✅ Created a new branch called "3-fix-attack-validation"
@@ -324,6 +339,7 @@ What happened:
 - ✅ VS Code shows: "You're now on branch 3-fix-attack-validation"
 
 ### **Step 3: Edit the File**
+
 ```
 In VS Code:
 - Open: packages/server/src/rooms/DurakRoom.ts
@@ -333,21 +349,24 @@ In VS Code:
 ```
 
 What happened:
+
 - ✅ You changed the file on disk
 - ✅ Git sees the change (but hasn't committed yet)
 - ✅ VS Code shows a dot on the file (unsaved indicator)
 
 ### **Step 4: Check What Changed**
+
 ```bash
 $ git diff
 ```
 
 Output:
+
 ```diff
 --- a/packages/server/src/rooms/DurakRoom.ts
 +++ b/packages/server/src/rooms/DurakRoom.ts
 @@ -150,7 +150,7 @@
-     
+
      // Validation
      const isMass = cardsToPlay.length > 1;
 -    if (isMass && !DurakEngine.isValidMass(cards)) {
@@ -356,17 +375,20 @@ Output:
 ```
 
 What happened:
+
 - ✅ Git compared your file with the last commit
 - ✅ Showed you exactly what changed
 - ✅ Lines with `-` are removed, lines with `+` are added
 
 ### **Step 5: Commit**
+
 ```bash
 $ git add .
 $ git commit -m "fix: correct attack validation function call"
 ```
 
 What happened:
+
 - ✅ `git add .` staged all changes
 - ✅ `.git/` folder prepared the commit
 - ✅ `git commit` created a snapshot
@@ -374,11 +396,13 @@ What happened:
 - ✅ You can now undo to this point if needed
 
 ### **Step 6: Push to GitHub**
+
 ```bash
 $ git push origin 3-fix-attack-validation
 ```
 
 What happened:
+
 - ✅ Git connected to GitHub.com
 - ✅ Sent your local commits
 - ✅ GitHub received them
@@ -387,11 +411,13 @@ What happened:
 - ✅ You can see the branch on github.com in browser
 
 ### **Step 7: Create a Pull Request**
+
 ```bash
 $ gh pr create --title "Fix attack validation" --body "Fixes #3"
 ```
 
 What happened:
+
 - ✅ GitHub CLI connected to GitHub.com
 - ✅ Created a new PR
 - ✅ Linked it to issue #3
@@ -401,11 +427,13 @@ What happened:
 - ✅ Others can review your code
 
 ### **Step 8: Merge the PR**
+
 ```bash
 $ gh pr merge 1
 ```
 
 What happened:
+
 - ✅ GitHub merged your branch into main
 - ✅ Your code is now part of the project
 - ✅ Issue #3 auto-closed
@@ -416,27 +444,32 @@ What happened:
 ## **The Key Concepts**
 
 ### **Branch**
+
 - A separate copy of the code to work on
 - Doesn't affect main branch
 - When done, merge back to main
 
 ### **Commit**
+
 - A snapshot of your changes
 - Has a message explaining what changed
 - Lives in Git history forever
 - Can undo to any commit
 
 ### **Push**
+
 - Sends your local commits to GitHub
 - Makes your work visible to others
 - Required before creating a PR
 
 ### **Pull**
+
 - Gets latest changes from GitHub
 - Updates your local files
 - Needed before pushing (to avoid conflicts)
 
 ### **Pull Request (PR)**
+
 - A request to merge your branch into main
 - Allows code review
 - Shows exactly what changed
@@ -479,12 +512,14 @@ When you run `gh issue list`:
 ## **VS Code Extensions: The Visual Layer**
 
 **GitHub Issue Notebooks:**
+
 - Instead of terminal, you get a visual notebook
 - Shows issues in a table
 - Click an issue → see details
 - More user-friendly than CLI
 
 **GitHub Pull Request Monitor:**
+
 - Shows PRs in a sidebar
 - Updates in real-time
 - Shows status: ✅ approved, ❌ changes requested, 🟡 needs review
@@ -549,9 +584,9 @@ When you run `gh issue list`:
 5. **Git commands** (`git push/pull`) sync everything
 
 **Flow:**
+
 - Edit → Commit → Push → Create PR → Merge
 - All changes are tracked, never lost
 - Can see who changed what, when
 
 That's it! 🎉
-

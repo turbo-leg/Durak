@@ -13,7 +13,7 @@ const suitSymbols: Record<string, string> = {
   Hearts: '♥',
   Diamonds: '♦',
   Clubs: '♣',
-  None: ''
+  None: '',
 };
 
 const suitColors: Record<string, string> = {
@@ -21,7 +21,7 @@ const suitColors: Record<string, string> = {
   Clubs: 'text-gray-800',
   Hearts: 'text-red-600',
   Diamonds: 'text-red-600',
-  None: 'text-gray-800'
+  None: 'text-gray-800',
 };
 
 const rankNames: Record<number, string> = {
@@ -36,10 +36,15 @@ const rankNames: Record<number, string> = {
   15: '2',
   16: 'A',
   17: 'JK',
-  18: 'RJ'
+  18: 'RJ',
 };
 
-export const Card: React.FC<CardProps> = ({ card, onClick, className = '', isPlayable = false }) => {
+export const Card: React.FC<CardProps> = ({
+  card,
+  onClick,
+  className = '',
+  isPlayable = false,
+}) => {
   const colorClass = suitColors[card.suit] || 'text-black';
   const symbol = card.isJoker ? '★' : suitSymbols[card.suit];
   const name = rankNames[card.rank] || String(card.rank);
@@ -60,9 +65,11 @@ export const Card: React.FC<CardProps> = ({ card, onClick, className = '', isPla
         <div>{name}</div>
         <div className="text-lg md:text-xl -mt-1 md:-mt-1">{symbol}</div>
       </div>
-      
+
       {/* Center Large Symbol */}
-      <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl opacity-20 ${colorClass}`}>
+      <div
+        className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl opacity-20 ${colorClass}`}
+      >
         {symbol}
       </div>
 

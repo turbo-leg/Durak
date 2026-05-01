@@ -23,12 +23,14 @@ gh auth login
 ```
 
 Follow the prompts:
+
 - Choose: **GitHub.com**
 - Choose: **HTTPS** (for cloned repos)
 - Choose: **Y** to authenticate with your browser token
 - This will open a browser → authenticate → copy token → paste in terminal
 
 **Test it worked:**
+
 ```bash
 gh auth status
 ```
@@ -47,6 +49,7 @@ You should see: `Logged in to github.com as <your-username>`
 4. A notebook opens showing all issues with filtering
 
 **In the notebook, you can:**
+
 - Filter by status (open, closed, assigned to you)
 - See issue descriptions and comments
 - Create new issues
@@ -78,12 +81,14 @@ gh issue develop 5 --repo turbo-leg/Durak
 ### **Workflow: Issue → Branch → Code → PR**
 
 #### **1. Create a branch for an issue:**
+
 ```bash
 # This creates a new branch like `5-issue-title` and switches to it
 gh issue develop 5 --repo turbo-leg/Durak
 ```
 
 #### **2. Make your code changes:**
+
 ```bash
 # Edit files...
 git add .
@@ -91,16 +96,19 @@ git commit -m "Fix: implement feature X"
 ```
 
 #### **3. Push your branch:**
+
 ```bash
 git push origin your-branch-name
 ```
 
 #### **4. Create a Pull Request:**
+
 ```bash
 gh pr create --repo turbo-leg/Durak --title "Fix: implement feature X" --body "Fixes #5"
 ```
 
 Or automatically link to the issue:
+
 ```bash
 gh pr create --repo turbo-leg/Durak --title "Implement X" --body "Closes #5" --draft
 ```
@@ -110,11 +118,13 @@ gh pr create --repo turbo-leg/Durak --title "Implement X" --body "Closes #5" --d
 ## **📊 Step 4: Monitor Pull Requests**
 
 ### **In VS Code - Pull Request Monitor:**
+
 1. Open the Side Explorer
 2. Look for the **GitHub Pull Request Monitor** view
 3. Shows: Status, conflicts, reviews, branch up-to-date status
 
 ### **Using GitHub CLI:**
+
 ```bash
 # View all open PRs
 gh pr list --repo turbo-leg/Durak
@@ -137,12 +147,14 @@ gh pr merge 1 --repo turbo-leg/Durak
 ## **🔄 Step 5: Sync Changes from GitHub to Local**
 
 ### **Pull latest changes:**
+
 ```bash
 git fetch origin
 git pull origin main
 ```
 
 ### **See what changed:**
+
 ```bash
 # See commits since last sync
 git log --oneline -5
@@ -171,7 +183,7 @@ git diff
 git add .
 
 # 4. Commit with clear message
-git commit -m "feat: add new feature" 
+git commit -m "feat: add new feature"
 # or
 git commit -m "fix: resolve issue"
 # or
@@ -272,10 +284,13 @@ gh pr merge 1 --repo turbo-leg/Durak
 ## **🔍 Advanced: VS Code GitHub Integration**
 
 ### **See Git Blame:**
+
 Install **Git Blame** extension (already available)
+
 - Hover over any line → see who changed it and when
 
 ### **See PR Changes:**
+
 ```bash
 # In terminal
 gh pr diff 1 --repo turbo-leg/Durak
@@ -285,6 +300,7 @@ gh pr view 1 --web --repo turbo-leg/Durak
 ```
 
 ### **Review Code:**
+
 ```bash
 # Start a review
 gh pr review 1 --comment "Great work!" --repo turbo-leg/Durak
@@ -301,16 +317,19 @@ gh pr review 1 --approve --repo turbo-leg/Durak
 ## **📱 Checking Issues & PRs in VS Code UI**
 
 ### **Method 1: Source Control Panel**
+
 - Click the **Source Control** icon (left sidebar)
 - Shows current branch, changes, commits
 - Sync button to pull/push
 
 ### **Method 2: GitHub Issue Notebooks**
+
 - Command Palette → `GitHub Issue Notebooks`
 - Visual interface for issues
 - Click issue → view details → assign yourself
 
 ### **Method 3: GitHub Pull Request Monitor**
+
 - Shows all PRs in a dedicated panel
 - Red = conflicts, Yellow = needs review, Green = ready to merge
 
@@ -319,12 +338,14 @@ gh pr review 1 --approve --repo turbo-leg/Durak
 ## **🚨 Troubleshooting**
 
 ### **"Authentication failed"**
+
 ```bash
 gh auth logout
 gh auth login  # Re-authenticate
 ```
 
 ### **"Cannot push to origin"**
+
 ```bash
 # Check remote
 git remote -v
@@ -334,6 +355,7 @@ git remote set-url origin https://github.com/turbo-leg/Durak.git
 ```
 
 ### **"Merge conflicts"**
+
 ```bash
 # Fetch latest
 git fetch origin
@@ -348,6 +370,7 @@ git push origin your-branch-name
 ```
 
 ### **"Out of date with main"**
+
 ```bash
 git fetch origin
 git rebase origin/main

@@ -5,18 +5,21 @@
 Your project has **all the required npm packages** to run correctly and display in Discord! Here's what's already installed:
 
 ### **Discord Integration** ✅
+
 - ✅ `@discord/embedded-app-sdk` - Discord app embed support
 - ✅ Discord token exchange endpoint in backend
 - ✅ OAuth2 authentication flow ready
 - ✅ Discord username display in UI
 
 ### **Game Engine** ✅
+
 - ✅ Colyseus for real-time multiplayer
 - ✅ Full game logic (DurakEngine)
 - ✅ Card validation and mass attacks
 - ✅ State synchronization
 
 ### **Frontend** ✅
+
 - ✅ React 19 with TypeScript
 - ✅ Vite for fast development
 - ✅ Tailwind CSS for styling
@@ -24,6 +27,7 @@ Your project has **all the required npm packages** to run correctly and display 
 - ✅ Colyseus.js client
 
 ### **Backend** ✅
+
 - ✅ Express + Node.js
 - ✅ Colyseus server
 - ✅ CORS enabled
@@ -77,6 +81,7 @@ npm install
 ```
 
 This installs dependencies for:
+
 - Root workspaces
 - @durak/shared
 - @durak/server
@@ -109,6 +114,7 @@ npm run dev
 ```
 
 This starts:
+
 - ✅ Backend server on `http://localhost:2567`
 - ✅ Frontend dev server on `http://localhost:5173`
 
@@ -175,12 +181,12 @@ You should see Colyseus monitor UI.
 
 ## **Environment Variables Explained**
 
-| Variable | What It Does | Where to Get |
-|----------|------------|-------------|
-| `DISCORD_CLIENT_ID` | Identifies your app to Discord | Discord Developer Portal |
-| `DISCORD_CLIENT_SECRET` | Secret for Discord OAuth | Discord Developer Portal |
-| `PORT` | Server port (default: 2567) | Choose any open port |
-| `VITE_DISCORD_CLIENT_ID` | Client-side Discord ID | Same as DISCORD_CLIENT_ID |
+| Variable                 | What It Does                   | Where to Get              |
+| ------------------------ | ------------------------------ | ------------------------- |
+| `DISCORD_CLIENT_ID`      | Identifies your app to Discord | Discord Developer Portal  |
+| `DISCORD_CLIENT_SECRET`  | Secret for Discord OAuth       | Discord Developer Portal  |
+| `PORT`                   | Server port (default: 2567)    | Choose any open port      |
+| `VITE_DISCORD_CLIENT_ID` | Client-side Discord ID         | Same as DISCORD_CLIENT_ID |
 
 ---
 
@@ -230,6 +236,7 @@ npm run build:client
 ### **Issue: Discord login not working**
 
 **Fix:** Check if:
+
 - Client ID is correct in `.env.local`
 - App is actually running in Discord (embedded)
 - Browser console for errors (F12 → Console)
@@ -275,14 +282,17 @@ That's it! 🎉
 ## **File Locations**
 
 ### **Environment Files**
+
 - `.env` - Root level (server environment)
 - `.env.local` - In `/packages/client/` (client environment)
 
 ### **Build Outputs**
+
 - `/packages/client/dist/` - Built React app (created by build)
 - `/packages/server/dist/` - Built server (created by build)
 
 ### **Source Code**
+
 - `/packages/shared/src/` - Game logic and types
 - `/packages/server/src/` - Backend room orchestration
 - `/packages/client/src/` - React UI components
@@ -291,16 +301,16 @@ That's it! 🎉
 
 ## **NPM Scripts Reference**
 
-| Command | What It Does |
-|---------|------------|
-| `npm run dev` | Start both server & client in dev mode |
-| `npm run dev:server` | Start just backend |
-| `npm run dev:client` | Start just frontend |
-| `npm run build` | Build all packages |
-| `npm run build:client` | Build just client (for production) |
-| `npm run start:server` | Start production server |
-| `npm run test` | Run all tests |
-| `npm run lint` | Check code style |
+| Command                | What It Does                           |
+| ---------------------- | -------------------------------------- |
+| `npm run dev`          | Start both server & client in dev mode |
+| `npm run dev:server`   | Start just backend                     |
+| `npm run dev:client`   | Start just frontend                    |
+| `npm run build`        | Build all packages                     |
+| `npm run build:client` | Build just client (for production)     |
+| `npm run start:server` | Start production server                |
+| `npm run test`         | Run all tests                          |
+| `npm run lint`         | Check code style                       |
 
 ---
 
@@ -343,6 +353,7 @@ npm run dev
 ### **5. Deploy to Discord (Later)**
 
 Once you're ready to submit as a Discord Activity:
+
 1. Go to **Embedded App Sub-command**
 2. Set install URL to your production domain
 3. Submit for verification
@@ -352,12 +363,14 @@ Once you're ready to submit as a Discord Activity:
 ## **What Each Package Does**
 
 ### **@durak/shared**
+
 - Game rules (DurakEngine.ts)
 - Card/Player/GameState schemas
 - AI logic (GrandmasterBot, MCTS)
 - Used by both server and client
 
 ### **@durak/server**
+
 - Express HTTP server
 - Colyseus WebSocket server
 - Game room orchestration
@@ -365,6 +378,7 @@ Once you're ready to submit as a Discord Activity:
 - Serves built client
 
 ### **@durak/client**
+
 - React app (GameBoard, Lobby, Card components)
 - Colyseus client connection
 - Discord SDK integration

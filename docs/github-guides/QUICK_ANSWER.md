@@ -9,6 +9,7 @@ Your project has **ALL the npm packages needed** to run correctly and display in
 ## **What's Already Installed**
 
 ### **Discord Integration** ✅
+
 ```
 ✅ @discord/embedded-app-sdk      - Discord embed support
 ✅ Discord OAuth2 endpoint        - Token exchange
@@ -16,6 +17,7 @@ Your project has **ALL the npm packages needed** to run correctly and display in
 ```
 
 ### **Game Engine** ✅
+
 ```
 ✅ Colyseus                       - Real-time multiplayer
 ✅ Game logic & validation        - DurakEngine
@@ -23,6 +25,7 @@ Your project has **ALL the npm packages needed** to run correctly and display in
 ```
 
 ### **Frontend** ✅
+
 ```
 ✅ React 19
 ✅ Vite
@@ -32,6 +35,7 @@ Your project has **ALL the npm packages needed** to run correctly and display in
 ```
 
 ### **Backend** ✅
+
 ```
 ✅ Node.js + Express
 ✅ Colyseus server
@@ -71,6 +75,7 @@ npm run dev              # Start both server & client
 ## **That's It!**
 
 Your app will be running at:
+
 - **Frontend:** http://localhost:5173
 - **Backend:** http://localhost:2567
 - **Debug:** http://localhost:2567/colyseus
@@ -80,6 +85,7 @@ Your app will be running at:
 ## **Full Details**
 
 See: `github-guides/SETUP_AND_RUN.md` for complete setup guide with:
+
 - Step-by-step instructions
 - Troubleshooting tips
 - Environment variables explained

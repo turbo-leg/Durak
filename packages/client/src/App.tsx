@@ -1,12 +1,12 @@
-import { useGame } from './contexts/GameContext'
-import { useEffect, useState } from 'react'
-import { GameBoard } from './components/GameBoard'
-import { Lobby } from './components/Lobby'
-import { isEmbedded, setupDiscordSdk, type DiscordAuthInfo } from './discordAuth'
-import './App.css'
+import { useGame } from './contexts/GameContext';
+import { useEffect, useState } from 'react';
+import { GameBoard } from './components/GameBoard';
+import { Lobby } from './components/Lobby';
+import { isEmbedded, setupDiscordSdk, type DiscordAuthInfo } from './discordAuth';
+import './App.css';
 
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
-  const { room, isConnected, error, leaveGame } = useGame()
+  const { room, isConnected, error, leaveGame } = useGame();
 
   return (
     <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative">
@@ -16,18 +16,23 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
             ♦ Durak <span className="text-yellow-400">Online</span> ♦
           </h1>
           {discordAuth && (
-             <div className="bg-indigo-900/50 text-indigo-200 px-3 py-1 rounded text-xs ml-4 border border-indigo-500/50">
-               Discord Connected as <span className="font-bold">{discordAuth.user.username}</span>
-             </div>
+            <div className="bg-indigo-900/50 text-indigo-200 px-3 py-1 rounded text-xs ml-4 border border-indigo-500/50">
+              Discord Connected as <span className="font-bold">{discordAuth.user.username}</span>
+            </div>
           )}
         </div>
         {isConnected && room && (
           <div className="flex space-x-4 items-center">
             <div className="bg-black/50 px-4 py-2 rounded-full text-xs font-mono shadow-inner border border-white/10 flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,1)]"></div>
-              <span>Room: <span className="text-yellow-300 font-bold">{room.id}</span></span>
+              <span>
+                Room: <span className="text-yellow-300 font-bold">{room.id}</span>
+              </span>
             </div>
-            <button onClick={leaveGame} className="bg-red-900/50 hover:bg-red-800 text-red-100 px-3 py-1 rounded text-sm transition">
+            <button
+              onClick={leaveGame}
+              className="bg-red-900/50 hover:bg-red-800 text-red-100 px-3 py-1 rounded text-sm transition"
+            >
               Leave Game
             </button>
           </div>
@@ -36,23 +41,26 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
 
       <main className="flex-1 flex flex-col items-center justify-center p-2 pt-0 w-full overflow-x-hidden relative z-10">
         {error && !isConnected && (
-          <div className="w-full text-center text-red-400 font-bold mb-4 bg-red-900/30 p-2 rounded">Error: {error}</div>
+          <div className="w-full text-center text-red-400 font-bold mb-4 bg-red-900/30 p-2 rounded">
+            Error: {error}
+          </div>
         )}
-        
-        {!isConnected ? (
-          <Lobby />
-        ) : (
-          <GameBoard />
-        )}
+
+        {!isConnected ? <Lobby /> : <GameBoard />}
       </main>
-      
+
       <footer className="mt-4 text-center text-green-700 text-xs">
         © {new Date().getFullYear()} Durak Online — Multiplayer Framework Built with Colyseus.js ·{' '}
-        <a href="/privacy.html" className="underline hover:text-green-400">Privacy</a> ·{' '}
-        <a href="/terms.html" className="underline hover:text-green-400">Terms</a>
+        <a href="/privacy.html" className="underline hover:text-green-400">
+          Privacy
+        </a>{' '}
+        ·{' '}
+        <a href="/terms.html" className="underline hover:text-green-400">
+          Terms
+        </a>
       </footer>
     </div>
-  )
+  );
 }
 
 function App() {
@@ -63,11 +71,11 @@ function App() {
     if (isEmbedded) {
       setupDiscordSdk()
         .then((discordAuth) => {
-           setAuth(discordAuth);
+          setAuth(discordAuth);
         })
         .catch((e) => {
-           console.error("Discord SDK setup failed:", e);
-           setAuthError(e.message);
+          console.error('Discord SDK setup failed:', e);
+          setAuthError(e.message);
         });
     }
   }, []);
@@ -75,13 +83,13 @@ function App() {
   return (
     <>
       {authError && (
-         <div className="bg-red-900/90 text-white p-2 text-center text-xs w-full fixed top-0 z-50">
-           Failed to connect to Discord Activity: {authError}
-         </div>
+        <div className="bg-red-900/90 text-white p-2 text-center text-xs w-full fixed top-0 z-50">
+          Failed to connect to Discord Activity: {authError}
+        </div>
       )}
       <Game discordAuth={auth} />
     </>
   );
 }
 
-export default App
+export default App;

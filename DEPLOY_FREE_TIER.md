@@ -1,6 +1,7 @@
 # Free-Tier Deployment + Discord Release (Fly.io)
 
 This project is configured to run as a **single Fly.io app**:
+
 - `@durak/server` hosts Colyseus + Express
 - built frontend from `packages/client/dist` is served by the server on the same origin
 
@@ -18,6 +19,7 @@ fly auth login
 ## 2) One-time app setup
 
 The repo includes:
+
 - `Dockerfile` (builds client, starts server)
 - `fly.toml` (ports/VM/http service config)
 
@@ -47,17 +49,20 @@ After deploy, note your hostname, for example:
 In your Discord app settings:
 
 ### URL Mappings
+
 - **Prefix:** `/`
 - **Target:** `durak-discord-activity.fly.dev`
 
 (No `https://` in the target field.)
 
 ### Activity URL
+
 Use full URL:
 
 `https://durak-discord-activity.fly.dev`
 
 ### OAuth2 scopes for invite
+
 - `bot`
 - `applications.commands`
 
