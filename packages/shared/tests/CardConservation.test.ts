@@ -109,7 +109,7 @@ describe('Card Conservation - No Duplication on Pickup', () => {
 
     // Simulate p1 attacking with 1 card
     const p1 = state.players.get('p1')!;
-    const atkCard = p1.hand[0];
+    const atkCard = p1.hand[0]!;
     p1.hand.splice(0, 1);
     state.activeAttackCards.push(new Card(atkCard.suit, atkCard.rank, atkCard.isJoker));
 
@@ -176,9 +176,9 @@ describe('Card Conservation - No Duplication on Pickup', () => {
     expect(p2.hand).toHaveLength(0);
 
     // Verify NO overlap between table and activeAttackCards
-    const tableKeys = new Set(Array.from(state.table).map((c) => `${c.suit}:${c.rank}`));
+    const tableKeys = new Set(Array.from(state.table).map((c) => `${c!.suit}:${c!.rank}`));
     const activeKeys = new Set(
-      Array.from(state.activeAttackCards).map((c) => `${c.suit}:${c.rank}`),
+      Array.from(state.activeAttackCards).map((c) => `${c!.suit}:${c!.rank}`),
     );
 
     for (const key of activeKeys) {
