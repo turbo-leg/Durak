@@ -63,6 +63,9 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage('defend', (client, message) => this.handleDefend(client, message));
     this.onMessage('pickUp', (client) => this.handlePickUp(client));
     this.onMessage('swapHuzur', (client) => this.handleSwapHuzur(client));
+    this.onMessage('ping', (client, message: { clientTime: number }) => {
+      client.send('pong', { clientTime: message.clientTime, serverTime: Date.now() });
+    });
 
     // Developer Mode Action Handler
     this.onMessage('dev_action', (client, message) => {
