@@ -48,25 +48,29 @@ describe('DurakEngine - Stacking and Round End', () => {
     expect(player.lastDrawLog.length).toBeGreaterThan(0);
   });
 
-  test('endRound - does not duplicate cards that appear in both table and active attacks', () => {
+  test('endRound - collects all cards from disjoint table and activeAttackCards on pickup', () => {
     const state = new GameState();
     const player = new Player();
     player.id = 'player1';
     state.players.set(player.id, player);
 
-    const sharedCard = new Card(Suit.Hearts, Rank.Nine);
-    const tableCard = new Card(Suit.Spades, Rank.Eight);
+    // After the fix, table = resolved history, activeAttackCards = pending defense.
+    // These sets are always disjoint.
+    const historyCard = new Card(Suit.Spades, Rank.Eight);     // resolved attack
+    const pendingAtk = new Card(Suit.Hearts, Rank.Nine);       // pending attack
+    const pendingAtk2 = new Card(Suit.Clubs, Rank.Ten);        // another pending attack
 
-    state.table.push(tableCard);
-    state.table.push(sharedCard);
-    state.activeAttackCards.push(sharedCard);
+    state.table.push(historyCard);
+    state.activeAttackCards.push(pendingAtk);
+    state.activeAttackCards.push(pendingAtk2);
 
     DurakEngine.endRound(state, 'player1');
 
-    expect(player.hand).toHaveLength(2);
+    expect(player.hand).toHaveLength(3);
     expect(player.hand.filter((card) => card.suit === Suit.Hearts && card.rank === Rank.Nine)).toHaveLength(1);
     expect(player.hand.filter((card) => card.suit === Suit.Spades && card.rank === Rank.Eight)).toHaveLength(1);
-    expect(player.lastDrawLog).toHaveLength(2);
+    expect(player.hand.filter((card) => card.suit === Suit.Clubs && card.rank === Rank.Ten)).toHaveLength(1);
+    expect(player.lastDrawLog).toHaveLength(3);
   });
 
   test('handleDefend Logic Simulation - Pairing verification', () => {
