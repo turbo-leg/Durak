@@ -182,7 +182,7 @@ export const GameBoard: React.FC = () => {
   // ── WAITING PHASE: Full-screen lobby ──
   if (gameState.phase === 'waiting') {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 text-white overflow-hidden">
+      <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden">
         {/* Compact header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
           <h1 className="text-lg font-extrabold tracking-tight text-green-100">
