@@ -11,7 +11,15 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   // Issue #69: Auto-join the Discord Instance Lobby
   useEffect(() => {
     if (discordAuth && discordSdk?.instanceId && !isConnected && !room) {
-      autoJoinDiscordRoom(discordSdk.instanceId);
+      const username = discordAuth.user.global_name || discordAuth.user.username;
+      const userId = discordAuth.user.id;
+      const avatarHash = discordAuth.user.avatar;
+
+      const avatarUrl = avatarHash
+        ? `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.png?size=128`
+        : `https://cdn.discordapp.com/embed/avatars/${parseInt(userId || '0') % 5}.png`;
+
+      autoJoinDiscordRoom(discordSdk.instanceId, username, avatarUrl);
     }
   }, [discordAuth, isConnected, room, autoJoinDiscordRoom]);
 

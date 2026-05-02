@@ -195,6 +195,9 @@ export class DurakRoom extends Room<GameState> {
     console.log(client.sessionId, 'joined!');
 
     const player = new Player(client.sessionId);
+    if (options.username) player.username = options.username;
+    if (options.avatarUrl) player.avatarUrl = options.avatarUrl;
+
     // Auto-ready for bots or special logic can go here. By default false.
     this.state.players.set(client.sessionId, player);
 

@@ -284,11 +284,20 @@ export const GameBoard: React.FC = () => {
                     </div>
                   )}
 
-                  <div
-                    className="text-[10px] md:text-xs text-gray-300 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded w-full overflow-hidden"
-                    title={id}
-                  >
-                    <span className="block">{id.slice(0, 8)}</span>
+                  <div className="flex flex-col items-center mb-2 md:mb-3">
+                    {player.avatarUrl && (
+                      <img
+                        src={player.avatarUrl}
+                        alt={player.username || id}
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full shadow-md border-2 border-black/50 mb-1"
+                      />
+                    )}
+                    <div
+                      className="text-[10px] md:text-xs text-gray-200 font-bold bg-green-900/60 border border-green-700/80 px-2 py-1 md:px-3 md:py-1 rounded max-w-[100px] md:max-w-[140px] shadow-inner"
+                      title={player.username || id}
+                    >
+                      <span className="block truncate">{player.username || id.slice(0, 8)}</span>
+                    </div>
                   </div>
 
                   {/* Draw Log for Developer Mode / Ground Tracking */}
@@ -721,6 +730,22 @@ export const GameBoard: React.FC = () => {
 
         {/* Local Player Hand */}
         <div className="w-full bg-black/30 border border-white/5 shadow-inner rounded-2xl overflow-hidden relative min-h-[120px] md:min-h-[220px]">
+          {/* Local Player Profile */}
+          {myPlayer && (
+            <div className="absolute top-2 left-3 md:top-4 md:left-4 flex items-center space-x-2 z-10 bg-black/40 pr-3 rounded-full border border-white/10">
+              {myPlayer.avatarUrl && (
+                <img
+                  src={myPlayer.avatarUrl}
+                  alt={myPlayer.username}
+                  className="w-8 h-8 md:w-10 md:h-10 rounded-full shadow-md"
+                />
+              )}
+              <span className="text-xs md:text-sm font-bold text-gray-200 truncate max-w-[100px] md:max-w-[150px]">
+                {myPlayer.username || 'Me'}
+              </span>
+            </div>
+          )}
+
           {/* Mobile: horizontal scroll so every card is reachable. Desktop: centered overlap fan */}
           <div className="flex flex-row overflow-x-auto md:overflow-x-visible py-4 md:py-6 items-end md:justify-center w-full h-full relative px-2 md:px-4 custom-scrollbar">
             {/* Deck Origin Point (Invisible marker for animation origins) */}

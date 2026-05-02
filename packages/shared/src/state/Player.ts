@@ -3,6 +3,8 @@ import { Card } from './Card';
 
 export class Player extends Schema {
   @type('string') id: string = '';
+  @type('string') username: string = '';
+  @type('string') avatarUrl: string = '';
   @type([Card]) hand = new ArraySchema<Card>();
   @type(['string']) pickedUpCardKeys = new ArraySchema<string>();
   @type('boolean') hasPickedUp: boolean = false;
