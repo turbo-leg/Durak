@@ -94,6 +94,6 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 const port = Number(process.env.PORT || 2567);
-gameServer.listen(port).then(() => {
+gameServer.listen(port, '0.0.0.0').then(() => {
   console.log(`🎮 Durak Game server is listening on port ${port}`);
 });
