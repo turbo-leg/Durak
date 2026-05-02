@@ -24,6 +24,8 @@ interface GameContextState {
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
   autoJoinDiscordRoom: (instanceId: string, username: string, avatarUrl: string) => Promise<void>;
+  updateLobbySettings: (settings: Partial<GameState>) => void;
+  startLobbyGame: () => void;
   serverTimeOffset: number;
 }
 
@@ -41,6 +43,8 @@ const GameContext = createContext<GameContextState>({
   findPublicGames: async () => [],
   leaveGame: () => {},
   autoJoinDiscordRoom: async () => {},
+  updateLobbySettings: () => {},
+  startLobbyGame: () => {},
   serverTimeOffset: 0,
 });
 
@@ -196,6 +200,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateLobbySettings = (settings: Partial<GameState>) => {
+    if (room && room.state.phase === 'waiting') {
+      room.send('updateSettings', settings);
+    }
+  };
+
+  const startLobbyGame = () => {
+    if (room && room.state.phase === 'waiting') {
+      room.send('startGame');
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (room) room.leave();
@@ -218,6 +234,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         findPublicGames,
         leaveGame,
         autoJoinDiscordRoom,
+        updateLobbySettings,
+        startLobbyGame,
         serverTimeOffset,
       }}
     >
