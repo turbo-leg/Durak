@@ -184,13 +184,14 @@ export const GameBoard: React.FC = () => {
     return (
       <div className="fixed inset-0 z-50 flex flex-col bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 text-white overflow-hidden">
         {/* Compact header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 shrink-0">
-          <h1 className="text-lg font-extrabold tracking-tight">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
+          <h1 className="text-lg font-extrabold tracking-tight text-green-100">
             ♦ Durak <span className="text-yellow-400">Online</span> ♦
           </h1>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-yellow-300 bg-black/40 px-2 py-1 rounded border border-white/10">
-              Room: {room.id}
+            <span className="text-[10px] text-gray-400 uppercase font-bold">Room</span>
+            <span className="text-xs font-mono text-yellow-400 bg-black/50 px-2 py-1 rounded border border-yellow-500/20 select-all cursor-pointer">
+              {room.id}
             </span>
           </div>
         </div>
@@ -199,7 +200,7 @@ export const GameBoard: React.FC = () => {
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Settings panel */}
           <div className="md:w-1/3 md:max-w-xs bg-black/60 border-b md:border-b-0 md:border-r border-white/10 p-4 flex flex-col shrink-0 md:overflow-y-auto">
-            <h2 className="text-lg font-black text-white mb-3 uppercase tracking-wider text-center border-b border-white/10 pb-2">
+            <h2 className="text-lg font-black text-green-100 mb-3 uppercase tracking-wider text-center border-b border-green-700/50 pb-2">
               Game Settings
             </h2>
             <div className="flex-1 space-y-3">
@@ -292,21 +293,13 @@ export const GameBoard: React.FC = () => {
 
           {/* Players panel */}
           <div className="flex-1 flex flex-col p-4 relative overflow-hidden">
-            <div className="flex justify-between items-end mb-3 border-b border-white/10 pb-2 shrink-0">
-              <h2 className="text-lg font-black text-white uppercase tracking-wider flex items-center">
-                Lobby{' '}
-                <span className="ml-2 bg-white/10 text-white text-xs px-2 py-0.5 rounded-full">
+            <div className="flex items-center mb-3 border-b border-green-700/50 pb-2 shrink-0">
+              <h2 className="text-lg font-black text-green-100 uppercase tracking-wider flex items-center">
+                Lobby
+                <span className="ml-2 bg-green-900/50 text-green-300 text-xs px-2 py-0.5 rounded-full border border-green-700/50">
                   {gameState.players.size}/{gameState.maxPlayers}
                 </span>
               </h2>
-              <div className="text-right">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                  Invite Code
-                </span>
-                <span className="font-mono text-sm text-yellow-400 bg-black/50 px-2 py-0.5 rounded border border-yellow-500/30 select-all cursor-pointer">
-                  {room.id}
-                </span>
-              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -329,7 +322,7 @@ export const GameBoard: React.FC = () => {
                     )}
                     <div className="ml-2 flex-1 overflow-hidden">
                       <div className="flex items-center space-x-1">
-                        <span className="font-bold text-sm text-white truncate">
+                        <span className="font-bold text-sm text-green-100 truncate">
                           {p.username || id.slice(0, 8)}
                         </span>
                         {id === gameState.hostId && (
