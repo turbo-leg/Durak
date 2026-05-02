@@ -23,6 +23,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Issue #69: Allow Discord to embed this application in an iframe
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', 'frame-ancestors *');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 // Token exchange endpoint for Discord Embedded App SDK
 app.post('/api/token', async (req, res) => {
   try {
@@ -70,7 +77,7 @@ const gameServer = new Server({
 });
 
 // Register the Durak game room
-gameServer.define('durak', DurakRoom);
+gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
 
 // Add colyseus monitor for debugging
 app.use('/colyseus', monitor());
@@ -87,6 +94,6 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 const port = Number(process.env.PORT || 2567);
-gameServer.listen(port).then(() => {
+gameServer.listen(port, '0.0.0.0').then(() => {
   console.log(`🎮 Durak Game server is listening on port ${port}`);
 });

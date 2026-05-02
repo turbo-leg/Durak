@@ -23,6 +23,9 @@ interface GameContextState {
   joinGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
+  autoJoinDiscordRoom: (instanceId: string, username: string, avatarUrl: string) => Promise<void>;
+  updateLobbySettings: (settings: Partial<GameState>) => void;
+  startLobbyGame: () => void;
   serverTimeOffset: number;
 }
 
@@ -39,6 +42,9 @@ const GameContext = createContext<GameContextState>({
   joinGame: async () => {},
   findPublicGames: async () => [],
   leaveGame: () => {},
+  autoJoinDiscordRoom: async () => {},
+  updateLobbySettings: () => {},
+  startLobbyGame: () => {},
   serverTimeOffset: 0,
 });
 
@@ -170,9 +176,39 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await client.getAvailableRooms('durak');
   };
 
+  const autoJoinDiscordRoom = async (
+    discordInstanceId: string,
+    username: string,
+    avatarUrl: string,
+  ) => {
+    try {
+      const roomInstance = await client.joinOrCreate<GameState>('durak', {
+        discordInstanceId,
+        username,
+        avatarUrl,
+      });
+      handleRoomEvents(roomInstance);
+    } catch (e: unknown) {
+      console.error('Error auto-joining Discord room:', e);
+      setError(e instanceof Error ? e.message : 'Failed to auto-join Discord room');
+    }
+  };
+
   const leaveGame = () => {
     if (room) {
       room.leave();
+    }
+  };
+
+  const updateLobbySettings = (settings: Partial<GameState>) => {
+    if (room && room.state.phase === 'waiting') {
+      room.send('updateSettings', settings);
+    }
+  };
+
+  const startLobbyGame = () => {
+    if (room && room.state.phase === 'waiting') {
+      room.send('startGame');
     }
   };
 
@@ -197,6 +233,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         joinGame,
         findPublicGames,
         leaveGame,
+        autoJoinDiscordRoom,
+        updateLobbySettings,
+        startLobbyGame,
         serverTimeOffset,
       }}
     >

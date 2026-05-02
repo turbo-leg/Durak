@@ -12,6 +12,7 @@
     "dev": "npm run dev:server & npm run dev:client",
     "build:client": "npm run build -w @durak/client",
     "start:server": "npm run start -w @durak/server",
+    "start:prod": "npm run start:prod -w @durak/server",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",

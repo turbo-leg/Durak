@@ -16,8 +16,16 @@ const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: 
 };
 
 export const GameBoard: React.FC = () => {
-  const { room, gameState, gameMessage, clearGameMessage, defenseSnapshot, serverTimeOffset } =
-    useGame();
+  const {
+    room,
+    gameState,
+    gameMessage,
+    clearGameMessage,
+    defenseSnapshot,
+    serverTimeOffset,
+    updateLobbySettings,
+    startLobbyGame,
+  } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
@@ -284,11 +292,20 @@ export const GameBoard: React.FC = () => {
                     </div>
                   )}
 
-                  <div
-                    className="text-[10px] md:text-xs text-gray-300 font-mono mb-2 md:mb-3 bg-green-900/40 border border-green-700/50 px-2 py-1 md:px-3 md:py-1.5 rounded w-full overflow-hidden"
-                    title={id}
-                  >
-                    <span className="block">{id.slice(0, 8)}</span>
+                  <div className="flex flex-col items-center mb-2 md:mb-3">
+                    {player.avatarUrl && (
+                      <img
+                        src={player.avatarUrl}
+                        alt={player.username || id}
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full shadow-md border-2 border-black/50 mb-1"
+                      />
+                    )}
+                    <div
+                      className="text-[10px] md:text-xs text-gray-200 font-bold bg-green-900/60 border border-green-700/80 px-2 py-1 md:px-3 md:py-1 rounded max-w-[100px] md:max-w-[140px] shadow-inner"
+                      title={player.username || id}
+                    >
+                      <span className="block truncate">{player.username || id.slice(0, 8)}</span>
+                    </div>
                   </div>
 
                   {/* Draw Log for Developer Mode / Ground Tracking */}
@@ -413,76 +430,307 @@ export const GameBoard: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center space-y-4 bg-black/40 backdrop-blur-sm rounded-2xl"
+              className="absolute inset-0 z-50 flex flex-col md:flex-row items-stretch justify-center bg-black/80 backdrop-blur-md rounded-2xl overflow-hidden"
             >
-              <h2 className="text-2xl font-bold text-white mb-2 shadow-sm text-center">
-                Waiting for Players ({gameState.players.size}/{gameState.maxPlayers})
-              </h2>
+              {/* Left Side: Settings Panel */}
+              <div className="w-full md:w-1/3 md:max-w-xs bg-black/60 border-r border-white/10 p-4 md:p-6 flex flex-col overflow-y-auto">
+                <h2 className="text-xl md:text-2xl font-black text-white mb-4 md:mb-6 uppercase tracking-wider text-center border-b border-white/10 pb-4">
+                  Game Settings
+                </h2>
 
-              {gameState.mode === 'teams' && gameState.teamSelection === 'manual' && myPlayer && (
-                <div className="flex flex-col items-center space-y-3 bg-black/60 p-6 rounded-xl backdrop-blur-md border border-white/10 max-w-lg w-full">
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-bold">
-                    <span className="inline-flex items-center space-x-2 text-blue-200">
-                      <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                      <span>BLUE: {teamBlueCount}</span>
-                    </span>
-                    <span className="text-white/40">vs</span>
-                    <span className="inline-flex items-center space-x-2 text-red-200">
-                      <span className="w-2 h-2 rounded-full bg-red-400"></span>
-                      <span>RED: {teamRedCount}</span>
-                    </span>
-                    <span
-                      className={`px-2 py-1 rounded ${teamBlueCount === teamRedCount ? 'bg-green-600/40 text-green-200' : 'bg-yellow-600/40 text-yellow-100'}`}
-                    >
-                      {teamBlueCount === teamRedCount ? 'Balanced' : 'Unbalanced'}
-                    </span>
+                <div className="flex-1 space-y-4 md:space-y-6">
+                  <div className="space-y-1 md:space-y-2">
+                    <label className="text-[10px] md:text-xs font-bold text-gray-400 uppercase">
+                      Game Mode
+                    </label>
+                    {room.sessionId === gameState.hostId ? (
+                      <select
+                        value={gameState.mode}
+                        onChange={(e) => updateLobbySettings({ mode: e.target.value })}
+                        className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
+                      >
+                        <option value="classic">Classic (Free-for-all)</option>
+                        <option value="teams">Teams (2v2, 3v3)</option>
+                      </select>
+                    ) : (
+                      <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base font-bold">
+                        {gameState.mode === 'teams' ? 'Teams (2v2, 3v3)' : 'Classic (Free-for-all)'}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex space-x-4">
-                    <div className="flex flex-col items-center">
-                      <span className="text-blue-300 font-bold mb-2">Team Blue</span>
-                      <button
-                        onClick={() => handleTeamSelect(0)}
-                        className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 0 ? 'bg-blue-600 text-white ring-2 ring-white' : 'bg-blue-900/50 hover:bg-blue-800 text-blue-200'}`}
-                      >
-                        {myPlayer.team === 0 ? 'Selected' : 'Join'}
-                      </button>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-red-300 font-bold mb-2">Team Red</span>
-                      <button
-                        onClick={() => handleTeamSelect(1)}
-                        className={`px-6 py-2 rounded font-bold shadow transition ${myPlayer.team === 1 ? 'bg-red-600 text-white ring-2 ring-white' : 'bg-red-900/50 hover:bg-red-800 text-red-200'}`}
-                      >
-                        {myPlayer.team === 1 ? 'Selected' : 'Join'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {teamBlueCount !== teamRedCount && (
-                    <div className="text-xs text-yellow-200/90 bg-yellow-900/40 border border-yellow-600/30 px-3 py-2 rounded text-center">
-                      Teams must be balanced to start (2v2 or 3v3). Move players so BLUE and RED
-                      have the same number.
+                  {gameState.mode === 'teams' && (
+                    <div className="space-y-1 md:space-y-2">
+                      <label className="text-[10px] md:text-xs font-bold text-gray-400 uppercase">
+                        Team Selection
+                      </label>
+                      {room.sessionId === gameState.hostId ? (
+                        <select
+                          value={gameState.teamSelection}
+                          onChange={(e) => updateLobbySettings({ teamSelection: e.target.value })}
+                          className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
+                        >
+                          <option value="random">Random Assignment</option>
+                          <option value="manual">Manual Selection</option>
+                        </select>
+                      ) : (
+                        <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base font-bold">
+                          {gameState.teamSelection === 'manual'
+                            ? 'Manual Selection'
+                            : 'Random Assignment'}
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  <div className="space-y-1 md:space-y-2">
+                    <label className="text-[10px] md:text-xs font-bold text-gray-400 uppercase">
+                      Max Players
+                    </label>
+                    {room.sessionId === gameState.hostId ? (
+                      <select
+                        value={gameState.maxPlayers}
+                        onChange={(e) =>
+                          updateLobbySettings({ maxPlayers: parseInt(e.target.value) })
+                        }
+                        className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
+                      >
+                        {[2, 3, 4, 5, 6].map((num) => (
+                          <option key={num} value={num}>
+                            {num} Players
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base font-bold">
+                        {gameState.maxPlayers} Players
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 md:space-y-2">
+                    <label className="text-[10px] md:text-xs font-bold text-gray-400 uppercase">
+                      Starting Hand Size
+                    </label>
+                    {room.sessionId === gameState.hostId ? (
+                      <select
+                        value={gameState.targetHandSize}
+                        onChange={(e) =>
+                          updateLobbySettings({ targetHandSize: parseInt(e.target.value) })
+                        }
+                        className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
+                      >
+                        {[4, 5, 6, 7].map((num) => (
+                          <option key={num} value={num}>
+                            {num} Cards
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 md:px-4 md:py-3 text-sm md:text-base font-bold">
+                        {gameState.targetHandSize} Cards
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
 
-              <p className="text-sm text-gray-300 text-center max-w-sm">
-                Game will start automatically when the room is full ({gameState.maxPlayers}) and
-                everyone is ready.
-              </p>
+                {room.sessionId === gameState.hostId && (
+                  <div className="mt-6 pt-6 border-t border-white/10 hidden md:block">
+                    <button
+                      onClick={startLobbyGame}
+                      disabled={
+                        gameState.players.size < 2 ||
+                        !Array.from(gameState.players.values()).every((p) => p.isReady)
+                      }
+                      className={`w-full py-4 rounded-xl font-black text-xl shadow-lg transition-all ${
+                        gameState.players.size >= 2 &&
+                        Array.from(gameState.players.values()).every((p) => p.isReady)
+                          ? 'bg-yellow-500 hover:bg-yellow-400 text-yellow-900 hover:scale-105 active:scale-95'
+                          : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      START GAME
+                    </button>
+                    <p className="text-xs text-center text-gray-400 mt-3 font-medium">
+                      All players must be ready to start.
+                    </p>
+                  </div>
+                )}
+              </div>
 
-              <button
-                onClick={handleToggleReady}
-                className={`mt-4 px-8 py-4 font-bold text-xl rounded-full shadow-lg transform transition active:scale-95 ${
-                  myPlayer?.isReady
-                    ? 'bg-green-500 hover:bg-green-400 text-green-900 ring-4 ring-green-300'
-                    : 'bg-yellow-500 hover:bg-yellow-400 text-yellow-900'
-                }`}
-              >
-                {myPlayer?.isReady ? 'Ready!' : 'Click to Ready'}
-              </button>
+              {/* Right Side: Players Panel */}
+              <div className="flex-1 flex flex-col p-4 md:p-6 relative">
+                <div className="flex justify-between items-end mb-4 md:mb-6 border-b border-white/10 pb-4">
+                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-wider flex items-center">
+                    Lobby{' '}
+                    <span className="ml-3 bg-white/10 text-white text-sm px-3 py-1 rounded-full">
+                      {gameState.players.size}/{gameState.maxPlayers}
+                    </span>
+                  </h2>
+                  <div className="text-right">
+                    <span className="text-[10px] md:text-sm font-bold text-gray-400 uppercase tracking-wider block">
+                      Invite Code
+                    </span>
+                    <span className="font-mono text-sm md:text-xl text-yellow-400 bg-black/50 px-2 py-1 md:px-3 md:py-1 rounded border border-yellow-500/30 select-all cursor-pointer">
+                      {room.id}
+                    </span>
+                  </div>
+                </div>
+
+                {gameState.mode === 'teams' && gameState.teamSelection === 'manual' && myPlayer && (
+                  <div className="mb-4 md:mb-6 bg-black/40 p-3 md:p-4 rounded-xl border border-white/5">
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <span className="text-xs md:text-sm font-bold text-gray-400 uppercase">
+                        Select Your Team
+                      </span>
+                      <span
+                        className={`text-[10px] md:text-xs px-2 py-1 rounded font-bold ${teamBlueCount === teamRedCount ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}
+                      >
+                        {teamBlueCount === teamRedCount ? 'Balanced' : 'Unbalanced'}
+                      </span>
+                    </div>
+                    <div className="flex space-x-2 md:space-x-4">
+                      <button
+                        onClick={() => handleTeamSelect(0)}
+                        className={`flex-1 py-2 md:py-3 rounded-lg text-xs md:text-sm font-bold shadow transition ${myPlayer.team === 0 ? 'bg-blue-600 text-white ring-2 ring-white' : 'bg-blue-900/50 hover:bg-blue-800 text-blue-200'}`}
+                      >
+                        {myPlayer.team === 0 ? '✓ Team Blue' : 'Join Team Blue'}
+                      </button>
+                      <button
+                        onClick={() => handleTeamSelect(1)}
+                        className={`flex-1 py-2 md:py-3 rounded-lg text-xs md:text-sm font-bold shadow transition ${myPlayer.team === 1 ? 'bg-red-600 text-white ring-2 ring-white' : 'bg-red-900/50 hover:bg-red-800 text-red-200'}`}
+                      >
+                        {myPlayer.team === 1 ? '✓ Team Red' : 'Join Team Red'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 pb-20 md:pb-0">
+                    {Array.from(gameState.players.entries()).map(([id, p]) => (
+                      <div
+                        key={id}
+                        className={`flex items-center p-2 md:p-3 rounded-xl border transition-all ${id === room.sessionId ? 'bg-green-900/30 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'bg-black/50 border-white/5'}`}
+                      >
+                        {p.avatarUrl ? (
+                          <img
+                            src={p.avatarUrl}
+                            alt={p.username || id}
+                            className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-black/50 shadow-md"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-800 border-2 border-gray-700 flex items-center justify-center font-bold text-gray-400">
+                            {(p.username || id).slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="ml-3 md:ml-4 flex-1 overflow-hidden">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-sm md:text-base text-white truncate max-w-full">
+                              {p.username || id.slice(0, 8)}
+                            </span>
+                            {id === gameState.hostId && (
+                              <span
+                                className="bg-yellow-500 text-yellow-900 text-[9px] md:text-[10px] font-black px-1.5 md:px-2 py-0.5 rounded-sm uppercase tracking-wider"
+                                title="Lobby Host"
+                              >
+                                Host
+                              </span>
+                            )}
+                            {id === room.sessionId && (
+                              <span className="bg-white/10 text-gray-300 text-[9px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-sm">
+                                YOU
+                              </span>
+                            )}
+                          </div>
+                          {gameState.mode === 'teams' && (
+                            <div
+                              className={`text-[10px] md:text-xs font-bold mt-0.5 md:mt-1 ${p.team === 0 ? 'text-blue-400' : p.team === 1 ? 'text-red-400' : 'text-gray-500'}`}
+                            >
+                              {p.team === 0 ? 'Team Blue' : p.team === 1 ? 'Team Red' : 'No Team'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="ml-2">
+                          {p.isReady ? (
+                            <span className="bg-green-500/20 text-green-400 text-[10px] md:text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full border border-green-500/30">
+                              Ready
+                            </span>
+                          ) : (
+                            <span className="bg-white/5 text-gray-400 text-[10px] md:text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full border border-white/10">
+                              Waiting
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mobile Host Start Game Button */}
+                {room.sessionId === gameState.hostId && (
+                  <div className="md:hidden mt-4 pt-4 border-t border-white/10">
+                    <button
+                      onClick={startLobbyGame}
+                      disabled={
+                        gameState.players.size < 2 ||
+                        !Array.from(gameState.players.values()).every((p) => p.isReady)
+                      }
+                      className={`w-full py-3 rounded-xl font-black text-lg shadow-lg transition-all ${
+                        gameState.players.size >= 2 &&
+                        Array.from(gameState.players.values()).every((p) => p.isReady)
+                          ? 'bg-yellow-500 hover:bg-yellow-400 text-yellow-900 hover:scale-105 active:scale-95'
+                          : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      START GAME
+                    </button>
+                    <p className="text-[10px] text-center text-gray-400 mt-2 font-medium">
+                      All players must be ready to start.
+                    </p>
+                  </div>
+                )}
+
+                {/* Guest Ready Button / Host Ready Toggle */}
+                {room.sessionId !== gameState.hostId && (
+                  <div className="mt-4 md:mt-6 pt-4 md:pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0">
+                    <p className="text-gray-400 text-xs md:text-sm font-medium">
+                      Waiting for host to start...
+                    </p>
+                    <button
+                      onClick={handleToggleReady}
+                      className={`w-full md:w-auto px-6 md:px-8 py-3 md:py-4 font-black text-base md:text-lg rounded-xl shadow-lg transition-all ${
+                        myPlayer?.isReady
+                          ? 'bg-green-500 hover:bg-green-400 text-green-900 hover:scale-105 active:scale-95 ring-2 ring-green-300'
+                          : 'bg-white/10 hover:bg-white/20 text-white active:scale-95'
+                      }`}
+                    >
+                      {myPlayer?.isReady ? 'READY TO PLAY' : 'CLICK TO READY'}
+                    </button>
+                  </div>
+                )}
+
+                {room.sessionId === gameState.hostId && !myPlayer?.isReady && (
+                  <div className="absolute top-4 right-4 md:bottom-6 md:right-6 md:top-auto">
+                    <button
+                      onClick={handleToggleReady}
+                      className="px-4 py-2 md:px-6 md:py-3 text-xs md:text-sm bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95"
+                    >
+                      Mark Self Ready
+                    </button>
+                  </div>
+                )}
+                {room.sessionId === gameState.hostId && myPlayer?.isReady && (
+                  <div className="absolute top-4 right-4 md:bottom-6 md:right-6 md:top-auto">
+                    <button
+                      onClick={handleToggleReady}
+                      className="px-4 py-2 md:px-6 md:py-3 text-xs md:text-sm bg-green-900/40 text-green-400 rounded-xl font-bold border border-green-500/30 transition-all active:scale-95"
+                    >
+                      You are Ready
+                    </button>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -721,6 +969,22 @@ export const GameBoard: React.FC = () => {
 
         {/* Local Player Hand */}
         <div className="w-full bg-black/30 border border-white/5 shadow-inner rounded-2xl overflow-hidden relative min-h-[120px] md:min-h-[220px]">
+          {/* Local Player Profile */}
+          {myPlayer && (
+            <div className="absolute top-2 left-3 md:top-4 md:left-4 flex items-center space-x-2 z-10 bg-black/40 pr-3 rounded-full border border-white/10">
+              {myPlayer.avatarUrl && (
+                <img
+                  src={myPlayer.avatarUrl}
+                  alt={myPlayer.username}
+                  className="w-8 h-8 md:w-10 md:h-10 rounded-full shadow-md"
+                />
+              )}
+              <span className="text-xs md:text-sm font-bold text-gray-200 truncate max-w-[100px] md:max-w-[150px]">
+                {myPlayer.username || 'Me'}
+              </span>
+            </div>
+          )}
+
           {/* Mobile: horizontal scroll so every card is reachable. Desktop: centered overlap fan */}
           <div className="flex flex-row overflow-x-auto md:overflow-x-visible py-4 md:py-6 items-end md:justify-center w-full h-full relative px-2 md:px-4 custom-scrollbar">
             {/* Deck Origin Point (Invisible marker for animation origins) */}

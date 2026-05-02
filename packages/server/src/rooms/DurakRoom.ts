@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 export class DurakRoom extends Room<GameState> {
   maxClients = 6;
   private turnTimeoutId: NodeJS.Timeout | null = null;
+  private testModeDeck?: any;
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -35,28 +36,7 @@ export class DurakRoom extends Room<GameState> {
       discordInstanceId: options.discordInstanceId || null,
     });
 
-    // Initialize the deck
-    const deck = DurakEngine.createDeck();
-    let shuffled;
-    if (options.testModeDeck) {
-      shuffled = options.testModeDeck;
-    } else {
-      shuffled = DurakEngine.shuffleDeck(deck);
-    }
-    shuffled.forEach((card: Card) => this.state.deck.push(card));
-
-    // Choose the Huzur (Trump) card
-    const huzur = this.state.deck.pop();
-    if (huzur) {
-      // In Colyseus, you cannot put the exact same Schema instance in two places.
-      // So we clone the huzur to serve as the visual Trump card underneath the deck.
-      const clonedHuzur = new Card(huzur.suit, huzur.rank, huzur.isJoker);
-      this.state.huzurCard = clonedHuzur;
-      this.state.huzurSuit = huzur.suit;
-
-      // Put original back at the bottom of the deck
-      this.state.deck.unshift(huzur);
-    }
+    this.testModeDeck = options.testModeDeck;
 
     // Register Handlers
     this.onMessage('attack', (client, message) => this.handleAttack(client, message));
@@ -155,38 +135,54 @@ export class DurakRoom extends Room<GameState> {
       }
     });
 
+    // Update Lobby Settings
+    this.onMessage('updateSettings', (client, message) => {
+      if (this.state.phase !== 'waiting' || client.sessionId !== this.state.hostId) return;
+      if (message.mode) this.state.mode = message.mode;
+      if (message.teamSelection) this.state.teamSelection = message.teamSelection;
+      if (message.maxPlayers) {
+        this.state.maxPlayers = parseInt(message.maxPlayers, 10);
+        this.maxClients = this.state.maxPlayers;
+      }
+      if (message.targetHandSize) this.state.targetHandSize = parseInt(message.targetHandSize, 10);
+    });
+
+    // Start Game Manually
+    this.onMessage('startGame', (client) => {
+      if (this.state.phase !== 'waiting' || client.sessionId !== this.state.hostId) return;
+
+      const allReady = Array.from(this.state.players.values()).every((p) => p.isReady);
+      if (!allReady) {
+        client.send('error', 'All players must be ready to start.');
+        return;
+      }
+
+      // Teams balance enforcement
+      if (this.state.mode === 'teams' && this.state.teamSelection === 'manual') {
+        const team0Count = Array.from(this.state.players.values()).filter(
+          (p) => p.team === 0,
+        ).length;
+        const team1Count = Array.from(this.state.players.values()).filter(
+          (p) => p.team === 1,
+        ).length;
+        if (team0Count !== team1Count) {
+          client.send(
+            'error',
+            `Teams must be balanced: Blue (${team0Count}) vs Red (${team1Count}).`,
+          );
+          return;
+        }
+      }
+
+      this.startGame();
+    });
+
     // Allow players to ready up manually
     this.onMessage('toggleReady', (client, message) => {
+      if (this.state.phase !== 'waiting') return;
       const player = this.state.players.get(client.sessionId);
       if (player) {
         player.isReady = message.isReady;
-
-        // Auto start if room is full and everyone is ready
-        if (
-          this.state.phase !== 'playing' &&
-          this.state.players.size === this.state.maxPlayers &&
-          Array.from(this.state.players.values()).every((p) => p.isReady)
-        ) {
-          // Teams balance enforcement (manual selection)
-          if (this.state.mode === 'teams' && this.state.teamSelection === 'manual') {
-            const team0Count = Array.from(this.state.players.values()).filter(
-              (p) => p.team === 0,
-            ).length;
-            const team1Count = Array.from(this.state.players.values()).filter(
-              (p) => p.team === 1,
-            ).length;
-            if (team0Count !== team1Count) {
-              // Broadcast so everyone sees why the game didn't start.
-              this.broadcast(
-                'error',
-                `Teams must be balanced to start: Team Blue (${team0Count}) vs Team Red (${team1Count}).`,
-              );
-              return;
-            }
-          }
-
-          this.startGame();
-        }
       }
     });
   }
@@ -195,16 +191,28 @@ export class DurakRoom extends Room<GameState> {
     console.log(client.sessionId, 'joined!');
 
     const player = new Player(client.sessionId);
-    // Auto-ready for bots or special logic can go here. By default false.
-    this.state.players.set(client.sessionId, player);
+    if (options.username) player.username = options.username;
+    if (options.avatarUrl) player.avatarUrl = options.avatarUrl;
 
-    // We no longer auto-start just because the room is full.
-    // They must click Ready.
+    // First player is host
+    if (this.state.players.size === 0) {
+      this.state.hostId = client.sessionId;
+      player.isReady = true; // Host is ready by default
+    }
+
+    this.state.players.set(client.sessionId, player);
   }
 
   onLeave(client: Client, consented: boolean) {
     console.log(client.sessionId, 'left!');
     this.state.players.delete(client.sessionId);
+
+    // Reassign host if necessary
+    if (this.state.hostId === client.sessionId && this.state.players.size > 0) {
+      this.state.hostId = this.state.players.keys().next().value || '';
+      const newHost = this.state.players.get(this.state.hostId);
+      if (newHost) newHost.isReady = true;
+    }
   }
 
   private formatCard(c: Card): string {
@@ -220,6 +228,20 @@ export class DurakRoom extends Room<GameState> {
 
   private startGame() {
     this.state.phase = 'playing';
+
+    // Initialize the deck right before game starts
+    const deck = DurakEngine.createDeck();
+    let shuffled = this.testModeDeck ? this.testModeDeck : DurakEngine.shuffleDeck(deck);
+    shuffled.forEach((card: Card) => this.state.deck.push(card));
+
+    // Choose the Huzur (Trump) card
+    const huzur = this.state.deck.pop();
+    if (huzur) {
+      const clonedHuzur = new Card(huzur.suit, huzur.rank, huzur.isJoker);
+      this.state.huzurCard = clonedHuzur;
+      this.state.huzurSuit = huzur.suit;
+      this.state.deck.unshift(huzur);
+    }
 
     // Assign teams and seat order
     const sessionIds = Array.from(this.state.players.keys());

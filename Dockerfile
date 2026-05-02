@@ -15,9 +15,10 @@ RUN npm ci
 COPY . .
 
 # Build frontend assets that server will serve from packages/client/dist
+ENV VITE_DISCORD_CLIENT_ID=1493531312206647406
 RUN npm run build:client
 
 ENV NODE_ENV=production
 EXPOSE 2567
 
-CMD ["npm", "run", "start:server"]
+CMD ["npm", "run", "start:prod"]

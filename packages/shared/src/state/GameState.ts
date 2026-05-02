@@ -19,6 +19,7 @@ export class GameState extends Schema {
   @type('number') turnStartTime: number = 0; // Timestamp when current turn began (ms since epoch)
   @type('number') turnTimeLimit: number = 30000; // Time limit per turn in milliseconds (default 30s)
 
+  @type('string') hostId: string = ''; // Tracks the lobby leader
   @type('number') maxPlayers: number = 6;
   @type('boolean') isPrivate: boolean = false;
   @type('string') mode: string = 'classic'; // classic, teams, etc.
