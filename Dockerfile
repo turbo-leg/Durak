@@ -14,8 +14,8 @@ RUN npm ci
 # Copy source
 COPY . .
 
-# Build frontend and backend assets
-RUN npm run build:client && npm run build:server
+# Build frontend assets that server will serve from packages/client/dist
+RUN npm run build:client
 
 ENV NODE_ENV=production
 EXPOSE 2567
