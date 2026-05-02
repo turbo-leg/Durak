@@ -6,7 +6,7 @@ import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from '.
 import './App.css';
 
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
-  const { room, isConnected, error, leaveGame, autoJoinDiscordRoom } = useGame();
+  const { room, isConnected, error, leaveGame, autoJoinDiscordRoom, gameState } = useGame();
 
   // Issue #69: Auto-join the Discord Instance Lobby
   useEffect(() => {
@@ -22,6 +22,13 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
       autoJoinDiscordRoom(discordSdk.instanceId, username, avatarUrl);
     }
   }, [discordAuth, isConnected, room, autoJoinDiscordRoom]);
+
+  // When in waiting phase, GameBoard renders a full-screen lobby — hide all App chrome
+  const isWaitingPhase = isConnected && gameState?.phase === 'waiting';
+
+  if (isWaitingPhase) {
+    return <GameBoard />;
+  }
 
   return (
     <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative">
