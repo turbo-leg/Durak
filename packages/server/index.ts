@@ -23,6 +23,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Issue #69: Allow Discord to embed this application in an iframe
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', 'frame-ancestors *');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 // Token exchange endpoint for Discord Embedded App SDK
 app.post('/api/token', async (req, res) => {
   try {
