@@ -70,7 +70,7 @@ const gameServer = new Server({
 });
 
 // Register the Durak game room
-gameServer.define('durak', DurakRoom);
+gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
 
 // Add colyseus monitor for debugging
 app.use('/colyseus', monitor());

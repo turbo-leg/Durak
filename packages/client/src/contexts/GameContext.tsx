@@ -23,6 +23,7 @@ interface GameContextState {
   joinGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
+  autoJoinDiscordRoom: (instanceId: string) => Promise<void>;
   serverTimeOffset: number;
 }
 
@@ -39,6 +40,7 @@ const GameContext = createContext<GameContextState>({
   joinGame: async () => {},
   findPublicGames: async () => [],
   leaveGame: () => {},
+  autoJoinDiscordRoom: async () => {},
   serverTimeOffset: 0,
 });
 
@@ -170,6 +172,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await client.getAvailableRooms('durak');
   };
 
+  const autoJoinDiscordRoom = async (discordInstanceId: string) => {
+    try {
+      const roomInstance = await client.joinOrCreate<GameState>('durak', { discordInstanceId });
+      handleRoomEvents(roomInstance);
+    } catch (e: unknown) {
+      console.error('Error auto-joining Discord room:', e);
+      setError(e instanceof Error ? e.message : 'Failed to auto-join Discord room');
+    }
+  };
+
   const leaveGame = () => {
     if (room) {
       room.leave();
@@ -197,6 +209,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         joinGame,
         findPublicGames,
         leaveGame,
+        autoJoinDiscordRoom,
         serverTimeOffset,
       }}
     >

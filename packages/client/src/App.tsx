@@ -2,11 +2,18 @@ import { useGame } from './contexts/GameContext';
 import { useEffect, useState } from 'react';
 import { GameBoard } from './components/GameBoard';
 import { Lobby } from './components/Lobby';
-import { isEmbedded, setupDiscordSdk, type DiscordAuthInfo } from './discordAuth';
+import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
 import './App.css';
 
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
-  const { room, isConnected, error, leaveGame } = useGame();
+  const { room, isConnected, error, leaveGame, autoJoinDiscordRoom } = useGame();
+
+  // Issue #69: Auto-join the Discord Instance Lobby
+  useEffect(() => {
+    if (discordAuth && discordSdk?.instanceId && !isConnected && !room) {
+      autoJoinDiscordRoom(discordSdk.instanceId);
+    }
+  }, [discordAuth, isConnected, room, autoJoinDiscordRoom]);
 
   return (
     <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative">
