@@ -1,15 +1,5 @@
 @import 'tailwindcss';
 
-html {
-  font-size: 10px; /* Scales down the entire UI to 62.5% natively on desktop */
-}
-
-@media (max-width: 768px) {
-  html {
-    font-size: 14px; /* Slightly larger on mobile devices for readability */
-  }
-}
-
 body {
   margin: 0;
   padding: 0;
