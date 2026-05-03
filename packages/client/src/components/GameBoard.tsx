@@ -276,7 +276,7 @@ export const GameBoard: React.FC = () => {
                     }
                     className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
                   >
-                    {[4, 5, 6, 7].map((n) => (
+                    {[5, 6, 7].map((n) => (
                       <option key={n} value={n}>
                         {n} Cards
                       </option>
