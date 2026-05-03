@@ -3,6 +3,7 @@ import { useGame } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
 import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
@@ -105,6 +106,7 @@ export const GameBoard: React.FC = () => {
   const shouldShake = timeRemaining < 3000; // Shake when less than 3 seconds remain
 
   const handleCardClick = (card: SharedCard) => {
+    Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
     // Basic multi-select logic for mass attack/defend
     const alreadySelected = selectedCards.find((c) => c.suit === card.suit && c.rank === card.rank);
     if (alreadySelected) {
@@ -182,7 +184,7 @@ export const GameBoard: React.FC = () => {
   // ── WAITING PHASE: Full-screen lobby ──
   if (gameState.phase === 'waiting') {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden">
+      <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden safe-p">
         {/* Compact header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
           <h1 className="text-lg font-extrabold tracking-tight text-green-100">

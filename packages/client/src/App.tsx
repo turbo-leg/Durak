@@ -31,7 +31,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   }
 
   return (
-    <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative">
+    <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative safe-p">
       <header className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
         <div className="flex items-center space-x-4">
           <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
