@@ -68,7 +68,20 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
           </div>
         )}
 
-        {!isConnected ? <Lobby /> : <GameBoard />}
+        {!isConnected ? (
+          isEmbedded ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
+              <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="text-green-400 font-bold animate-pulse uppercase tracking-widest text-sm">
+                Connecting to Discord
+              </div>
+            </div>
+          ) : (
+            <Lobby />
+          )
+        ) : (
+          <GameBoard />
+        )}
       </main>
 
       <footer className="mt-4 text-center text-green-700 text-xs">
