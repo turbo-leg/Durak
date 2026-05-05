@@ -55,8 +55,8 @@ export const Card: React.FC<CardProps> = ({
     return (
       <div
         className={`
-          relative w-8 h-12 bg-white rounded shadow border border-gray-300
-          flex flex-col justify-between p-0.5 select-none text-[9px]
+          relative w-10 h-[60px] bg-white rounded shadow border border-gray-300
+          flex flex-col justify-between p-0.5 select-none text-[10px]
           ${isPlayable ? 'cursor-pointer' : 'opacity-90'}
           ${className}
         `}
@@ -64,11 +64,11 @@ export const Card: React.FC<CardProps> = ({
       >
         <div className={`font-bold leading-none ${colorClass}`}>
           <div>{name}</div>
-          <div className="-mt-0.5">{symbol}</div>
+          <div className="-mt-0.5 text-xs">{symbol}</div>
         </div>
         <div className={`font-bold leading-none ${colorClass} rotate-180 self-end`}>
           <div>{name}</div>
-          <div className="-mt-0.5">{symbol}</div>
+          <div className="-mt-0.5 text-xs">{symbol}</div>
         </div>
       </div>
     );

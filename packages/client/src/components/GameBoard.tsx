@@ -565,7 +565,7 @@ export const GameBoard: React.FC = () => {
                     {def ? (
                       <UICard card={def} compact className="ring-1 ring-green-500/30" />
                     ) : (
-                      <div className="w-8 h-12 rounded border border-dashed border-white/20 flex items-center justify-center">
+                      <div className="w-10 h-[60px] rounded border border-dashed border-white/20 flex items-center justify-center">
                         <span className="text-[6px] text-white/30">?</span>
                       </div>
                     )}
