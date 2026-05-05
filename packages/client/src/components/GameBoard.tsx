@@ -391,439 +391,358 @@ export const GameBoard: React.FC = () => {
     );
   }
 
-  return (
-    <div className="flex flex-col md:grid md:grid-rows-[auto_1fr_auto] h-[100dvh] md:h-[95vh] w-full max-w-7xl mx-auto bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 md:rounded-2xl md:ring-4 md:ring-green-900/50 md:shadow-2xl overflow-y-auto md:overflow-hidden p-3 md:p-6 gap-3 md:gap-6 relative text-white">
-      {/* Top Banner (Header) & Opponents */}
-      <div className="flex flex-col space-y-3 md:space-y-6 flex-shrink-0">
-        {/* Banner */}
-        <div className="flex items-center justify-between bg-black/40 px-4 md:px-6 py-2 md:py-4 rounded-xl shadow-md border border-white/10 w-full z-10 flex-wrap gap-2 md:gap-4">
-          <div className="flex items-center space-x-3 md:space-x-6 text-xs md:text-sm flex-wrap gap-1 md:gap-2">
-            <div>
-              <span className="text-gray-400">Phase:</span>{' '}
-              <span className="font-bold">{gameState.phase}</span>
-            </div>
-            <div>
-              <span className="text-gray-400">Turn:</span>{' '}
-              <span className={`font-bold ${isMyTurn ? 'text-yellow-400' : 'text-white'}`}>
-                {isMyTurn ? 'Yours' : 'Opps'}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-400">Deck:</span>{' '}
-              <span className="font-bold">{gameState.deck?.length || 0}</span>
-            </div>
-          </div>
-          {gameState.mode === 'teams' && (
-            <div
-              className={`px-2 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold shadow-md ${myTeamBadge}`}
-            >
-              Team: {myTeamLabel}
-            </div>
-          )}
-        </div>
+  // ── Compute opponents for seat positioning ──
+  const seatOrder = Array.from(gameState.seatOrder);
+  let opponents: { id: string; player: Player }[] = [];
+  if (seatOrder.length > 0) {
+    const myIdx = seatOrder.indexOf(room.sessionId);
+    if (myIdx !== -1) {
+      for (let i = 1; i < seatOrder.length; i++) {
+        const oppId = seatOrder[(myIdx + i) % seatOrder.length];
+        if (!oppId) continue;
+        const oppPlayer = gameState.players.get(oppId);
+        if (oppPlayer) opponents.push({ id: oppId, player: oppPlayer });
+      }
+    }
+  } else {
+    opponents = Array.from(gameState.players.entries())
+      .filter(([id]) => id !== room.sessionId)
+      .map(([id, player]) => ({ id, player }))
+      .sort((a, b) => (a.player.team || 0) - (b.player.team || 0));
+  }
 
-        {/* Game Message */}
-        <AnimatePresence>
-          {gameMessage && (
+  // Clockwise seat positions around the oval
+  const SEAT_POSITIONS: Record<number, Array<{ top: string; left: string }>> = {
+    1: [{ top: '6%', left: '50%' }],
+    2: [
+      { top: '20%', left: '16%' },
+      { top: '20%', left: '84%' },
+    ],
+    3: [
+      { top: '44%', left: '6%' },
+      { top: '6%', left: '50%' },
+      { top: '44%', left: '94%' },
+    ],
+    4: [
+      { top: '58%', left: '6%' },
+      { top: '14%', left: '14%' },
+      { top: '14%', left: '86%' },
+      { top: '58%', left: '94%' },
+    ],
+    5: [
+      { top: '62%', left: '6%' },
+      { top: '22%', left: '8%' },
+      { top: '6%', left: '50%' },
+      { top: '22%', left: '92%' },
+      { top: '62%', left: '94%' },
+    ],
+  };
+  const seatPositions = SEAT_POSITIONS[opponents.length] || SEAT_POSITIONS[1] || [];
+
+  return (
+    <div className="flex flex-col h-[100dvh] w-full bg-green-950 overflow-hidden safe-p text-white relative">
+      {/* ── Info Bar ── */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black/50 border-b border-green-800/50 shrink-0 z-20">
+        <div className="flex items-center gap-3 text-xs">
+          {isMyTurn && (
             <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-red-600 border border-red-400 font-bold text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl flex items-center justify-between mx-auto w-full max-w-md z-50 absolute top-16 md:top-20 left-1/2 -translate-x-1/2 text-sm md:text-base"
+              animate={shouldShake ? { x: [0, -2, 2, -2, 0] } : { x: 0 }}
+              transition={shouldShake ? { duration: 0.3, repeat: Infinity } : { duration: 0 }}
+              className={`font-bold tabular-nums ${getTimerColor()}`}
             >
-              <span>{gameMessage}</span>
-              <button onClick={clearGameMessage} className="text-red-200 hover:text-white ml-4">
-                &times;
-              </button>
+              ⏳ {(timeRemaining / 1000).toFixed(1)}s
             </motion.div>
           )}
-        </AnimatePresence>
-
-        {/* Opponents Flex Container */}
-        <div className="flex flex-row overflow-x-auto md:flex-wrap md:justify-center gap-2 md:gap-4 z-10 pb-2 md:pb-0 custom-scrollbar">
-          {(() => {
-            const seatOrder = Array.from(gameState.seatOrder);
-            let opponents: { id: string; player: Player }[] = [];
-
-            if (seatOrder.length > 0) {
-              // Game started: order opponents circularly starting from the player to their left
-              const myIdx = seatOrder.indexOf(room.sessionId);
-              if (myIdx !== -1) {
-                for (let i = 1; i < seatOrder.length; i++) {
-                  const oppId = seatOrder[(myIdx + i) % seatOrder.length];
-                  if (!oppId) continue;
-                  const oppPlayer = gameState.players.get(oppId);
-                  if (oppPlayer) opponents.push({ id: oppId, player: oppPlayer });
-                }
-              }
-            } else {
-              // Waiting phase: Just list other players, maybe sorted by team
-              opponents = Array.from(gameState.players.entries())
-                .filter(([id]) => id !== room.sessionId)
-                .map(([id, player]) => ({ id, player }))
-                .sort((a, b) => (a.player.team || 0) - (b.player.team || 0));
-            }
-
-            return opponents.map(({ id, player }) => {
-              const isPlaying = gameState.currentTurn === id;
-              return (
-                <div
-                  key={id}
-                  className={`bg-black/40 px-3 py-2 md:px-6 md:py-4 rounded-xl text-center flex flex-col items-center relative border shadow-lg flex-shrink-0 transition-all duration-300 ${gameState.phase === 'waiting' && player.isReady ? 'border-green-500' : isPlaying ? 'border-yellow-400 ring-4 ring-yellow-400/50 scale-105 shadow-[0_0_30px_rgba(250,204,21,0.6)] z-30 bg-yellow-900/20' : 'border-white/10 opacity-80'} ${isDevMode ? 'w-auto min-w-[180px] md:min-w-[220px]' : 'min-w-[100px] md:sm:w-48'}`}
-                >
-                  {isPlaying && (
-                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-[10px] md:text-xs font-extrabold px-3 py-1 md:px-4 md:py-1.5 rounded-full shadow-lg animate-bounce whitespace-nowrap z-20 uppercase tracking-widest border border-yellow-200">
-                      Active Turn
-                    </div>
-                  )}
-                  {gameState.phase === 'waiting' && player.isReady && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-green-900 text-[8px] md:text-[9px] font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-md whitespace-nowrap z-20">
-                      READY
-                    </div>
-                  )}
-                  {/* Team badge */}
-                  {gameState.mode === 'teams' && (
-                    <div
-                      className={`absolute -bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 md:px-3 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-extrabold shadow border whitespace-nowrap z-20 ${player.team === 0 ? 'bg-blue-700 text-blue-100 border-blue-300/30' : 'bg-red-700 text-red-100 border-red-300/30'}`}
-                    >
-                      {player.team === 0 ? 'BLUE' : 'RED'}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col items-center mb-2 md:mb-3">
-                    {player.avatarUrl && (
-                      <img
-                        src={player.avatarUrl}
-                        alt={player.username || id}
-                        className="w-8 h-8 md:w-10 md:h-10 rounded-full shadow-md border-2 border-black/50 mb-1"
-                      />
-                    )}
-                    <div
-                      className="text-[10px] md:text-xs text-gray-200 font-bold bg-green-900/60 border border-green-700/80 px-2 py-1 md:px-3 md:py-1 rounded max-w-[100px] md:max-w-[140px] shadow-inner"
-                      title={player.username || id}
-                    >
-                      <span className="block truncate">{player.username || id.slice(0, 8)}</span>
-                    </div>
-                  </div>
-
-                  {/* Draw Log for Developer Mode / Ground Tracking */}
-                  {player.lastDrawLog && player.lastDrawLog.length > 0 && (
-                    <div className="mb-2 w-full bg-black/50 rounded p-1.5 border border-white/5 animate-pulse">
-                      <div className="text-[8px] uppercase tracking-tighter text-gray-500 mb-1">
-                        Last from ground:
-                      </div>
-                      <div className="flex flex-wrap gap-1 justify-center">
-                        {Array.from(player.lastDrawLog).map((cardStr, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-yellow-900/40 text-yellow-400 text-[9px] px-1 rounded border border-yellow-700/30 font-bold"
-                          >
-                            {cardStr}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div
-                    className={`mt-1 md:mt-2 text-lg md:text-xl font-bold text-white flex flex-col items-center justify-center bg-black/30 px-3 py-1.5 md:px-4 md:py-2 rounded-lg leading-none w-full ${isDevMode ? 'py-4 gap-4' : 'flex-row space-x-1 md:space-x-2'}`}
-                  >
-                    {isDevMode ? (
-                      <>
-                        <div className="flex flex-row justify-center -space-x-8 scale-75 md:scale-90 origin-top min-h-[100px] pt-2">
-                          {Array.from(player.hand)
-                            .filter((c): c is SharedCard => c !== undefined)
-                            .map((c, i) => {
-                              const isSelected = !!(devSelectedCards[id] || []).find(
-                                (sc) => sc.suit === c.suit && sc.rank === c.rank,
-                              );
-                              return (
-                                <div
-                                  key={i}
-                                  onClick={() => handleDevCardClick(id, c)}
-                                  className={`cursor-pointer transition-all shadow-xl relative group ${isSelected ? 'ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] -translate-y-4 z-40 scale-110' : 'hover:-translate-y-6 hover:scale-110 z-10 hover:z-50'}`}
-                                >
-                                  <UICard card={c} />
-                                </div>
-                              );
-                            })}
-                        </div>
-                        <div className="flex flex-wrap gap-1 justify-center mt-2 w-full">
-                          <button
-                            onClick={() => handleDevAction(id, 'attack')}
-                            className="bg-red-600 hover:bg-red-500 text-[10px] px-2 py-1 rounded shadow"
-                          >
-                            Atk ({(devSelectedCards[id] || []).length})
-                          </button>
-                          <button
-                            onClick={() => handleDevAction(id, 'defend')}
-                            className="bg-green-600 hover:bg-green-500 text-[10px] px-2 py-1 rounded shadow"
-                          >
-                            Def
-                          </button>
-                          <button
-                            onClick={() => handleDevAction(id, 'pickUp')}
-                            className="bg-yellow-600 hover:bg-yellow-500 text-[10px] text-yellow-900 px-2 py-1 rounded shadow"
-                          >
-                            Pick
-                          </button>
-                          <button
-                            onClick={() => handleDevAction(id, 'swapHuzur')}
-                            className="bg-purple-600 hover:bg-purple-500 text-[10px] px-2 py-1 rounded shadow"
-                          >
-                            Swap
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-xl md:text-2xl -mt-1 md:-mt-1">🃏</span>
-                        <span>{player.hand.length}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            });
-          })()}
+          <span className="text-gray-400">
+            🃏 <span className="text-white font-bold">{gameState.deck?.length || 0}</span>
+          </span>
+          {gameState.huzurCard && (
+            <span className="text-yellow-400 font-bold">♦ {gameState.huzurSuit}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {gameState.mode === 'teams' && (
+            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${myTeamBadge}`}>
+              {myTeamLabel}
+            </div>
+          )}
+          {isMyTurn && (
+            <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/20 px-2 py-0.5 rounded-full animate-pulse">
+              YOUR TURN
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Dev Tools Panel */}
+      {/* ── Game Message Toast ── */}
+      <AnimatePresence>
+        {gameMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-12 left-1/2 -translate-x-1/2 bg-red-600 border border-red-400 font-bold text-white px-4 py-2 rounded-lg shadow-2xl flex items-center z-50 text-sm max-w-[90%]"
+          >
+            <span>{gameMessage}</span>
+            <button onClick={clearGameMessage} className="text-red-200 hover:text-white ml-3">
+              &times;
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Dev Tools Panel ── */}
       {isDevMode && (
-        <div className="absolute top-4 right-4 bg-red-950/90 text-white p-3 rounded-xl border-2 border-red-500 shadow-2xl z-50 flex flex-col space-y-2 backdrop-blur-md w-48">
-          <div className="font-bold text-xs uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
+        <div className="absolute top-12 right-2 bg-red-950/90 text-white p-2 rounded-xl border-2 border-red-500 shadow-2xl z-50 flex flex-col space-y-1 backdrop-blur-md w-40 text-[10px]">
+          <div className="font-bold uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
             Dev Tools
           </div>
           <button
             onClick={devSpawnDummies}
-            className="bg-red-800 hover:bg-red-700 px-2 py-1.5 rounded text-xs transition border border-red-600 shadow-inner"
+            className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
           >
             Spawn Dummies
           </button>
           <button
             onClick={devForcePass}
-            className="bg-red-800 hover:bg-red-700 px-2 py-1.5 rounded text-xs transition border border-red-600 shadow-inner"
+            className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
           >
             Force Pass
           </button>
           <button
             onClick={devCopyLog}
-            className="bg-blue-800 hover:bg-blue-700 px-2 py-1.5 rounded text-xs transition border border-blue-600 shadow-inner"
+            className="bg-blue-800 hover:bg-blue-700 px-2 py-1 rounded transition border border-blue-600"
           >
             Copy Log ({gameState.actionLog?.length || 0})
           </button>
-          <div className="text-[10px] text-red-300/60 mt-1 italic">
-            Click an opponent's card to play as them.
-          </div>
         </div>
       )}
 
-      {/* Center Table Area */}
-      <div className="flex-1 flex w-full relative z-0 h-full overflow-hidden">
-        {/* Phase: Playing */}
-        {gameState.phase === 'playing' && (
-          <div className="flex flex-col md:flex-row w-full h-full bg-black/20 rounded-xl border border-white/5 shadow-inner">
-            {/* Left Column: Deck & Trump */}
-            <div className="md:w-64 w-full h-40 md:h-full flex-shrink-0 flex items-center justify-center relative border-b md:border-b-0 md:border-r border-white/10 p-4">
-              {gameState.huzurCard && (
-                <div className="flex flex-row items-center justify-center gap-6 w-full h-full min-h-[200px]">
-                  {/* The Deck Stack */}
-                  <div className="relative w-[80px] h-[120px]">
-                    {(() => {
-                      const deckLength = gameState.deck?.length || 0;
-                      const layers = Math.min(3, Math.max(1, Math.ceil(deckLength / 10)));
-                      if (deckLength === 0) return null;
-                      return Array.from({ length: layers }).map((_, i) => (
-                        <div
-                          key={`deck-${i}`}
-                          className="absolute top-0 left-0 w-full h-full bg-red-900 rounded-lg shadow-[0_5px_15px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center justify-center overflow-hidden"
-                          style={{
-                            zIndex: layers - i,
-                            marginLeft: `${i * 3}px`,
-                            marginTop: `-${i * 3}px`,
-                          }}
-                        >
-                          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiM4YjAwMDAiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iIzlhMTExMSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+PC9zdmc+')] opacity-60"></div>
-                          {i === 0 && (
-                            <span className="text-white z-10 font-black text-2xl bg-black/60 px-2 py-1 rounded shadow-inner">
-                              {deckLength}
-                            </span>
-                          )}
+      {/* ── Oval Table Area ── */}
+      <div className="flex-1 relative min-h-0">
+        {/* Oval felt surface */}
+        <div className="absolute inset-3 md:inset-8 rounded-[50%] bg-[radial-gradient(ellipse_at_center,#1a5c2e,#0a3618)] border-2 border-yellow-900/30 shadow-[inset_0_0_60px_rgba(0,0,0,0.5)]">
+          {/* Center: Deck + Trump + Table Cards */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex flex-wrap items-center justify-center gap-1 md:gap-3 p-2 max-w-[80%]">
+              {/* Deck + Trump compact */}
+              {gameState.phase === 'playing' && gameState.huzurCard && (
+                <div className="flex items-center gap-1 mr-1 md:mr-3">
+                  <div className="relative w-8 h-12 md:w-10 md:h-14">
+                    {(gameState.deck?.length || 0) > 0 ? (
+                      <>
+                        <div className="absolute inset-0 bg-red-900 rounded border border-white/20 shadow-md flex items-center justify-center">
+                          <span className="text-white font-black text-[10px] md:text-xs">
+                            {gameState.deck?.length}
+                          </span>
                         </div>
-                      ));
-                    })()}
-
-                    {/* Empty Deck Placeholder */}
-                    {(gameState.deck?.length || 0) <= 0 && (
-                      <div className="absolute top-0 left-0 w-full h-full rounded-lg border-2 border-dashed border-white/20 z-0 flex items-center justify-center opacity-50 bg-black/20"></div>
+                        <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 bg-red-950 rounded border border-white/10 -z-10" />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
                     )}
-
-                    {/* Status Text Block directly underneath Deck */}
-                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-yellow-900/80 px-3 py-1 rounded-lg text-xs font-bold ring-1 ring-yellow-500 z-10 whitespace-nowrap shadow-lg">
-                      Trump: {gameState.huzurSuit}
-                    </div>
                   </div>
-
-                  {/* The Fully Visible Trump Card */}
-                  <div className="relative z-0 mt-4">
-                    <UICard
-                      card={gameState.huzurCard}
-                      className="brightness-100 border-yellow-500 shadow-[0_0_15px_rgba(250,204,21,0.5)]"
-                    />
-                  </div>
+                  <UICard
+                    card={gameState.huzurCard}
+                    compact
+                    className="border-yellow-500 shadow-[0_0_8px_rgba(250,204,21,0.4)]"
+                  />
                 </div>
-              )}
-            </div>
-
-            {/* Center Column: Table Cards */}
-            <div className="flex-1 flex flex-col flex-wrap content-center justify-center gap-6 p-4 md:p-8 overflow-y-auto relative">
-              {/* Timer Display - Sand Clock outside table */}
-              {isMyTurn && (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 200 }}
-                  className="absolute -top-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50"
-                >
-                  <motion.div
-                    animate={
-                      shouldShake
-                        ? { x: [0, -4, 4, -4, 0], rotate: [0, -2, 2, -2, 0] }
-                        : { x: 0, rotate: 0 }
-                    }
-                    transition={shouldShake ? { duration: 0.3, repeat: Infinity } : { duration: 0 }}
-                    className={`text-6xl md:text-7xl drop-shadow-2xl`}
-                  >
-                    ⏳
-                  </motion.div>
-                  <div
-                    className={`text-2xl md:text-3xl font-black tabular-nums ${getTimerColor()} drop-shadow-lg`}
-                  >
-                    {(timeRemaining / 1000).toFixed(1)}s
-                  </div>
-                </motion.div>
               )}
 
               {/* Table Pairs */}
-              {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pairIndex) => {
-                const atk = tableCards[pairIndex * 2];
-                const def = tableCards[pairIndex * 2 + 1];
+              {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pi) => {
+                const atk = tableCards[pi * 2];
+                const def = tableCards[pi * 2 + 1];
                 if (!atk) return null;
-
                 return (
                   <div
-                    key={`table-pair-${pairIndex}-${atk.suit}-${atk.rank}`}
-                    className="flex space-x-2 bg-black/40 p-3 rounded-2xl border border-white/10 shadow-xl items-center min-w-max"
+                    key={`tp-${pi}-${atk.suit}-${atk.rank}`}
+                    className="flex items-center gap-0.5 bg-black/30 p-1 rounded-lg border border-white/5"
                   >
-                    <div className="flex flex-col items-center">
-                      <div className="text-[9px] md:text-[10px] text-gray-300 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">
-                        Attack
+                    <UICard card={atk} compact />
+                    <span className="text-[8px] text-gray-500">→</span>
+                    {def ? (
+                      <UICard card={def} compact className="ring-1 ring-green-500/30" />
+                    ) : (
+                      <div className="w-8 h-12 rounded border border-dashed border-white/20 flex items-center justify-center">
+                        <span className="text-[6px] text-white/30">?</span>
                       </div>
-                      {/* Keep card size scalable depending on screen using transforms or set widths */}
-                      <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">
-                        <UICard card={atk} />
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="text-[9px] md:text-[10px] text-green-400 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">
-                        Defend
-                      </div>
-                      {def ? (
-                        <div className="scale-75 md:scale-90 origin-top shadow-[0_0_15px_rgba(34,197,94,0.3)] rounded-lg h-[140px] md:h-[160px]">
-                          <UICard card={def} />
-                        </div>
-                      ) : (
-                        <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px] flex">
-                          <div className="w-[120px] h-[178px] rounded-lg border-2 border-dashed border-white/10 flex items-center justify-center bg-black/30">
-                            <span className="text-white/20 text-xs font-bold uppercase tracking-widest text-center px-2">
-                              Awaiting
-                              <br />
-                              Defense
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 );
               })}
 
-              {/* Issue #80: show EXACT attack+defense cards for 10 seconds after a defend */}
-              {defenseSnapshot && defenseVisible && (
-                <div className="w-full flex justify-center">
-                  <div className="flex flex-row flex-wrap justify-center gap-6">
-                    {defenseSnapshot.attacking.map((atk, idx) => {
-                      const def = defenseSnapshot.defending[idx];
-                      if (!def) return null;
-
-                      return (
-                        <div
-                          key={`snap-pair-${idx}-${atk.suit}-${atk.rank}`}
-                          className="relative w-[120px] h-[178px]"
-                        >
-                          {/* Bottom: attack card */}
-                          <div className="absolute left-0 top-0 scale-75 md:scale-90 origin-top-left opacity-100">
-                            <UICard card={atk as unknown as SharedCard} className="opacity-100" />
-                          </div>
-
-                          {/* Top: defend card stacked */}
-                          <div className="absolute left-7 top-7 scale-75 md:scale-90 origin-top-left shadow-[0_0_18px_rgba(34,197,94,0.4)] rounded-lg ring-2 ring-green-400/40 opacity-100">
-                            <UICard card={def as unknown as SharedCard} className="opacity-100" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Active Attack Cards (Incoming) */}
+              {/* Active Attack Cards */}
               {attackCards.map((atk, i) => (
                 <div
                   key={`atk-${i}-${atk.suit}-${atk.rank}`}
-                  className="flex flex-col bg-red-900/20 p-3 rounded-2xl border border-red-500/30 shadow-[0_0_20px_rgba(220,38,38,0.2)] items-center min-w-max"
+                  className="bg-red-900/30 p-1 rounded-lg border border-red-500/30"
                 >
-                  <div className="text-[9px] md:text-[10px] text-red-400 font-bold mb-2 uppercase tracking-wide bg-black/50 px-2 py-0.5 rounded animate-pulse whitespace-nowrap">
-                    Incoming
-                  </div>
-                  <div className="scale-75 md:scale-90 origin-top h-[140px] md:h-[160px]">
-                    <UICard card={atk} />
+                  <UICard card={atk} compact />
+                  <div className="text-[6px] text-red-400 text-center font-bold animate-pulse">
+                    ATK
                   </div>
                 </div>
               ))}
+
+              {/* Defense Snapshot */}
+              {defenseSnapshot &&
+                defenseVisible &&
+                defenseSnapshot.attacking.map((atk, idx) => {
+                  const def = defenseSnapshot.defending[idx];
+                  if (!def) return null;
+                  return (
+                    <div key={`snap-${idx}`} className="relative w-12 h-16">
+                      <div className="absolute left-0 top-0">
+                        <UICard card={atk as unknown as SharedCard} compact />
+                      </div>
+                      <div className="absolute left-2 top-2 ring-1 ring-green-400/40 rounded shadow-[0_0_8px_rgba(34,197,94,0.4)]">
+                        <UICard card={def as unknown as SharedCard} compact />
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
-        )}
+        </div>
+
+        {/* ── Opponent Seats (clockwise around the oval) ── */}
+        {opponents.map(({ id, player }, i) => {
+          const pos = seatPositions[i] || { top: '10%', left: '50%' };
+          const isPlaying = gameState.currentTurn === id;
+
+          return (
+            <div
+              key={id}
+              className="absolute z-10 flex flex-col items-center -translate-x-1/2"
+              style={{ top: pos.top, left: pos.left }}
+            >
+              <div
+                className={`flex flex-col items-center p-1 md:p-1.5 rounded-xl transition-all ${
+                  isPlaying
+                    ? 'bg-yellow-500/20 ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]'
+                    : ''
+                }`}
+              >
+                {player.avatarUrl ? (
+                  <img
+                    src={player.avatarUrl}
+                    alt={player.username || id}
+                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-black/50 shadow"
+                  />
+                ) : (
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center font-bold text-gray-400 text-[8px]">
+                    {(player.username || id).slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <span className="text-[9px] md:text-[11px] font-bold text-gray-300 truncate max-w-[55px] md:max-w-[100px] mt-0.5">
+                  {player.username || id.slice(0, 6)}
+                </span>
+                <span className="text-[9px] font-bold text-white bg-black/40 px-1.5 py-0.5 rounded-full mt-0.5">
+                  🃏{player.hand.length}
+                </span>
+                {gameState.mode === 'teams' && (
+                  <span
+                    className={`text-[7px] font-bold px-1 py-0.5 rounded mt-0.5 ${
+                      player.team === 0 ? 'bg-blue-700 text-blue-100' : 'bg-red-700 text-red-100'
+                    }`}
+                  >
+                    {player.team === 0 ? 'BLU' : 'RED'}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Dev mode: show opponent hands inline (simplified for oval) */}
+        {isDevMode &&
+          opponents.map(({ id, player }, i) => {
+            const pos = seatPositions[i] || { top: '10%', left: '50%' };
+            return (
+              <div
+                key={`dev-${id}`}
+                className="absolute z-20 -translate-x-1/2"
+                style={{
+                  top: `calc(${pos.top} + 70px)`,
+                  left: pos.left,
+                }}
+              >
+                <div className="flex gap-0.5 bg-black/60 p-1 rounded border border-red-500/30">
+                  {Array.from(player.hand)
+                    .filter((c): c is SharedCard => c !== undefined)
+                    .map((c, ci) => (
+                      <div
+                        key={ci}
+                        onClick={() => handleDevCardClick(id, c)}
+                        className={`cursor-pointer ${
+                          (devSelectedCards[id] || []).find(
+                            (sc) => sc.suit === c.suit && sc.rank === c.rank,
+                          )
+                            ? 'ring-1 ring-yellow-400 -translate-y-1'
+                            : ''
+                        }`}
+                      >
+                        <UICard card={c} compact />
+                      </div>
+                    ))}
+                </div>
+                <div className="flex gap-0.5 mt-0.5 justify-center">
+                  <button
+                    onClick={() => handleDevAction(id, 'attack')}
+                    className="bg-red-600 text-[8px] px-1 py-0.5 rounded"
+                  >
+                    Atk
+                  </button>
+                  <button
+                    onClick={() => handleDevAction(id, 'defend')}
+                    className="bg-green-600 text-[8px] px-1 py-0.5 rounded"
+                  >
+                    Def
+                  </button>
+                  <button
+                    onClick={() => handleDevAction(id, 'pickUp')}
+                    className="bg-yellow-600 text-[8px] px-1 py-0.5 rounded"
+                  >
+                    Pick
+                  </button>
+                  <button
+                    onClick={() => handleDevAction(id, 'swapHuzur')}
+                    className="bg-purple-600 text-[8px] px-1 py-0.5 rounded"
+                  >
+                    Swap
+                  </button>
+                </div>
+              </div>
+            );
+          })}
       </div>
 
-      {/* Bottom Area: Controls & Hand */}
-      <div className="flex flex-col items-center space-y-2 md:space-y-4 flex-shrink-0">
-        {/* Actions Menu */}
-        <div className="flex flex-wrap justify-center gap-2 md:gap-3 z-30">
-          {isMyTurn && gameState.phase === 'playing' && attackCards.length === 0 && (
-            <>
-              <button
-                onClick={handleAttack}
-                disabled={selectedCards.length === 0}
-                className="px-6 py-2 md:px-8 md:py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base"
-              >
-                Attack ({selectedCards.length})
-              </button>
-            </>
+      {/* ── Action Buttons ── */}
+      {gameState.phase === 'playing' && (
+        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 px-2 py-1 shrink-0 z-20">
+          {isMyTurn && attackCards.length === 0 && (
+            <button
+              onClick={handleAttack}
+              disabled={selectedCards.length === 0}
+              className="px-4 py-1.5 md:px-6 md:py-2 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
+            >
+              ⚔ Attack ({selectedCards.length})
+            </button>
           )}
-          {isMyTurn && gameState.phase === 'playing' && attackCards.length > 0 && (
+          {isMyTurn && attackCards.length > 0 && (
             <>
               <button
                 onClick={handleDefend}
                 disabled={selectedCards.length === 0}
-                className="px-6 py-2 md:px-8 md:py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base"
+                className="px-4 py-1.5 md:px-6 md:py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
               >
-                Defend ({selectedCards.length})
+                🛡 Defend ({selectedCards.length})
               </button>
               <button
                 onClick={handlePickUp}
-                className="px-6 py-2 md:px-8 md:py-3 bg-yellow-600 hover:bg-yellow-500 rounded-full text-yellow-900 font-bold shadow-lg transition active:scale-95 text-xs md:text-base"
+                className="px-4 py-1.5 md:px-6 md:py-2 bg-yellow-600 hover:bg-yellow-500 rounded-full text-yellow-900 font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
               >
                 Pick Up
               </button>
@@ -832,139 +751,126 @@ export const GameBoard: React.FC = () => {
           {gameState.phase === 'playing' &&
             (gameState.deck?.length || 0) > 0 &&
             gameState.huzurCard &&
-            (gameState.huzurCard.isJoker ? (
-              myHand.some((c) => c.suit === 'Spades' && c.rank === 16) &&
-              !myPlayer?.pickedUpCardKeys.includes('Spades:16:0') ? (
-                <button
-                  onClick={handleSwapHuzur}
-                  className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base"
-                >
-                  Swap Ace
-                </button>
-              ) : null
-            ) : myHand.some((c) => c.suit === gameState.huzurSuit && c.rank === 7) &&
-              !myPlayer?.pickedUpCardKeys.includes(`${gameState.huzurSuit}:7:0`) ? (
-              <button
-                onClick={handleSwapHuzur}
-                className="px-6 py-2 md:px-8 md:py-3 mx-4 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg transition active:scale-95 text-xs md:text-base"
-              >
-                Swap 7
-              </button>
-            ) : null)}
+            (gameState.huzurCard.isJoker
+              ? myHand.some((c) => c.suit === 'Spades' && c.rank === 16) &&
+                !myPlayer?.pickedUpCardKeys.includes('Spades:16:0') && (
+                  <button
+                    onClick={handleSwapHuzur}
+                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg text-xs active:scale-95 transition"
+                  >
+                    Swap Ace
+                  </button>
+                )
+              : myHand.some((c) => c.suit === gameState.huzurSuit && c.rank === 7) &&
+                !myPlayer?.pickedUpCardKeys.includes(`${gameState.huzurSuit}:7:0`) && (
+                  <button
+                    onClick={handleSwapHuzur}
+                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg text-xs active:scale-95 transition"
+                  >
+                    Swap 7
+                  </button>
+                ))}
         </div>
+      )}
 
-        {/* Local Player Hand */}
-        <div className="w-full bg-black/30 border border-white/5 shadow-inner rounded-2xl overflow-hidden relative min-h-[120px] md:min-h-[220px]">
-          {/* Local Player Profile */}
-          {myPlayer && (
-            <div className="absolute top-2 left-3 md:top-4 md:left-4 flex items-center space-x-2 z-10 bg-black/40 pr-3 rounded-full border border-white/10">
-              {myPlayer.avatarUrl && (
-                <img
-                  src={myPlayer.avatarUrl}
-                  alt={myPlayer.username}
-                  className="w-8 h-8 md:w-10 md:h-10 rounded-full shadow-md"
-                />
-              )}
-              <span className="text-xs md:text-sm font-bold text-gray-200 truncate max-w-[100px] md:max-w-[150px]">
-                {myPlayer.username || 'Me'}
-              </span>
-            </div>
-          )}
+      {/* ── Player Hand ── */}
+      <div
+        className={`shrink-0 bg-black/30 border-t border-white/10 overflow-hidden transition-all duration-300 ${
+          isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'
+        }`}
+      >
+        <div
+          className="flex flex-row overflow-x-auto md:overflow-x-visible items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar"
+          style={{ minHeight: isMyTurn ? '80px' : '64px' }}
+        >
+          <div className="flex flex-row w-max md:w-auto md:max-w-full md:justify-center gap-1 md:gap-0 px-1 md:px-0">
+            <AnimatePresence>
+              {myHand.map((card, i) => {
+                const isSelected = !!selectedCards.find(
+                  (c) => c.suit === card.suit && c.rank === card.rank,
+                );
+                const animationDelayMs = i * 150;
+                const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
+                const overlapAmount =
+                  isDesktop && myHand.length > 7 ? Math.min(80, (myHand.length - 7) * 4) : 0;
 
-          {/* Mobile: horizontal scroll so every card is reachable. Desktop: centered overlap fan */}
-          <div className="flex flex-row overflow-x-auto md:overflow-x-visible py-4 md:py-6 items-end md:justify-center w-full h-full relative px-2 md:px-4 custom-scrollbar">
-            {/* Deck Origin Point (Invisible marker for animation origins) */}
-            <div
-              className="absolute top-[-100px] md:top-[-200px] left-1/2 -translate-x-1/2 w-1 h-1"
-              id="deck-origin"
-            ></div>
-            {/* Mobile: w-max so scroll works. Desktop: max-w-full so overlap compresses */}
-            <div className="flex flex-row w-max md:w-auto md:max-w-full md:justify-center gap-2 md:gap-0 px-2 md:px-0">
-              <AnimatePresence>
-                {myHand.map((card, i) => {
-                  const isSelected = !!selectedCards.find(
-                    (c) => c.suit === card.suit && c.rank === card.rank,
-                  );
-                  const animationDelayMs = i * 150; // 0.15s stagger
-
-                  // Desktop-only overlap fanning
-                  const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
-                  const maxOverlap = 80;
-                  const overlapIntensity = 4;
-                  const overlapAmount =
-                    isDesktop && myHand.length > 7
-                      ? Math.min(maxOverlap, (myHand.length - 7) * overlapIntensity)
-                      : 0;
-
-                  return (
-                    <motion.div
-                      key={`${card.suit}-${card.rank}`}
-                      layoutId={`card-${card.suit}-${card.rank}`}
-                      initial={{ opacity: 0, y: -400, scale: 0.3 }}
-                      animate={{
-                        opacity: 1,
-                        y: isSelected ? (isDesktop ? -20 : -10) : 0,
-                        scale: 1,
-                      }}
-                      exit={{ opacity: 0, scale: 0.5, y: -200 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 280,
-                        damping: 25,
-                        delay: i * 0.15,
-                        mass: 0.8,
-                      }}
-                      style={{
-                        marginLeft: i > 0 && isDesktop ? `-${overlapAmount}px` : undefined,
-                        zIndex: isSelected ? 100 : i,
-                      }}
-                      className={`cursor-pointer transition-shadow rounded-lg duration-200 transform origin-bottom flex-shrink-0 relative group ${isSelected ? 'shadow-[0_10px_20px_rgba(250,204,21,0.6)] ring-2 md:shadow-[0_15px_30px_rgba(250,204,21,0.6)] md:ring-4 ring-yellow-400' : 'hover:shadow-[0_0_10px_rgba(255,255,255,0.3)] hover:-translate-y-4 md:hover:-translate-y-6 hover:z-[90]'}`}
-                    >
-                      <DealSoundTrigger delayMs={animationDelayMs} playSound={playDealSound} />
-                      <UICard card={card} isPlayable={true} onClick={handleCardClick} />
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-              {/* Trailing spacer for scroll padding on mobile */}
-              <div className="w-2 flex-shrink-0 md:hidden" />
-            </div>
+                return (
+                  <motion.div
+                    key={`${card.suit}-${card.rank}`}
+                    layoutId={`card-${card.suit}-${card.rank}`}
+                    initial={{ opacity: 0, y: 60, scale: 0.5 }}
+                    animate={{
+                      opacity: 1,
+                      y: isSelected ? -12 : 0,
+                      scale: isMyTurn ? 1.05 : 1,
+                    }}
+                    exit={{ opacity: 0, scale: 0.5, y: -100 }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 280,
+                      damping: 25,
+                      delay: i * 0.1,
+                      mass: 0.8,
+                    }}
+                    style={{
+                      marginLeft: i > 0 && isDesktop ? `-${overlapAmount}px` : undefined,
+                      zIndex: isSelected ? 100 : i,
+                    }}
+                    className={`cursor-pointer rounded-lg flex-shrink-0 relative ${
+                      isSelected
+                        ? 'shadow-[0_8px_16px_rgba(250,204,21,0.5)] ring-2 ring-yellow-400'
+                        : 'hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] hover:-translate-y-3 hover:z-[90]'
+                    }`}
+                  >
+                    <DealSoundTrigger delayMs={animationDelayMs} playSound={playDealSound} />
+                    <UICard card={card} isPlayable={true} onClick={handleCardClick} />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+            <div className="w-2 flex-shrink-0 md:hidden" />
           </div>
         </div>
       </div>
 
-      {/* Game Over Overlay (High Priority z-index) */}
+      {/* ── Game Over Overlay ── */}
       {gameState.phase === 'finished' && (
-        <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md">
-          <div className="bg-gray-900 border-2 border-yellow-500 rounded-3xl p-12 flex flex-col items-center shadow-[0_0_50px_rgba(250,204,21,0.3)] text-center max-w-lg w-full">
+        <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md safe-p">
+          <div className="bg-gray-900 border-2 border-yellow-500 rounded-3xl p-6 md:p-12 flex flex-col items-center shadow-[0_0_50px_rgba(250,204,21,0.3)] text-center max-w-sm md:max-w-lg w-[90%]">
             {gameState.loser === room.sessionId ? (
               <>
-                <h1 className="text-7xl mb-6 pb-4 border-b border-gray-700 w-full">🥴</h1>
-                <h2 className="text-4xl font-extrabold text-red-500 mb-3 tracking-wide">
+                <h1 className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full">
+                  🥴
+                </h1>
+                <h2 className="text-2xl md:text-4xl font-extrabold text-red-500 mb-2">
                   YOU ARE THE DURAK!
                 </h2>
-                <p className="text-gray-400 text-lg">Ah well, better luck next time.</p>
+                <p className="text-gray-400 text-sm md:text-lg">Better luck next time.</p>
               </>
             ) : gameState.loser === null ? (
               <>
-                <h1 className="text-7xl mb-6 pb-4 border-b border-gray-700 w-full">🤝</h1>
-                <h2 className="text-4xl font-extrabold text-blue-400 mb-3 tracking-wide">DRAW!</h2>
-                <p className="text-gray-400 text-lg">Everybody wins (or loses?).</p>
+                <h1 className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full">
+                  🤝
+                </h1>
+                <h2 className="text-2xl md:text-4xl font-extrabold text-blue-400 mb-2">DRAW!</h2>
+                <p className="text-gray-400 text-sm md:text-lg">Everybody wins (or loses?).</p>
               </>
             ) : (
               <>
-                <h1 className="text-7xl mb-6 pb-4 border-b border-gray-700 w-full">👑</h1>
-                <h2 className="text-4xl font-extrabold text-yellow-400 mb-3 tracking-wide">
+                <h1 className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full">
+                  👑
+                </h1>
+                <h2 className="text-2xl md:text-4xl font-extrabold text-yellow-400 mb-2">
                   YOU SURVIVED!
                 </h2>
-                <p className="text-gray-400 text-lg">
+                <p className="text-gray-400 text-sm md:text-lg">
                   The fool is {gameState.loser.slice(0, 5)}...
                 </p>
               </>
             )}
             <button
               onClick={handleStartGame}
-              className="mt-10 px-10 py-5 bg-gradient-to-br from-yellow-400 to-yellow-600 hover:from-yellow-300 hover:to-yellow-500 text-yellow-950 font-black text-2xl rounded-full shadow-[0_0_20px_rgba(250,204,21,0.5)] transition active:scale-95"
+              className="mt-6 md:mt-10 px-8 py-3 md:px-10 md:py-5 bg-gradient-to-br from-yellow-400 to-yellow-600 hover:from-yellow-300 hover:to-yellow-500 text-yellow-950 font-black text-lg md:text-2xl rounded-full shadow-[0_0_20px_rgba(250,204,21,0.5)] transition active:scale-95"
             >
               Play Again
             </button>
