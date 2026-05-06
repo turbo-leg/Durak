@@ -144,7 +144,10 @@ export class DurakRoom extends Room<GameState> {
         this.state.maxPlayers = parseInt(message.maxPlayers, 10);
         this.maxClients = this.state.maxPlayers;
       }
-      if (message.targetHandSize) this.state.targetHandSize = parseInt(message.targetHandSize, 10);
+      if (message.targetHandSize) {
+        const requestedHandSize = parseInt(message.targetHandSize, 10);
+        this.state.targetHandSize = requestedHandSize === 7 ? 7 : 5;
+      }
     });
 
     // Start Game Manually
@@ -235,6 +238,8 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private startGame() {
+    this.clearRoundStateForNewGame();
+
     this.state.phase = 'playing';
     this.state.seatOrder.splice(0, this.state.seatOrder.length);
     this.state.lastDefenseAt = 0;
@@ -326,7 +331,7 @@ export class DurakRoom extends Room<GameState> {
     this.startTurnTimer();
   }
 
-  private resetGameStateForReplay() {
+  private clearRoundStateForNewGame() {
     if (this.turnTimeoutId) {
       clearInterval(this.turnTimeoutId);
       this.turnTimeoutId = null;
@@ -344,7 +349,6 @@ export class DurakRoom extends Room<GameState> {
     this.state.huzurSuit = '';
     this.state.currentTurn = '';
     this.state.defenseChainCount = 0;
-    this.state.phase = 'waiting';
     this.state.turnStartTime = 0;
     this.state.lastDefenseAt = 0;
     this.state.loser = '';
@@ -355,6 +359,10 @@ export class DurakRoom extends Room<GameState> {
       player.hasPickedUp = false;
       player.lastDrawLog.splice(0, player.lastDrawLog.length);
     });
+  }
+
+  private resetGameStateForReplay() {
+    this.state.phase = 'waiting';
   }
 
   private startTurnTimer() {
