@@ -208,11 +208,38 @@ describe('DurakEngine - Custom Rules', () => {
       p1.hand.push(...new Array(7).fill(new Card()));
       const p2 = new Player('p2');
       p2.hand.push(...new Array(7).fill(new Card()));
-      // 7-card lobby allows 5-card mass even with deck
-      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 28, 7)).toBe(true);
-      // But 5-card lobby (default) blocks it when deck > 0
-      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 28)).toBe(false);
-      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 28, 5)).toBe(false);
+
+      // Target hand size 7, Deck size 10
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 10, 7)).toBe(true);
+    });
+
+    test('7-Card Mass: Allowed in 7-card lobby only when deck is empty', () => {
+      const atkCards = [
+        new Card(Suit.Hearts, Rank.Jack),
+        new Card(Suit.Spades, Rank.Jack),
+        new Card(Suit.Diamonds, Rank.Nine),
+        new Card(Suit.Clubs, Rank.Nine),
+        new Card(Suit.Hearts, Rank.Queen),
+        new Card(Suit.Spades, Rank.Queen),
+        new Card(Suit.Diamonds, Rank.King),
+      ];
+      const p1 = new Player('p1');
+      p1.hand.push(...new Array(7).fill(new Card()));
+      const p2 = new Player('p2');
+      p2.hand.push(...new Array(7).fill(new Card()));
+
+      // Target hand size 7, Deck size 0 -> valid
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 0, 7)).toBe(true);
+
+      // Target hand size 7, Deck size 10 -> invalid
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 10, 7)).toBe(false);
+
+      // Target hand size 5, Deck size 0 -> invalid
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 0, 5)).toBe(false);
+
+      // Someone has < 7 cards -> invalid
+      p2.hand.pop();
+      expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 0, 7)).toBe(false);
     });
 
     test('5-Card Mass: Valid in 5-card lobby when deck is empty', () => {
