@@ -420,6 +420,8 @@ export class DurakRoom extends Room<GameState> {
   private handleAttack(client: Client, message: { cards: any[] }) {
     if (this.state.currentTurn !== client.sessionId) return;
 
+    this.broadcast('clearDefenseSnapshot');
+
     const player = this.state.players.get(client.sessionId)!;
     const cardsToPlay = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
 
@@ -600,6 +602,8 @@ export class DurakRoom extends Room<GameState> {
 
   private handlePickUp(client: Client) {
     if (this.state.currentTurn !== client.sessionId) return;
+
+    this.broadcast('clearDefenseSnapshot');
 
     // Track cards BEFORE they are moved to hand by endRound
     const pickedUpCards: string[] = [];

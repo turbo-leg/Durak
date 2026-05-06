@@ -110,6 +110,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    roomInstance.onMessage('clearDefenseSnapshot', () => {
+      setDefenseSnapshot(null);
+    });
+
     roomInstance.onMessage('error', (message: string) => {
       setGameMessage(`Error: ${message}`);
       setTimeout(() => setGameMessage(null), 4000);
