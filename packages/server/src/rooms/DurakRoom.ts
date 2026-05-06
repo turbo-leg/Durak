@@ -144,12 +144,23 @@ export class DurakRoom extends Room<GameState> {
         this.state.maxPlayers = parseInt(message.maxPlayers, 10);
         this.maxClients = this.state.maxPlayers;
       }
-      if (message.targetHandSize) this.state.targetHandSize = parseInt(message.targetHandSize, 10);
+      if (message.targetHandSize) {
+        const requestedHandSize = parseInt(message.targetHandSize, 10);
+        this.state.targetHandSize = requestedHandSize === 7 ? 7 : 5;
+      }
     });
 
     // Start Game Manually
     this.onMessage('startGame', (client) => {
-      if (this.state.phase !== 'waiting' || client.sessionId !== this.state.hostId) return;
+      if (client.sessionId !== this.state.hostId) return;
+
+      if (this.state.phase === 'finished') {
+        this.resetGameStateForReplay();
+        this.startGame();
+        return;
+      }
+
+      if (this.state.phase !== 'waiting') return;
 
       const allReady = Array.from(this.state.players.values()).every((p) => p.isReady);
       if (!allReady) {
@@ -227,7 +238,11 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private startGame() {
+    this.clearRoundStateForNewGame();
+
     this.state.phase = 'playing';
+    this.state.seatOrder.splice(0, this.state.seatOrder.length);
+    this.state.lastDefenseAt = 0;
 
     // Initialize the deck right before game starts
     const deck = DurakEngine.createDeck();
@@ -314,6 +329,40 @@ export class DurakRoom extends Room<GameState> {
 
     // Start turn timeout enforcement
     this.startTurnTimer();
+  }
+
+  private clearRoundStateForNewGame() {
+    if (this.turnTimeoutId) {
+      clearInterval(this.turnTimeoutId);
+      this.turnTimeoutId = null;
+    }
+
+    this.state.deck.splice(0, this.state.deck.length);
+    this.state.discardPile.splice(0, this.state.discardPile.length);
+    this.state.table.splice(0, this.state.table.length);
+    this.state.tableStacks.splice(0, this.state.tableStacks.length);
+    this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
+    this.state.winners.splice(0, this.state.winners.length);
+    this.state.actionLog.splice(0, this.state.actionLog.length);
+
+    this.state.huzurCard = new Card();
+    this.state.huzurSuit = '';
+    this.state.currentTurn = '';
+    this.state.defenseChainCount = 0;
+    this.state.turnStartTime = 0;
+    this.state.lastDefenseAt = 0;
+    this.state.loser = '';
+
+    this.state.players.forEach((player) => {
+      player.hand.splice(0, player.hand.length);
+      player.pickedUpCardKeys.splice(0, player.pickedUpCardKeys.length);
+      player.hasPickedUp = false;
+      player.lastDrawLog.splice(0, player.lastDrawLog.length);
+    });
+  }
+
+  private resetGameStateForReplay() {
+    this.state.phase = 'waiting';
   }
 
   private startTurnTimer() {

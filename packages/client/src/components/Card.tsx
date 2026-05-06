@@ -55,8 +55,8 @@ export const Card: React.FC<CardProps> = ({
     return (
       <div
         className={`
-          relative w-10 h-[60px] bg-white rounded shadow border border-gray-300
-          flex flex-col justify-between p-0.5 select-none text-[10px]
+          relative w-12 h-[72px] bg-white rounded-md shadow border border-gray-300
+          flex flex-col justify-between p-0.5 select-none text-[11px]
           ${isPlayable ? 'cursor-pointer' : 'opacity-90'}
           ${className}
         `}

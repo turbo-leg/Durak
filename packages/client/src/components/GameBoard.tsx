@@ -278,7 +278,7 @@ export const GameBoard: React.FC = () => {
                     }
                     className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
                   >
-                    {[5, 6, 7].map((n) => (
+                    {[5, 7].map((n) => (
                       <option key={n} value={n}>
                         {n} Cards
                       </option>
@@ -565,7 +565,7 @@ export const GameBoard: React.FC = () => {
                     {def ? (
                       <UICard card={def} compact className="ring-1 ring-green-500/30" />
                     ) : (
-                      <div className="w-10 h-[60px] rounded border border-dashed border-white/20 flex items-center justify-center">
+                      <div className="w-12 h-[72px] rounded-md border border-dashed border-white/20 flex items-center justify-center">
                         <span className="text-[6px] text-white/30">?</span>
                       </div>
                     )}
