@@ -165,9 +165,10 @@ export class DurakEngine {
   }
 
   /**
-   * Mass = 3 or 5 cards based on conditions.
+   * Mass = 3, 5, or 7 cards based on conditions.
    * 3-Card Mass: 1 pair + 1 random card. (Denied if anyone has < 3 cards)
    * 5-Card Mass: 2 pairs + 1 random card. (Only if deck empty AND everyone has >= 5 cards)
+   * 7-Card Mass: 3 pairs + 1 random card. (Only if deck empty AND everyone has >= 7 cards in 7-card lobbies)
    */
   static isValidMassAttack(
     cards: Card[],
@@ -176,7 +177,7 @@ export class DurakEngine {
     targetHandSize: number = 5,
   ): boolean {
     const requiredSize = cards.length;
-    if (requiredSize !== 3 && requiredSize !== 5) return false;
+    if (requiredSize !== 3 && requiredSize !== 5 && requiredSize !== 7) return false;
 
     // Check if everyone has enough cards
     for (const p of allPlayers) {
@@ -185,12 +186,18 @@ export class DurakEngine {
 
     if (requiredSize === 3) {
       return DurakEngine.countPairs(cards) >= 1;
-    } else {
+    } else if (requiredSize === 5) {
       // In 5-card lobbies, 5-card mass only allowed when deck is empty.
       // In 7-card lobbies, 5-card mass is always allowed.
-      if (targetHandSize < 7 && deckSize > 0) return false;
+      if (targetHandSize !== 7 && deckSize > 0) return false;
       return DurakEngine.countPairs(cards) >= 2;
+    } else if (requiredSize === 7) {
+      // 7-card mass is only allowed in 7-card lobbies, when the deck is empty.
+      if (targetHandSize !== 7 || deckSize > 0) return false;
+      return DurakEngine.countPairs(cards) >= 3;
     }
+
+    return false;
   }
 
   private static countPairs(cards: Card[]): number {
