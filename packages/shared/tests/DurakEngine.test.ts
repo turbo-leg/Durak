@@ -237,6 +237,18 @@ describe('DurakEngine - Custom Rules', () => {
       // Target hand size 5, Deck size 0 -> invalid
       expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 0, 5)).toBe(false);
 
+      // Less than 3 pairs -> invalid
+      const atkCardsFewPairs = [
+        new Card(Suit.Hearts, Rank.Jack),
+        new Card(Suit.Spades, Rank.Jack),
+        new Card(Suit.Diamonds, Rank.Nine),
+        new Card(Suit.Clubs, Rank.Nine),
+        new Card(Suit.Hearts, Rank.Queen),
+        new Card(Suit.Spades, Rank.King),
+        new Card(Suit.Diamonds, Rank.Ace),
+      ];
+      expect(DurakEngine.isValidMassAttack(atkCardsFewPairs, [p1, p2], 0, 7)).toBe(false);
+
       // Someone has < 7 cards -> invalid
       p2.hand.pop();
       expect(DurakEngine.isValidMassAttack(atkCards, [p1, p2], 0, 7)).toBe(false);

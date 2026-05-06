@@ -193,7 +193,7 @@ export class DurakEngine {
       return DurakEngine.countPairs(cards) >= 2;
     } else if (requiredSize === 7) {
       // 7-card mass is only allowed in 7-card lobbies, when the deck is empty.
-      if (targetHandSize < 7 || deckSize > 0) return false;
+      if (targetHandSize !== 7 || deckSize > 0) return false;
       return DurakEngine.countPairs(cards) >= 3;
     }
 
