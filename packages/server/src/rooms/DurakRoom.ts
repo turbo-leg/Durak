@@ -385,6 +385,7 @@ export class DurakRoom extends Room<GameState> {
         // Auto-pickup: the defender (currentTurn) must pick up
         const player = this.state.players.get(currentPlayerId);
         if (player && this.state.activeAttackCards.length > 0) {
+          this.broadcast('clearDefenseSnapshot');
           // Force pickup on the defender
           DurakEngine.endRound(this.state, currentPlayerId);
           DurakEngine.replenishAll(this.state);
@@ -420,8 +421,6 @@ export class DurakRoom extends Room<GameState> {
   private handleAttack(client: Client, message: { cards: any[] }) {
     if (this.state.currentTurn !== client.sessionId) return;
 
-    this.broadcast('clearDefenseSnapshot');
-
     const player = this.state.players.get(client.sessionId)!;
     const cardsToPlay = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
 
@@ -449,6 +448,8 @@ export class DurakRoom extends Room<GameState> {
         return;
       }
     }
+
+    this.broadcast('clearDefenseSnapshot');
 
     // Move cards from hand to active attack
     cardsToPlay.forEach((c) => {
