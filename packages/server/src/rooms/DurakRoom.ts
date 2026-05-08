@@ -501,6 +501,7 @@ export class DurakRoom extends Room<GameState> {
       this.state.huzurSuit,
     );
 
+    console.log('assignments in DurakRoom:', assignments);
     if (!assignments) {
       client.send('error', 'Your cards cannot beat the current attack.');
       return;

@@ -11,6 +11,15 @@ describe('DurakRoom Timer Logic', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     room = new DurakRoom();
+    room.clock = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      clear: vi.fn(),
+      tick: vi.fn(),
+      remove: vi.fn(),
+      setTimeout: vi.fn(),
+      setInterval: vi.fn(),
+    } as any; // mock colyseus clock
     room.state = new GameState();
     // mock broadcast
     room.broadcast = vi.fn();
