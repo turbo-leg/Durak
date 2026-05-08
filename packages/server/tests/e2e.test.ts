@@ -32,10 +32,10 @@ describe('E2E Durak Match', () => {
 
     client1.send('toggleReady', { isReady: true });
     client2.send('toggleReady', { isReady: true });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
 
     client1.send('startGame');
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
 
     expect(room.state.phase).toBe('playing');
     expect(room.state.deck.length).toBeGreaterThan(0);
@@ -50,11 +50,8 @@ describe('E2E Durak Match', () => {
     // ----- ATTACK -----
     const cardToPlay = attackerPlayer.hand[0];
     attackerClient.send('attack', { cards: [cardToPlay] });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
 
-    console.log('activeAttackCards:', room.state.activeAttackCards.toJSON());
-    console.log('table:', room.state.table.toJSON());
-    console.log('tableStacks:', room.state.tableStacks.toJSON());
     expect(room.state.activeAttackCards.length).toBe(1);
     expect(room.state.activeAttackCards[0].rank).toBe(cardToPlay.rank);
     expect(room.state.currentTurn).toBe(defenderClient.sessionId);
@@ -68,13 +65,9 @@ describe('E2E Durak Match', () => {
     defenderClient.send('defend', {
       cards: [{ suit: defenseCard.suit, rank: defenseCard.rank, isJoker: defenseCard.isJoker }],
     });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
 
     // activeAttackCards should now be cleared / moved to table
-
-    console.log('activeAttackCards:', room.state.activeAttackCards.toJSON());
-    console.log('table:', room.state.table.toJSON());
-    console.log('tableStacks:', room.state.tableStacks.toJSON());
 
     // According to DurakRoom.ts, after a successful defense in a 2-player game,
     // the round ends because defenseChainCount >= 1.
@@ -89,16 +82,15 @@ describe('E2E Durak Match', () => {
     // ----- SECOND ATTACK (Defender starts a new trick) -----
     const cardToPlay2 = defenderPlayer.hand[0];
     defenderClient.send('attack', { cards: [cardToPlay2] });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
 
-    console.log('activeAttackCards:', room.state.activeAttackCards.toJSON());
     expect(room.state.activeAttackCards.length).toBe(1);
     expect(room.state.activeAttackCards[0].rank).toBe(cardToPlay2.rank);
 
     // Now it's the other player's turn (attackerClient). They pick up!
     const attackerHandSizeBefore = attackerPlayer.hand.length;
     attackerClient.send('pickUp');
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
 
     // The attacker picks up the single activeAttackCard
     expect(room.state.table.length).toBe(0);
