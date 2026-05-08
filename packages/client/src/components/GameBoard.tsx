@@ -151,14 +151,23 @@ export const GameBoard: React.FC = () => {
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('dev') === 'true';
 
-  const devSpawnDummies = () => room.send('dev_action', { action: 'spawn_dummies' });
-  const devForcePass = () => room.send('dev_action', { action: 'force_pass' });
+  const isHost = !!gameState.hostId && room.sessionId === gameState.hostId;
+
+  const devSpawnDummies = () => {
+    if (!isHost) return;
+    room.send('dev_action', { action: 'spawn_dummies' });
+  };
+
+  const devForcePass = () => {
+    if (!isHost) return;
+    room.send('dev_action', { action: 'force_pass' });
+  };
   const devCopyLog = () => {
     const logStr = Array.from(gameState.actionLog || []).join('\n');
     navigator.clipboard.writeText(logStr).then(() => alert('Game Log Copied to Clipboard!'));
   };
   const handleDevCardClick = (oppId: string, card: SharedCard) => {
-    if (!isDevMode) return;
+    if (!isDevMode || !isHost) return;
     setDevSelectedCards((prev) => {
       const selected = prev[oppId] || [];
       const alreadySelected = selected.find((c) => c.suit === card.suit && c.rank === card.rank);
@@ -170,6 +179,7 @@ export const GameBoard: React.FC = () => {
   };
 
   const handleDevAction = (oppId: string, type: 'attack' | 'defend' | 'pickUp' | 'swapHuzur') => {
+    if (!isHost) return;
     room.send('dev_action', {
       action: 'play_as',
       asPlayerId: oppId,
@@ -309,7 +319,7 @@ export const GameBoard: React.FC = () => {
                   <button
                     type="button"
                     onClick={devSpawnDummies}
-                    disabled={gameState.players.size >= gameState.maxPlayers}
+                    disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
                     className="w-full bg-orange-900/55 hover:bg-orange-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-orange-50 text-xs font-bold py-2 px-3 rounded-lg border border-orange-500/40 transition"
                   >
                     Spawn bots (fill to {gameState.maxPlayers})
@@ -533,14 +543,16 @@ export const GameBoard: React.FC = () => {
           <button
             type="button"
             onClick={devSpawnDummies}
-            className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left"
+            disabled={!isHost}
+            className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Spawn bots
           </button>
           <button
             type="button"
             onClick={devForcePass}
-            className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left"
+            disabled={!isHost}
+            className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Force pass turn
           </button>
@@ -712,7 +724,7 @@ export const GameBoard: React.FC = () => {
                       <div
                         key={ci}
                         onClick={() => handleDevCardClick(id, c)}
-                        className={`cursor-pointer ${
+                        className={`${!isHost ? 'pointer-events-none' : 'cursor-pointer'} ${
                           (devSelectedCards[id] || []).find(
                             (sc) => sc.suit === c.suit && sc.rank === c.rank,
                           )
@@ -726,26 +738,30 @@ export const GameBoard: React.FC = () => {
                 </div>
                 <div className="flex gap-0.5 mt-0.5 justify-center">
                   <button
+                    disabled={!isHost}
                     onClick={() => handleDevAction(id, 'attack')}
-                    className="bg-red-600 text-[8px] px-1 py-0.5 rounded"
+                    className="bg-red-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Atk
                   </button>
                   <button
+                    disabled={!isHost}
                     onClick={() => handleDevAction(id, 'defend')}
-                    className="bg-green-600 text-[8px] px-1 py-0.5 rounded"
+                    className="bg-green-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Def
                   </button>
                   <button
+                    disabled={!isHost}
                     onClick={() => handleDevAction(id, 'pickUp')}
-                    className="bg-yellow-600 text-[8px] px-1 py-0.5 rounded"
+                    className="bg-yellow-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Pick
                   </button>
                   <button
+                    disabled={!isHost}
                     onClick={() => handleDevAction(id, 'swapHuzur')}
-                    className="bg-purple-600 text-[8px] px-1 py-0.5 rounded"
+                    className="bg-purple-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Swap
                   </button>
