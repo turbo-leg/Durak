@@ -50,6 +50,9 @@ export class DurakRoom extends Room<GameState> {
     // Developer Mode Action Handler
     this.onMessage('dev_action', (client, message) => {
       // NOTE: In a real app, verify process.env.NODE_ENV !== "production"
+      // Host-only: only the lobby leader can mutate game state via dev actions.
+      if (client.sessionId !== this.state.hostId) return;
+
       if (message.action === 'spawn_dummies') {
         const currentPlayers = this.state.players.size;
         // Default to filling the room to maxPlayers (6)
