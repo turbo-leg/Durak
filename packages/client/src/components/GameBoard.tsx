@@ -187,10 +187,17 @@ export const GameBoard: React.FC = () => {
       <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden safe-p">
         {/* Compact header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
-          <h1 className="text-lg font-extrabold tracking-tight text-green-100">
-            ♦ Durak <span className="text-yellow-400">Online</span> ♦
-          </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-lg font-extrabold tracking-tight text-green-100 truncate">
+              ♦ Durak <span className="text-yellow-400">Online</span> ♦
+            </h1>
+            {isDevMode && (
+              <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-orange-300 bg-orange-950/90 px-2 py-0.5 rounded border border-orange-500/45">
+                Dev
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             <span className="text-[10px] text-gray-400 uppercase font-bold">Room</span>
             <span className="text-xs font-mono text-yellow-400 bg-black/50 px-2 py-1 rounded border border-yellow-500/20 select-all cursor-pointer">
               {room.id}
@@ -290,6 +297,32 @@ export const GameBoard: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {isDevMode && (
+                <div className="mt-4 pt-4 border-t border-orange-500/35 space-y-2 shrink-0">
+                  <h3 className="text-[11px] font-black text-orange-300 uppercase tracking-wider border-b border-orange-500/25 pb-1.5">
+                    Developer
+                  </h3>
+                  <p className="text-[9px] text-gray-500 leading-snug">
+                    Bots spawn as ready players so you can start a match solo or fill empty seats.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={devSpawnDummies}
+                    disabled={gameState.players.size >= gameState.maxPlayers}
+                    className="w-full bg-orange-900/55 hover:bg-orange-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-orange-50 text-xs font-bold py-2 px-3 rounded-lg border border-orange-500/40 transition"
+                  >
+                    Spawn bots (fill to {gameState.maxPlayers})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={devCopyLog}
+                    className="w-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-bold py-2 px-3 rounded-lg border border-slate-500/35 transition"
+                  >
+                    Copy action log ({gameState.actionLog?.length || 0})
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -491,29 +524,32 @@ export const GameBoard: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Dev Tools Panel ── */}
+      {/* ── Developer (in-match) ── */}
       {isDevMode && (
-        <div className="absolute top-12 right-2 bg-red-950/90 text-white p-2 rounded-xl border-2 border-red-500 shadow-2xl z-50 flex flex-col space-y-1 backdrop-blur-md w-40 text-[10px]">
-          <div className="font-bold uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
-            Dev Tools
+        <div className="absolute top-12 right-2 bg-orange-950/92 text-white p-2 rounded-xl border-2 border-orange-500/70 shadow-2xl z-50 flex flex-col space-y-1.5 backdrop-blur-md w-44 text-[10px]">
+          <div className="font-black uppercase tracking-wider border-b border-orange-500/45 pb-1 text-orange-200">
+            Developer
           </div>
           <button
+            type="button"
             onClick={devSpawnDummies}
-            className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
+            className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left"
           >
-            Spawn Dummies
+            Spawn bots
           </button>
           <button
+            type="button"
             onClick={devForcePass}
-            className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
+            className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left"
           >
-            Force Pass
+            Force pass turn
           </button>
           <button
+            type="button"
             onClick={devCopyLog}
-            className="bg-blue-800 hover:bg-blue-700 px-2 py-1 rounded transition border border-blue-600"
+            className="bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded-lg transition border border-slate-500/45 font-bold text-left"
           >
-            Copy Log ({gameState.actionLog?.length || 0})
+            Copy log ({gameState.actionLog?.length || 0})
           </button>
         </div>
       )}
