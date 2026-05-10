@@ -214,15 +214,63 @@ export class DurakRoom extends Room<GameState> {
     this.state.players.set(client.sessionId, player);
   }
 
-  onLeave(client: Client, consented: boolean) {
-    console.log(client.sessionId, 'left!');
-    this.state.players.delete(client.sessionId);
+  async onLeave(client: Client, consented: boolean) {
+    console.log(client.sessionId, 'left!', consented ? '(consented)' : '(unexpected)');
 
-    // Reassign host if necessary
-    if (this.state.hostId === client.sessionId && this.state.players.size > 0) {
+    const isInGame = this.state.phase === 'playing';
+
+    if (isInGame && !consented) {
+      // Schedule auto-pickup after 5s if it's their turn, so the game doesn't freeze
+      let pickupTimer: NodeJS.Timeout | null = null;
+      if (this.state.currentTurn === client.sessionId) {
+        pickupTimer = setTimeout(() => {
+          if (this.state.currentTurn === client.sessionId) {
+            this.broadcast('clearDefenseSnapshot');
+            DurakEngine.endRound(this.state, client.sessionId);
+            DurakEngine.replenishAll(this.state);
+            this.checkGameOver();
+            this.nextTurn();
+          }
+        }, 5000);
+      }
+
+      try {
+        await this.allowReconnection(client, 30);
+        if (pickupTimer) clearTimeout(pickupTimer);
+        return; // Client reconnected - nothing more to do
+      } catch {
+        if (pickupTimer) clearTimeout(pickupTimer);
+        // Reconnection window expired - fall through to permanent removal
+      }
+    }
+
+    this.permanentlyRemovePlayer(client.sessionId, isInGame);
+  }
+
+  private permanentlyRemovePlayer(sessionId: string, isInGame: boolean) {
+    const wasCurrentTurn = this.state.currentTurn === sessionId;
+
+    const seatIdx = this.state.seatOrder.indexOf(sessionId);
+    if (seatIdx !== -1) this.state.seatOrder.splice(seatIdx, 1);
+
+    this.state.players.delete(sessionId);
+
+    if (this.state.hostId === sessionId && this.state.players.size > 0) {
       this.state.hostId = this.state.players.keys().next().value || '';
       const newHost = this.state.players.get(this.state.hostId);
       if (newHost) newHost.isReady = true;
+    }
+
+    if (isInGame) {
+      if (this.state.players.size <= 1) {
+        this.state.phase = 'finished';
+        if (this.turnTimeoutId) {
+          clearInterval(this.turnTimeoutId);
+          this.turnTimeoutId = null;
+        }
+        return;
+      }
+      if (wasCurrentTurn) this.nextTurn();
     }
   }
 
