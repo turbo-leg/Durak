@@ -286,19 +286,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // On mount: if there's a saved reconnection token (e.g. after a page refresh), restore session
   useEffect(() => {
-    const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
-    if (token) {
-      setIsReconnecting(true);
-      client
-        .reconnect<GameState>(token)
-        .then((newRoom) => {
-          handleRoomEvents(newRoom);
-          setIsReconnecting(false);
-        })
-        .catch(() => {
-          sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
-          setIsReconnecting(false);
-        });
+    if (sessionStorage.getItem(RECONNECT_TOKEN_KEY)) {
+      attemptReconnect();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
