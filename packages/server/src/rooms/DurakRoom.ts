@@ -311,24 +311,94 @@ export class DurakRoom extends Room<GameState> {
       this.state.actionLog.push(`turn 0: ${id}: ${drawnCards.join(', ')}`);
     });
 
-    // Set first attacker: player with the lowest Huzur (Trump) card in hand
-    let firstId = Array.from(this.state.players.keys())[0];
-    let lowestTrumpRank = Infinity;
-
-    this.state.players.forEach((player, id) => {
-      player.hand.forEach((card) => {
-        if (card.suit === this.state.huzurSuit && card.rank < lowestTrumpRank) {
-          lowestTrumpRank = card.rank;
-          firstId = id;
-        }
-      });
-    });
-
-    this.state.currentTurn = firstId;
+    // Suhuh: each player (or one rep per team) draws 1 card to determine first attacker.
+    // Highest card wins; falls back to lowest-trump-in-hand if the deck is empty.
+    this.state.currentTurn = this.resolveSuhuh();
     this.state.turnStartTime = Date.now();
 
     // Start turn timeout enforcement
     this.startTurnTimer();
+  }
+
+  /** Returns true if card `a` outranks card `b` for the suhuh draw. */
+  private cardBeats(a: Card, b: Card): boolean {
+    if (a.isJoker && !b.isJoker) return true;
+    if (!a.isJoker && b.isJoker) return false;
+    if (a.isJoker && b.isJoker) return a.rank > b.rank;
+    if (a.suit === this.state.huzurSuit && b.suit !== this.state.huzurSuit) return true;
+    if (a.suit !== this.state.huzurSuit && b.suit === this.state.huzurSuit) return false;
+    return a.rank > b.rank;
+  }
+
+  /**
+   * Suhuh first-turn resolution (issue #123).
+   * Each player draws 1 card; highest card wins. In teams mode only one player
+   * per team draws, and the winning team's first player in seat order starts.
+   * Falls back to lowest-trump-in-hand when the deck is empty after the deal.
+   */
+  private resolveSuhuh(): string {
+    const seatOrder = Array.from(this.state.seatOrder);
+    const fallbackId = seatOrder[0]!;
+
+    if (this.state.deck.length === 0) {
+      // Deck exhausted during deal (e.g. 6p 7-card) — fall back to lowest trump in hand
+      let firstId = fallbackId;
+      let lowestTrumpRank = Infinity;
+      this.state.players.forEach((player, id) => {
+        player.hand.forEach((card) => {
+          if (card.suit === this.state.huzurSuit && card.rank < lowestTrumpRank) {
+            lowestTrumpRank = card.rank;
+            firstId = id;
+          }
+        });
+      });
+      return firstId;
+    }
+
+    if (this.state.mode === 'teams') {
+      // One representative per team draws; winning team's first player in seat order starts
+      const teamReps = new Map<number, string>(); // team -> first player in seat order
+      for (const id of seatOrder) {
+        const team = this.state.players.get(id)!.team;
+        if (!teamReps.has(team)) teamReps.set(team, id);
+      }
+
+      let winningTeam = -1;
+      let winningCard: Card | null = null;
+
+      teamReps.forEach((repId, team) => {
+        if (this.state.deck.length === 0) return;
+        const drawn = this.state.deck.pop()!;
+        const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
+        this.state.players.get(repId)!.hand.push(card);
+        this.state.actionLog.push(`suhuh ${repId} (team ${team}): +${this.formatCard(card)}`);
+        if (!winningCard || this.cardBeats(card, winningCard)) {
+          winningCard = card;
+          winningTeam = team;
+        }
+      });
+
+      // First player of the winning team in seat order becomes attacker
+      return seatOrder.find((id) => this.state.players.get(id)!.team === winningTeam) ?? fallbackId;
+    } else {
+      // FFA: every player draws one card
+      let firstId = fallbackId;
+      let highCard: Card | null = null;
+
+      for (const id of seatOrder) {
+        if (this.state.deck.length === 0) break;
+        const drawn = this.state.deck.pop()!;
+        const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
+        this.state.players.get(id)!.hand.push(card);
+        this.state.actionLog.push(`suhuh ${id}: +${this.formatCard(card)}`);
+        if (!highCard || this.cardBeats(card, highCard)) {
+          highCard = card;
+          firstId = id;
+        }
+      }
+
+      return firstId;
+    }
   }
 
   private clearRoundStateForNewGame() {
