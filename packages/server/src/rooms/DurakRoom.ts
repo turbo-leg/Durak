@@ -567,11 +567,24 @@ export class DurakRoom extends Room<GameState> {
       // Abort if turn changed while we were waiting
       if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
 
+      const activeLen = this.state.activeAttackCards.length;
+      const handLen = this.state.players.get(playerId)?.hand.length ?? 0;
+      console.log(
+        `[Bot ${playerId.slice(0, 8)}] firing: role=${activeLen > 0 ? 'DEFEND' : 'ATTACK'} activeAttacks=${activeLen} hand=${handLen}`,
+      );
+
       const move = await openAIBot.think(this.state, playerId, difficulty);
+      console.log(
+        `[Bot ${playerId.slice(0, 8)}] chose: ${move ? `${move.action} cards=${JSON.stringify(move.cards)}` : 'null'}`,
+      );
       if (!move) return;
       if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
 
-      const fakeClient = { sessionId: playerId, send: () => {} } as unknown as Client;
+      const fakeClient = {
+        sessionId: playerId,
+        send: (type: string, msg: string) =>
+          console.log(`[Bot ${playerId.slice(0, 8)}] server error: ${type} ${msg}`),
+      } as unknown as Client;
       if (move.action === 'attack') this.handleAttack(fakeClient, { cards: move.cards });
       else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
       else if (move.action === 'pickup') this.handlePickUp(fakeClient);
