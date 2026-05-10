@@ -593,13 +593,53 @@ export class DurakRoom extends Room<GameState> {
     }, delay);
   }
 
+  private parseCards(raw: any): Card[] | null {
+    if (!Array.isArray(raw) || raw.length === 0) return null;
+    const cards: Card[] = [];
+    for (const c of raw) {
+      if (
+        typeof c?.suit !== 'string' ||
+        typeof c?.rank !== 'number' ||
+        typeof c?.isJoker !== 'boolean'
+      )
+        return null;
+      cards.push(new Card(c.suit, c.rank, c.isJoker));
+    }
+    return cards;
+  }
+
+  /** Returns true iff every card in `cards` is present in the player's hand (deduplication-aware). */
+  private playerOwnsCards(player: Player, cards: Card[]): boolean {
+    const remaining = Array.from(player.hand)
+      .filter((c): c is Card => !!c)
+      .map((c) => ({ suit: c.suit, rank: c.rank }));
+    for (const c of cards) {
+      const idx = remaining.findIndex((h) => h.suit === c.suit && h.rank === c.rank);
+      if (idx === -1) return false;
+      remaining.splice(idx, 1);
+    }
+    return true;
+  }
+
   private handleAttack(client: Client, message: { cards: any[] }) {
+    if (this.state.phase !== 'playing') return;
     if (this.state.currentTurn !== client.sessionId) return;
 
-    const player = this.state.players.get(client.sessionId)!;
-    const cardsToPlay = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
 
-    // Validation
+    const cardsToPlay = this.parseCards(message.cards);
+    if (!cardsToPlay) {
+      client.send('error', 'Invalid card format.');
+      return;
+    }
+
+    if (!this.playerOwnsCards(player, cardsToPlay)) {
+      client.send('error', 'You do not have those cards.');
+      return;
+    }
+
+    // Validate attack legality
     const isMass = cardsToPlay.length > 1;
     if (isMass) {
       const allPlayersArray = Array.from(this.state.players.values());
@@ -615,10 +655,9 @@ export class DurakRoom extends Room<GameState> {
         return;
       }
     } else if (this.state.table.length > 0 || this.state.activeAttackCards.length > 0) {
-      // Adding to an ongoing attack: the rank must match something on the table or active attacks
       const tableCards = Array.from(this.state.table).filter((c): c is Card => !!c);
       const activeAttacks = Array.from(this.state.activeAttackCards).filter((c): c is Card => !!c);
-      if (!DurakEngine.isValidAttackAddition(cardsToPlay[0], tableCards, activeAttacks)) {
+      if (!DurakEngine.isValidAttackAddition(cardsToPlay[0]!, tableCards, activeAttacks)) {
         client.send('error', 'You can only attack with a rank that is already on the table.');
         return;
       }
@@ -661,15 +700,34 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private handleDefend(client: Client, message: { cards: any[] }) {
+    if (this.state.phase !== 'playing') return;
     if (this.state.currentTurn !== client.sessionId) return;
 
-    const player = this.state.players.get(client.sessionId)!;
-    const defendingCards = message.cards.map((c) => new Card(c.suit, c.rank, c.isJoker));
-    const atkCards = Array.from(this.state.activeAttackCards).filter(
-      (c): c is Card => c !== undefined,
-    );
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
 
-    // Use the shared engine logic to find a valid assignment of defenders to attackers
+    const atkCards = Array.from(this.state.activeAttackCards).filter((c): c is Card => !!c);
+    if (atkCards.length === 0) {
+      client.send('error', 'No active attack to defend.');
+      return;
+    }
+
+    const defendingCards = this.parseCards(message.cards);
+    if (!defendingCards) {
+      client.send('error', 'Invalid card format.');
+      return;
+    }
+
+    if (defendingCards.length !== atkCards.length) {
+      client.send('error', 'Must defend each attacking card exactly once.');
+      return;
+    }
+
+    if (!this.playerOwnsCards(player, defendingCards)) {
+      client.send('error', 'You do not have those cards.');
+      return;
+    }
+
     const assignments = DurakEngine.findDefenseAssignment(
       defendingCards,
       atkCards,
@@ -778,7 +836,13 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private handlePickUp(client: Client) {
+    if (this.state.phase !== 'playing') return;
     if (this.state.currentTurn !== client.sessionId) return;
+
+    if (this.state.activeAttackCards.length === 0) {
+      client.send('error', 'Nothing to pick up.');
+      return;
+    }
 
     this.broadcast('clearDefenseSnapshot');
 
@@ -815,7 +879,9 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private handleSwapHuzur(client: Client) {
-    const player = this.state.players.get(client.sessionId)!;
+    if (this.state.phase !== 'playing') return;
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
     const success = DurakEngine.swapHuzur(player, this.state);
     if (!success) {
       client.send(
