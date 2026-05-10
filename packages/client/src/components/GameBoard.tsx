@@ -5,6 +5,7 @@ import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
+import { SuhuhReveal } from './SuhuhReveal';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -23,6 +24,8 @@ export const GameBoard: React.FC = () => {
     gameMessage,
     clearGameMessage,
     defenseSnapshot,
+    suhuhResult,
+    clearSuhuhResult,
     serverTimeOffset,
     updateLobbySettings,
     startLobbyGame,
@@ -441,6 +444,15 @@ export const GameBoard: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-green-950 overflow-hidden safe-p text-white relative">
+      {suhuhResult && (
+        <SuhuhReveal
+          draws={suhuhResult.draws}
+          winnerId={suhuhResult.winnerId}
+          players={gameState.players as unknown as Map<string, Player>}
+          seatOrder={Array.from(gameState.seatOrder)}
+          onDone={clearSuhuhResult}
+        />
+      )}
       {/* ── Info Bar ── */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-black/50 border-b border-green-800/50 shrink-0 z-20">
         <div className="flex items-center gap-3 text-xs">

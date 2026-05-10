@@ -41,7 +41,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       // deck pops: p1 gets 7h, p2 gets Ah (high), p3 gets 9h
       pushDeckTop(new Card('hearts', 7), new Card('hearts', 14), new Card('hearts', 9));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p2'); // Ace of hearts is highest
     });
 
@@ -51,7 +51,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       // p1 draws 9s (trump), p2 draws 9h (non-trump)
       pushDeckTop(new Card('hearts', 9), new Card('spades', 9));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p1');
     });
 
@@ -59,7 +59,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       setupPlayers(['p1', 'p2', 'p3']);
       pushDeckTop(new Card('hearts', 14), new Card('none', 1, true), new Card('spades', 14));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p2'); // p2 draws joker
     });
 
@@ -79,9 +79,9 @@ describe('Suhuh first-turn draw (#123)', () => {
 
       (room as any).resolveSuhuh();
 
-      const log = Array.from(room.state.actionLog);
-      expect(log.some((entry: string) => entry.startsWith('suhuh p1'))).toBe(true);
-      expect(log.some((entry: string) => entry.startsWith('suhuh p2'))).toBe(true);
+      const log = Array.from(room.state.actionLog).filter((e): e is string => e != null);
+      expect(log.some((entry) => entry.startsWith('suhuh p1'))).toBe(true);
+      expect(log.some((entry) => entry.startsWith('suhuh p2'))).toBe(true);
     });
   });
 
@@ -94,7 +94,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       // p1 draws 7c, p2 draws Ac — team 1 wins, p2 is team 1's first in seat order
       pushDeckTop(new Card('clubs', 14), new Card('clubs', 7));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p2');
     });
 
@@ -105,7 +105,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       // p1 draws As (trump), p2 draws Kh — team 0 wins
       pushDeckTop(new Card('hearts', 13), new Card('spades', 14));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p1');
     });
   });
@@ -120,7 +120,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       p2.hand.push(new Card('spades', 9)); // trump 9 — p1 has lower trump so p1 starts
       p2.hand.push(new Card('hearts', 14));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p1'); // lowest trump wins the first attack
     });
 
@@ -130,7 +130,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       room.state.players.get('p1')!.hand.push(new Card('hearts', 7));
       room.state.players.get('p2')!.hand.push(new Card('clubs', 9));
 
-      const firstId = (room as any).resolveSuhuh();
+      const { firstId } = (room as any).resolveSuhuh();
       expect(firstId).toBe('p1'); // first in seat order
     });
   });

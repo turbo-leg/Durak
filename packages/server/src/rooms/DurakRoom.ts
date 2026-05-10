@@ -313,7 +313,11 @@ export class DurakRoom extends Room<GameState> {
 
     // Suhuh: each player (or one rep per team) draws 1 card to determine first attacker.
     // Highest card wins; falls back to lowest-trump-in-hand if the deck is empty.
-    this.state.currentTurn = this.resolveSuhuh();
+    const { firstId, draws } = this.resolveSuhuh();
+    this.state.currentTurn = firstId;
+    if (draws.length > 0) {
+      this.broadcast('suhuhResult', { draws, winnerId: firstId });
+    }
     this.state.turnStartTime = Date.now();
 
     // Start turn timeout enforcement
@@ -336,8 +340,11 @@ export class DurakRoom extends Room<GameState> {
    * per team draws, and the winning team's first player in seat order starts.
    * Falls back to lowest-trump-in-hand when the deck is empty after the deal.
    */
-  private resolveSuhuh(): string {
-    const seatOrder = Array.from(this.state.seatOrder);
+  private resolveSuhuh(): {
+    firstId: string;
+    draws: Array<{ playerId: string; suit: string; rank: number; isJoker: boolean }>;
+  } {
+    const seatOrder = Array.from(this.state.seatOrder).filter((id): id is string => id != null);
     const fallbackId = seatOrder[0]!;
 
     if (this.state.deck.length === 0) {
@@ -352,8 +359,10 @@ export class DurakRoom extends Room<GameState> {
           }
         });
       });
-      return firstId;
+      return { firstId, draws: [] };
     }
+
+    const draws: Array<{ playerId: string; suit: string; rank: number; isJoker: boolean }> = [];
 
     if (this.state.mode === 'teams') {
       // One representative per team draws; winning team's first player in seat order starts
@@ -372,14 +381,16 @@ export class DurakRoom extends Room<GameState> {
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
         this.state.players.get(repId)!.hand.push(card);
         this.state.actionLog.push(`suhuh ${repId}: +${this.formatCard(card)}`);
+        draws.push({ playerId: repId, suit: card.suit, rank: card.rank, isJoker: card.isJoker });
         if (!winningCard || this.cardBeats(card, winningCard)) {
           winningCard = card;
           winningTeam = team;
         }
       });
 
-      // First player of the winning team in seat order becomes attacker
-      return seatOrder.find((id) => this.state.players.get(id)!.team === winningTeam) ?? fallbackId;
+      const firstId =
+        seatOrder.find((id) => this.state.players.get(id)!.team === winningTeam) ?? fallbackId;
+      return { firstId, draws };
     } else {
       // FFA: every player draws one card
       let firstId = fallbackId;
@@ -391,13 +402,14 @@ export class DurakRoom extends Room<GameState> {
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
         this.state.players.get(id)!.hand.push(card);
         this.state.actionLog.push(`suhuh ${id}: +${this.formatCard(card)}`);
+        draws.push({ playerId: id, suit: card.suit, rank: card.rank, isJoker: card.isJoker });
         if (!highCard || this.cardBeats(card, highCard)) {
           highCard = card;
           firstId = id;
         }
       }
 
-      return firstId;
+      return { firstId, draws };
     }
   }
 

@@ -10,6 +10,9 @@ type DefenseSnapshot = {
   defending: Array<{ suit: string; rank: number; isJoker: boolean }>;
 } | null;
 
+export type SuhuhDraw = { playerId: string; suit: string; rank: number; isJoker: boolean };
+export type SuhuhResult = { draws: SuhuhDraw[]; winnerId: string } | null;
+
 interface GameContextState {
   client: Client | null;
   room: Room<GameState> | null;
@@ -19,6 +22,8 @@ interface GameContextState {
   gameMessage: string | null;
   clearGameMessage: () => void;
   defenseSnapshot: DefenseSnapshot;
+  suhuhResult: SuhuhResult;
+  clearSuhuhResult: () => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
   joinGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
@@ -38,6 +43,8 @@ const GameContext = createContext<GameContextState>({
   gameMessage: null,
   clearGameMessage: () => {},
   defenseSnapshot: null,
+  suhuhResult: null,
+  clearSuhuhResult: () => {},
   createGame: async () => {},
   joinGame: async () => {},
   findPublicGames: async () => [],
@@ -78,12 +85,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [gameMessage, setGameMessage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
+  const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
   const [, setTick] = useState(0);
   const gameState = room?.state || null;
 
   const clearGameMessage = () => setGameMessage(null);
+  const clearSuhuhResult = () => setSuhuhResult(null);
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
     roomInstance.onStateChange(() => setTick((t) => t + 1));
@@ -112,6 +121,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     roomInstance.onMessage('clearDefenseSnapshot', () => {
       setDefenseSnapshot(null);
+    });
+
+    roomInstance.onMessage('suhuhResult', (data: { draws: SuhuhDraw[]; winnerId: string }) => {
+      setSuhuhResult(data);
     });
 
     roomInstance.onMessage('error', (message: string) => {
@@ -233,6 +246,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         gameMessage,
         clearGameMessage,
         defenseSnapshot,
+        suhuhResult,
+        clearSuhuhResult,
         createGame,
         joinGame,
         findPublicGames,
