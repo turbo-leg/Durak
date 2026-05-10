@@ -449,7 +449,7 @@ export const GameBoard: React.FC = () => {
           draws={suhuhResult.draws}
           winnerId={suhuhResult.winnerId}
           players={gameState.players as unknown as Map<string, Player>}
-          seatOrder={Array.from(gameState.seatOrder)}
+          seatOrder={Array.from(gameState.seatOrder).filter((id): id is string => id != null)}
           onDone={clearSuhuhResult}
         />
       )}
