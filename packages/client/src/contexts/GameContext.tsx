@@ -162,6 +162,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Left room:', code);
       setIsConnected(false);
       setRoom(null);
+      setSuhuhResult(null);
     });
     setRoom(roomInstance);
     setIsConnected(true);
@@ -230,7 +231,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    if (!room) setSuhuhResult(null);
     return () => {
       if (room) room.leave();
     };
