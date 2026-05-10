@@ -188,6 +188,26 @@ export const GameBoard: React.FC = () => {
   if (gameState.phase === 'waiting') {
     return (
       <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden safe-p">
+        {/* ── Dev Tools (waiting phase) ── */}
+        {isDevMode && (
+          <div className="absolute top-12 right-2 bg-red-950/90 text-white p-2 rounded-xl border-2 border-red-500 shadow-2xl z-[60] flex flex-col space-y-1 backdrop-blur-md w-40 text-[10px]">
+            <div className="font-bold uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
+              Dev Tools
+            </div>
+            <button
+              onClick={devSpawnDummies}
+              className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
+            >
+              Spawn Dummies
+            </button>
+            <button
+              onClick={devCopyLog}
+              className="bg-blue-800 hover:bg-blue-700 px-2 py-1 rounded transition border border-blue-600"
+            >
+              Copy Log ({gameState.actionLog?.length || 0})
+            </button>
+          </div>
+        )}
         {/* Compact header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
           <h1 className="text-lg font-extrabold tracking-tight text-green-100">
