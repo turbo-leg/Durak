@@ -327,7 +327,7 @@ export class DurakRoom extends Room<GameState> {
     if (a.isJoker && b.isJoker) return a.rank > b.rank;
     if (a.suit === this.state.huzurSuit && b.suit !== this.state.huzurSuit) return true;
     if (a.suit !== this.state.huzurSuit && b.suit === this.state.huzurSuit) return false;
-    return a.rank > b.rank;
+    return a.suit === b.suit ? a.rank > b.rank : false;
   }
 
   /**
@@ -371,7 +371,7 @@ export class DurakRoom extends Room<GameState> {
         const drawn = this.state.deck.pop()!;
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
         this.state.players.get(repId)!.hand.push(card);
-        this.state.actionLog.push(`suhuh ${repId} (team ${team}): +${this.formatCard(card)}`);
+        this.state.actionLog.push(`suhuh ${repId}: +${this.formatCard(card)}`);
         if (!winningCard || this.cardBeats(card, winningCard)) {
           winningCard = card;
           winningTeam = team;
