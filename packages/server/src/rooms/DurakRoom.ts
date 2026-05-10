@@ -317,6 +317,7 @@ export class DurakRoom extends Room<GameState> {
     this.state.currentTurn = firstId;
     if (draws.length > 0) {
       this.broadcast('suhuhResult', { draws, winnerId: firstId });
+      this.state.actionLog.push(`suhuh first: ${firstId}`);
     }
     this.state.turnStartTime = Date.now();
 
