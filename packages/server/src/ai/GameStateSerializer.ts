@@ -1,5 +1,5 @@
 import { GameState } from '@durak/shared';
-import { Card, Suit } from '@durak/shared/src/state/Card';
+import { Card } from '@durak/shared/src/state/Card';
 import { DurakEngine } from '@durak/shared/src/engine/DurakEngine';
 
 export interface BotMove {
@@ -24,6 +24,35 @@ function fmt(c: { suit: string; rank: number; isJoker: boolean }): string {
   return `${rankNames[c.rank] ?? c.rank}${c.suit}`;
 }
 
+/** Backtracking search: selects exactly attackers.length cards from hand to cover all attackers. */
+function findDefenseFromHand(
+  hand: Card[],
+  attackers: Card[],
+  huzurSuit: string,
+): { atk: Card; def: Card }[] | null {
+  const usedHandIdx = new Set<number>();
+  const assignments: { atk: Card; def: Card }[] = [];
+
+  function backtrack(attackerIndex: number): boolean {
+    if (attackerIndex === attackers.length) return true;
+    const atk = attackers[attackerIndex]!;
+    for (let i = 0; i < hand.length; i++) {
+      if (usedHandIdx.has(i)) continue;
+      const def = hand[i]!;
+      if (DurakEngine.canDefend(def, atk, huzurSuit)) {
+        usedHandIdx.add(i);
+        assignments.push({ atk, def });
+        if (backtrack(attackerIndex + 1)) return true;
+        assignments.pop();
+        usedHandIdx.delete(i);
+      }
+    }
+    return false;
+  }
+
+  return backtrack(0) ? assignments : null;
+}
+
 export function buildLegalMoves(state: GameState, botId: string): BotMove[] {
   const player = state.players.get(botId);
   if (!player) return [];
@@ -36,47 +65,17 @@ export function buildLegalMoves(state: GameState, botId: string): BotMove[] {
   const moves: BotMove[] = [];
 
   if (activeAttacks.length > 0) {
-    // Defending turn — find all cards in hand that can beat at least one attacker
-    for (const defCard of hand) {
-      // Try assigning this card to each active attacker
-      for (const atkCard of activeAttacks) {
-        if (DurakEngine.canDefend(defCard, atkCard, state.huzurSuit)) {
-          // Build full defense: assign this card to that attacker + greedy-fill the rest
-          const remaining = activeAttacks.filter((a) => a !== atkCard);
-          const restHand = hand.filter(
-            (c) => !(c.suit === defCard.suit && c.rank === defCard.rank),
-          );
-          const assignment = DurakEngine.findDefenseAssignment(
-            [defCard, ...restHand],
-            [atkCard, ...remaining],
-            state.huzurSuit,
-          );
-          if (assignment) {
-            const defCards = assignment.map((p) => ({
-              suit: p.def.suit,
-              rank: p.def.rank,
-              isJoker: p.def.isJoker,
-            }));
-            // Deduplicate by card set
-            const key = defCards
-              .map((c) => `${c.suit}:${c.rank}`)
-              .sort()
-              .join(',');
-            if (
-              !moves.some((m) => {
-                const mk = m.cards
-                  .map((c) => `${c.suit}:${c.rank}`)
-                  .sort()
-                  .join(',');
-                return mk === key;
-              })
-            ) {
-              moves.push({ action: 'defend', cards: defCards });
-            }
-          }
-          break;
-        }
-      }
+    // Defending turn — find valid complete defense assignments from hand
+    const assignment = findDefenseFromHand(hand, activeAttacks, state.huzurSuit);
+    if (assignment) {
+      moves.push({
+        action: 'defend',
+        cards: assignment.map((p) => ({
+          suit: p.def.suit,
+          rank: p.def.rank,
+          isJoker: p.def.isJoker,
+        })),
+      });
     }
     // Always allowed to pick up
     moves.push({ action: 'pickup', cards: [] });
