@@ -5,6 +5,7 @@ import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
+import { SuhuhReveal } from './SuhuhReveal';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -23,6 +24,8 @@ export const GameBoard: React.FC = () => {
     gameMessage,
     clearGameMessage,
     defenseSnapshot,
+    suhuhResult,
+    clearSuhuhResult,
     serverTimeOffset,
     updateLobbySettings,
     startLobbyGame,
@@ -195,6 +198,26 @@ export const GameBoard: React.FC = () => {
   if (gameState.phase === 'waiting') {
     return (
       <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden safe-p">
+        {/* ── Dev Tools (waiting phase) ── */}
+        {isDevMode && (
+          <div className="absolute top-12 right-2 bg-red-950/90 text-white p-2 rounded-xl border-2 border-red-500 shadow-2xl z-[60] flex flex-col space-y-1 backdrop-blur-md w-40 text-[10px]">
+            <div className="font-bold uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
+              Dev Tools
+            </div>
+            <button
+              onClick={devSpawnDummies}
+              className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
+            >
+              Spawn Dummies
+            </button>
+            <button
+              onClick={devCopyLog}
+              className="bg-blue-800 hover:bg-blue-700 px-2 py-1 rounded transition border border-blue-600"
+            >
+              Copy Log ({gameState.actionLog?.length || 0})
+            </button>
+          </div>
+        )}
         {/* Compact header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
           <div className="flex items-center gap-2 min-w-0">
@@ -484,6 +507,15 @@ export const GameBoard: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-green-950 overflow-hidden safe-p text-white relative">
+      {suhuhResult && (
+        <SuhuhReveal
+          draws={suhuhResult.draws}
+          winnerId={suhuhResult.winnerId}
+          players={gameState.players as unknown as Map<string, Player>}
+          seatOrder={Array.from(gameState.seatOrder).filter((id): id is string => id != null)}
+          onDone={clearSuhuhResult}
+        />
+      )}
       {/* ── Info Bar ── */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-black/50 border-b border-green-800/50 shrink-0 z-20">
         <div className="flex items-center gap-3 text-xs">
