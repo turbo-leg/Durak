@@ -82,6 +82,7 @@ describe('Suhuh first-turn draw (#123)', () => {
       const log = Array.from(room.state.actionLog).filter((e): e is string => e != null);
       expect(log.some((entry) => entry.startsWith('suhuh p1'))).toBe(true);
       expect(log.some((entry) => entry.startsWith('suhuh p2'))).toBe(true);
+      expect(log.some((entry) => entry.startsWith('suhuh first:'))).toBe(true);
     });
   });
 

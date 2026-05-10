@@ -317,7 +317,6 @@ export class DurakRoom extends Room<GameState> {
     this.state.currentTurn = firstId;
     if (draws.length > 0) {
       this.broadcast('suhuhResult', { draws, winnerId: firstId });
-      this.state.actionLog.push(`suhuh first: ${firstId}`);
     }
     this.state.turnStartTime = Date.now();
 
@@ -360,6 +359,7 @@ export class DurakRoom extends Room<GameState> {
           }
         });
       });
+      this.state.actionLog.push(`suhuh first: ${firstId}`);
       return { firstId, draws: [] };
     }
 
@@ -391,6 +391,7 @@ export class DurakRoom extends Room<GameState> {
 
       const firstId =
         seatOrder.find((id) => this.state.players.get(id)!.team === winningTeam) ?? fallbackId;
+      this.state.actionLog.push(`suhuh first: ${firstId}`);
       return { firstId, draws };
     } else {
       // FFA: every player draws one card
@@ -410,6 +411,7 @@ export class DurakRoom extends Room<GameState> {
         }
       }
 
+      this.state.actionLog.push(`suhuh first: ${firstId}`);
       return { firstId, draws };
     }
   }
