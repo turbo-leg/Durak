@@ -3,11 +3,13 @@ import { GameState, DurakEngine, Card, Player } from '@durak/shared';
 
 import { GameLog } from '../models/GameLog';
 import mongoose from 'mongoose';
+import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
 
 export class DurakRoom extends Room<GameState> {
   maxClients = 6;
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
+  private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -55,17 +57,17 @@ export class DurakRoom extends Room<GameState> {
 
       if (message.action === 'spawn_dummies') {
         const currentPlayers = this.state.players.size;
-        // Default to filling the room to maxPlayers (6)
         const count = message.count || this.state.maxPlayers - currentPlayers;
+        const difficulty: BotDifficulty = message.difficulty === 'hard' ? 'hard' : 'easy';
 
         let spawned = 0;
         for (let i = 0; i < count; i++) {
           if (this.state.players.size >= this.state.maxPlayers) break;
-          const id = `dummy-${Math.random().toString(36).substring(2, 7)}`;
+          const id = `bot-${Math.random().toString(36).substring(2, 7)}`;
           const p = new Player(id);
+          p.username = `Bot (${difficulty})`;
           p.isReady = true;
 
-          // Auto-assign teams to keep them balanced in team mode
           if (this.state.mode === 'teams') {
             const team0Count = Array.from(this.state.players.values()).filter(
               (plyr) => plyr.team === 0,
@@ -77,11 +79,12 @@ export class DurakRoom extends Room<GameState> {
           }
 
           this.state.players.set(id, p);
+          this.botIds.set(id, difficulty);
           spawned++;
         }
         this.broadcast(
           'info',
-          `Spawned ${spawned} dummy players. Room is at ${this.state.players.size}/${this.state.maxPlayers}`,
+          `Spawned ${spawned} ${difficulty} bot(s). Room is at ${this.state.players.size}/${this.state.maxPlayers}`,
         );
       }
 
@@ -300,13 +303,15 @@ export class DurakRoom extends Room<GameState> {
     let shuffled = this.testModeDeck ? this.testModeDeck : DurakEngine.shuffleDeck(deck);
     shuffled.forEach((card: Card) => this.state.deck.push(card));
 
-    // Choose the Huzur (Trump) card
-    const huzur = this.state.deck.pop();
-    if (huzur) {
-      const clonedHuzur = new Card(huzur.suit, huzur.rank, huzur.isJoker);
+    // Choose the Huzur (Trump) card — peek at deck[0] (the bottom).
+    // Do NOT pop+unshift: ArraySchema v2 unshift corrupts internal state and
+    // causes deck size to balloon on replay. deck[0] is already the bottom
+    // (pop() deals from the end, so index 0 is dealt last).
+    const huzurRaw = this.state.deck[0];
+    if (huzurRaw) {
+      const clonedHuzur = new Card(huzurRaw.suit, huzurRaw.rank, huzurRaw.isJoker);
       this.state.huzurCard = clonedHuzur;
-      this.state.huzurSuit = huzur.suit;
-      this.state.deck.unshift(huzur);
+      this.state.huzurSuit = DurakEngine.getTrumpSuit(clonedHuzur);
     }
 
     // Assign teams and seat order
@@ -373,6 +378,7 @@ export class DurakRoom extends Room<GameState> {
 
     // Start turn timeout enforcement
     this.startTurnTimer();
+    this.scheduleBotTurn(firstId);
   }
 
   /** Returns true if card `a` outranks card `b` for the suhuh draw. */
@@ -541,7 +547,6 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private nextTurn() {
-    // For passing turn to next defender
     const ids = Array.from(this.state.seatOrder);
     const idx = ids.indexOf(this.state.currentTurn);
     if (idx !== -1) {
@@ -550,8 +555,42 @@ export class DurakRoom extends Room<GameState> {
         this.state.currentTurn = nextId;
         this.state.turnStartTime = Date.now();
         this.startTurnTimer();
+        this.scheduleBotTurn(nextId);
       }
     }
+  }
+
+  private scheduleBotTurn(playerId: string) {
+    const difficulty = this.botIds.get(playerId);
+    if (!difficulty) return;
+
+    const delay = 800 + Math.random() * 1200; // 0.8–2s human-like pause
+    setTimeout(async () => {
+      // Abort if turn changed while we were waiting
+      if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
+
+      const activeLen = this.state.activeAttackCards.length;
+      const handLen = this.state.players.get(playerId)?.hand.length ?? 0;
+      console.log(
+        `[Bot ${playerId.slice(0, 8)}] firing: role=${activeLen > 0 ? 'DEFEND' : 'ATTACK'} activeAttacks=${activeLen} hand=${handLen}`,
+      );
+
+      const move = await openAIBot.think(this.state, playerId, difficulty);
+      console.log(
+        `[Bot ${playerId.slice(0, 8)}] chose: ${move ? `${move.action} cards=${JSON.stringify(move.cards)}` : 'null'}`,
+      );
+      if (!move) return;
+      if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
+
+      const fakeClient = {
+        sessionId: playerId,
+        send: (type: string, msg: string) =>
+          console.log(`[Bot ${playerId.slice(0, 8)}] server error: ${type} ${msg}`),
+      } as unknown as Client;
+      if (move.action === 'attack') this.handleAttack(fakeClient, { cards: move.cards });
+      else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
+      else if (move.action === 'pickup') this.handlePickUp(fakeClient);
+    }, delay);
   }
 
   private handleAttack(client: Client, message: { cards: any[] }) {
@@ -731,6 +770,7 @@ export class DurakRoom extends Room<GameState> {
       // Since currentTurn is already the client who just defended, we simply leave it alone!
       this.state.turnStartTime = Date.now();
       this.startTurnTimer();
+      this.scheduleBotTurn(this.state.currentTurn);
     } else {
       // The circle continues! The next player must now beat the cards just played.
       this.nextTurn();

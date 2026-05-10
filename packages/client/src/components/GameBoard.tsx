@@ -156,9 +156,9 @@ export const GameBoard: React.FC = () => {
 
   const isHost = !!gameState.hostId && room.sessionId === gameState.hostId;
 
-  const devSpawnDummies = () => {
+  const devSpawnDummies = (difficulty: 'easy' | 'hard' = 'easy') => {
     if (!isHost) return;
-    room.send('dev_action', { action: 'spawn_dummies' });
+    room.send('dev_action', { action: 'spawn_dummies', difficulty });
   };
 
   const devForcePass = () => {
@@ -205,10 +205,16 @@ export const GameBoard: React.FC = () => {
               Dev Tools
             </div>
             <button
-              onClick={devSpawnDummies}
+              onClick={() => devSpawnDummies('easy')}
               className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
             >
-              Spawn Dummies
+              Spawn Easy Bot
+            </button>
+            <button
+              onClick={() => devSpawnDummies('hard')}
+              className="bg-orange-800 hover:bg-orange-700 px-2 py-1 rounded transition border border-orange-600"
+            >
+              Spawn Hard Bot
             </button>
             <button
               onClick={devCopyLog}
@@ -341,11 +347,19 @@ export const GameBoard: React.FC = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={devSpawnDummies}
+                    onClick={() => devSpawnDummies('easy')}
                     disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
                     className="w-full bg-orange-900/55 hover:bg-orange-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-orange-50 text-xs font-bold py-2 px-3 rounded-lg border border-orange-500/40 transition"
                   >
-                    Spawn bots (fill to {gameState.maxPlayers})
+                    Spawn easy bots (fill to {gameState.maxPlayers})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => devSpawnDummies('hard')}
+                    disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
+                    className="w-full bg-red-900/55 hover:bg-red-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-red-50 text-xs font-bold py-2 px-3 rounded-lg border border-red-500/40 transition"
+                  >
+                    Spawn hard bots (fill to {gameState.maxPlayers})
                   </button>
                   <button
                     type="button"
@@ -574,11 +588,19 @@ export const GameBoard: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={devSpawnDummies}
+            onClick={() => devSpawnDummies('easy')}
             disabled={!isHost}
             className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Spawn bots
+            Spawn easy bot
+          </button>
+          <button
+            type="button"
+            onClick={() => devSpawnDummies('hard')}
+            disabled={!isHost}
+            className="bg-red-900/75 hover:bg-red-800 px-2 py-1.5 rounded-lg transition border border-red-500/45 font-bold text-left disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Spawn hard bot
           </button>
           <button
             type="button"
