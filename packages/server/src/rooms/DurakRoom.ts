@@ -303,13 +303,15 @@ export class DurakRoom extends Room<GameState> {
     let shuffled = this.testModeDeck ? this.testModeDeck : DurakEngine.shuffleDeck(deck);
     shuffled.forEach((card: Card) => this.state.deck.push(card));
 
-    // Choose the Huzur (Trump) card
-    const huzur = this.state.deck.pop();
-    if (huzur) {
-      const clonedHuzur = new Card(huzur.suit, huzur.rank, huzur.isJoker);
+    // Choose the Huzur (Trump) card — peek at deck[0] (the bottom).
+    // Do NOT pop+unshift: ArraySchema v2 unshift corrupts internal state and
+    // causes deck size to balloon on replay. deck[0] is already the bottom
+    // (pop() deals from the end, so index 0 is dealt last).
+    const huzurRaw = this.state.deck[0];
+    if (huzurRaw) {
+      const clonedHuzur = new Card(huzurRaw.suit, huzurRaw.rank, huzurRaw.isJoker);
       this.state.huzurCard = clonedHuzur;
-      this.state.huzurSuit = huzur.suit;
-      this.state.deck.unshift(huzur);
+      this.state.huzurSuit = DurakEngine.getTrumpSuit(clonedHuzur);
     }
 
     // Assign teams and seat order
