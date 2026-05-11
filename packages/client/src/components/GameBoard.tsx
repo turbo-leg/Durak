@@ -5,6 +5,7 @@ import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
+import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
@@ -34,6 +35,7 @@ export const GameBoard: React.FC = () => {
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const { playDealSound } = useAudio();
+  const isDesktop = useIsDesktop();
 
   // Update timer smoothly using requestAnimationFrame
   useEffect(() => {
@@ -827,7 +829,7 @@ export const GameBoard: React.FC = () => {
 
       {/* ── Action Buttons ── */}
       {gameState.phase === 'playing' && (
-        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 px-2 py-1 shrink-0 z-20">
+        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 px-2 py-1 shrink-0 z-20 touch-manipulation">
           {isMyTurn && attackCards.length === 0 && (
             <button
               onClick={handleAttack}
@@ -896,7 +898,6 @@ export const GameBoard: React.FC = () => {
                   (c) => c.suit === card.suit && c.rank === card.rank,
                 );
                 const animationDelayMs = i * 150;
-                const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
                 const overlapAmount =
                   isDesktop && myHand.length > 7 ? Math.min(80, (myHand.length - 7) * 4) : 0;
 
@@ -922,10 +923,12 @@ export const GameBoard: React.FC = () => {
                       marginLeft: i > 0 && isDesktop ? `-${overlapAmount}px` : undefined,
                       zIndex: isSelected ? 100 : i,
                     }}
-                    className={`cursor-pointer rounded-lg flex-shrink-0 relative ${
+                    className={`cursor-pointer rounded-lg flex-shrink-0 relative touch-manipulation ${
                       isSelected
                         ? 'shadow-[0_8px_16px_rgba(250,204,21,0.5)] ring-2 ring-yellow-400'
-                        : 'hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] hover:-translate-y-3 hover:z-[90]'
+                        : isDesktop
+                          ? 'hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] hover:-translate-y-3 hover:z-[90]'
+                          : ''
                     }`}
                   >
                     <DealSoundTrigger delayMs={animationDelayMs} playSound={playDealSound} />
