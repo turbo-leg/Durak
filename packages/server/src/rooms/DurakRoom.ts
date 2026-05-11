@@ -18,6 +18,7 @@ export class DurakRoom extends Room<GameState> {
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
   private spectators = new Set<string>(); // sessionIds of read-only spectators
+  private discordInstanceId: string | null = null;
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -41,12 +42,14 @@ export class DurakRoom extends Room<GameState> {
       this.state.targetHandSize = parseInt(options.handSize, 10);
     }
 
+    this.discordInstanceId = options.discordInstanceId || null;
     this.setMetadata({
       mode: this.state.mode,
-      discordInstanceId: options.discordInstanceId || null,
+      discordInstanceId: this.discordInstanceId,
       maxPlayers: this.state.maxPlayers,
       playerCount: 0,
       spectatorCount: 0,
+      phase: this.state.phase,
     });
 
     this.testModeDeck = options.testModeDeck;
@@ -240,7 +243,7 @@ export class DurakRoom extends Room<GameState> {
   private updateLobbyMetadata() {
     this.setMetadata({
       mode: this.state.mode,
-      discordInstanceId: this.metadata?.discordInstanceId || null,
+      discordInstanceId: this.discordInstanceId,
       maxPlayers: this.state.maxPlayers,
       playerCount: this.state.players.size,
       spectatorCount: this.spectators.size,
