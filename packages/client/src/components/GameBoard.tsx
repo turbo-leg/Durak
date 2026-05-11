@@ -30,6 +30,7 @@ export const GameBoard: React.FC = () => {
     serverTimeOffset,
     updateLobbySettings,
     startLobbyGame,
+    isSpectator,
   } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
@@ -116,6 +117,11 @@ export const GameBoard: React.FC = () => {
 
   const isMyTurn = gameState.currentTurn === room.sessionId;
   const myPlayer = gameState.players.get(room.sessionId);
+  // True if viewing as a spectator — either the flag is set, or (once game is live) sessionId
+  // is absent from seatOrder, which catches any render before the isSpectator state commits.
+  const viewAsSpectator =
+    isSpectator ||
+    (gameState.seatOrder.length > 0 && !Array.from(gameState.seatOrder).includes(room.sessionId));
   const myHand = myPlayer
     ? Array.from(myPlayer.hand).filter((c): c is SharedCard => c !== undefined)
     : [];
@@ -482,7 +488,11 @@ export const GameBoard: React.FC = () => {
 
             {/* Action buttons pinned at bottom */}
             <div className="shrink-0 pt-3 border-t border-white/10 mt-2">
-              {room.sessionId === gameState.hostId ? (
+              {viewAsSpectator ? (
+                <div className="text-center text-purple-300 text-sm font-bold py-3">
+                  👁 Spectating
+                </div>
+              ) : room.sessionId === gameState.hostId ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleToggleReady}
@@ -519,7 +529,17 @@ export const GameBoard: React.FC = () => {
   // ── Compute opponents for seat positioning ──
   const seatOrder = Array.from(gameState.seatOrder);
   let opponents: { id: string; player: Player }[] = [];
-  if (seatOrder.length > 0) {
+  if (viewAsSpectator) {
+    // Spectators see all players arranged around the oval
+    if (seatOrder.length > 0) {
+      opponents = seatOrder
+        .filter((id): id is string => !!id)
+        .map((id) => ({ id, player: gameState.players.get(id) }))
+        .filter((e): e is { id: string; player: Player } => !!e.player);
+    } else {
+      opponents = Array.from(gameState.players.entries()).map(([id, player]) => ({ id, player }));
+    }
+  } else if (seatOrder.length > 0) {
     const myIdx = seatOrder.indexOf(room.sessionId);
     if (myIdx !== -1) {
       for (let i = 1; i < seatOrder.length; i++) {
@@ -561,6 +581,14 @@ export const GameBoard: React.FC = () => {
       { top: '22%', left: '92%' },
       { top: '62%', left: '94%' },
     ],
+    6: [
+      { top: '70%', left: '10%' },
+      { top: '22%', left: '6%' },
+      { top: '6%', left: '28%' },
+      { top: '6%', left: '72%' },
+      { top: '22%', left: '94%' },
+      { top: '70%', left: '90%' },
+    ],
   };
   const seatPositions = SEAT_POSITIONS[opponents.length] || SEAT_POSITIONS[1] || [];
 
@@ -595,15 +623,23 @@ export const GameBoard: React.FC = () => {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {gameState.mode === 'teams' && (
+          {gameState.mode === 'teams' && !viewAsSpectator && myPlayer && (
             <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${myTeamBadge}`}>
               {myTeamLabel}
             </div>
           )}
-          {isMyTurn && (
+          {viewAsSpectator && (
+            <span className="text-[10px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full">
+              👁 SPECTATING
+            </span>
+          )}
+          {!viewAsSpectator && isMyTurn && (
             <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/20 px-2 py-0.5 rounded-full animate-pulse">
               YOUR TURN
             </span>
+          )}
+          {(gameState.spectatorCount ?? 0) > 0 && (
+            <span className="text-[10px] text-gray-400">👁 {gameState.spectatorCount}</span>
           )}
         </div>
       </div>
@@ -893,7 +929,7 @@ export const GameBoard: React.FC = () => {
       </div>
 
       {/* ── Action Buttons ── */}
-      {gameState.phase === 'playing' && (
+      {gameState.phase === 'playing' && !viewAsSpectator && (
         <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 px-2 py-1 shrink-0 z-20 touch-manipulation">
           {isMyTurn && attackCards.length === 0 && (
             <button
@@ -947,65 +983,67 @@ export const GameBoard: React.FC = () => {
       )}
 
       {/* ── Player Hand ── */}
-      <div
-        className={`shrink-0 bg-black/30 border-t border-white/10 overflow-hidden transition-all duration-300 ${
-          isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'
-        }`}
-      >
+      {!viewAsSpectator && (
         <div
-          className="flex flex-row overflow-x-auto md:overflow-x-visible items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar"
-          style={{ minHeight: isMyTurn ? '80px' : '64px' }}
+          className={`shrink-0 bg-black/30 border-t border-white/10 overflow-hidden transition-all duration-300 ${
+            isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'
+          }`}
         >
-          <div className="flex flex-row w-max md:w-auto md:max-w-full md:justify-center gap-1 md:gap-0 px-1 md:px-0">
-            <AnimatePresence>
-              {myHand.map((card, i) => {
-                const isSelected = !!selectedCards.find(
-                  (c) => c.suit === card.suit && c.rank === card.rank,
-                );
-                const animationDelayMs = i * 150;
-                const overlapAmount =
-                  isDesktop && myHand.length > 7 ? Math.min(80, (myHand.length - 7) * 4) : 0;
+          <div
+            className="flex flex-row overflow-x-auto md:overflow-x-visible items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar"
+            style={{ minHeight: isMyTurn ? '80px' : '64px' }}
+          >
+            <div className="flex flex-row w-max md:w-auto md:max-w-full md:justify-center gap-1 md:gap-0 px-1 md:px-0">
+              <AnimatePresence>
+                {myHand.map((card, i) => {
+                  const isSelected = !!selectedCards.find(
+                    (c) => c.suit === card.suit && c.rank === card.rank,
+                  );
+                  const animationDelayMs = i * 150;
+                  const overlapAmount =
+                    isDesktop && myHand.length > 7 ? Math.min(80, (myHand.length - 7) * 4) : 0;
 
-                return (
-                  <motion.div
-                    key={`${card.suit}-${card.rank}`}
-                    layoutId={`card-${card.suit}-${card.rank}`}
-                    initial={{ opacity: 0, y: 60, scale: 0.5 }}
-                    animate={{
-                      opacity: 1,
-                      y: isSelected ? -12 : 0,
-                      scale: isMyTurn ? 1.05 : 1,
-                    }}
-                    exit={{ opacity: 0, scale: 0.5, y: -100 }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 280,
-                      damping: 25,
-                      delay: i * 0.1,
-                      mass: 0.8,
-                    }}
-                    style={{
-                      marginLeft: i > 0 && isDesktop ? `-${overlapAmount}px` : undefined,
-                      zIndex: isSelected ? 100 : i,
-                    }}
-                    className={`cursor-pointer rounded-lg flex-shrink-0 relative touch-manipulation ${
-                      isSelected
-                        ? 'shadow-[0_8px_16px_rgba(250,204,21,0.5)] ring-2 ring-yellow-400'
-                        : isDesktop
-                          ? 'hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] hover:-translate-y-3 hover:z-[90]'
-                          : ''
-                    }`}
-                  >
-                    <DealSoundTrigger delayMs={animationDelayMs} playSound={playDealSound} />
-                    <UICard card={card} isPlayable={true} onClick={handleCardClick} />
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-            <div className="w-2 flex-shrink-0 md:hidden" />
+                  return (
+                    <motion.div
+                      key={`${card.suit}-${card.rank}`}
+                      layoutId={`card-${card.suit}-${card.rank}`}
+                      initial={{ opacity: 0, y: 60, scale: 0.5 }}
+                      animate={{
+                        opacity: 1,
+                        y: isSelected ? -12 : 0,
+                        scale: isMyTurn ? 1.05 : 1,
+                      }}
+                      exit={{ opacity: 0, scale: 0.5, y: -100 }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 280,
+                        damping: 25,
+                        delay: i * 0.1,
+                        mass: 0.8,
+                      }}
+                      style={{
+                        marginLeft: i > 0 && isDesktop ? `-${overlapAmount}px` : undefined,
+                        zIndex: isSelected ? 100 : i,
+                      }}
+                      className={`cursor-pointer rounded-lg flex-shrink-0 relative touch-manipulation ${
+                        isSelected
+                          ? 'shadow-[0_8px_16px_rgba(250,204,21,0.5)] ring-2 ring-yellow-400'
+                          : isDesktop
+                            ? 'hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] hover:-translate-y-3 hover:z-[90]'
+                            : ''
+                      }`}
+                    >
+                      <DealSoundTrigger delayMs={animationDelayMs} playSound={playDealSound} />
+                      <UICard card={card} isPlayable={true} onClick={handleCardClick} />
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+              <div className="w-2 flex-shrink-0 md:hidden" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Game Over Overlay ── */}
       {gameState.phase === 'finished' && (

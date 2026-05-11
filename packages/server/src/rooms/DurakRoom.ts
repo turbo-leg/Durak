@@ -12,18 +12,20 @@ const MAX_AVATAR_URL_LEN = 256;
 const MAX_SHORT_STRING_LEN = 32; // mode, teamSelection, etc.
 
 export class DurakRoom extends Room<GameState> {
-  maxClients = 6;
+  maxClients = 100; // Enforced manually in onJoin; spectators bypass the Colyseus cap
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
+  private spectators = new Set<string>(); // sessionIds of read-only spectators
+  private discordInstanceId: string | null = null;
 
   onCreate(options: any) {
     this.setState(new GameState());
 
     // Apply custom options
     this.state.maxPlayers = options.maxPlayers ? parseInt(options.maxPlayers, 10) : 6;
-    this.maxClients = this.state.maxPlayers;
+    // maxClients is set to 100 at class level; player cap is enforced in onJoin/onAuth
 
     this.state.isPrivate = !!options.isPrivate;
     this.setPrivate(this.state.isPrivate);
@@ -40,27 +42,36 @@ export class DurakRoom extends Room<GameState> {
       this.state.targetHandSize = parseInt(options.handSize, 10);
     }
 
+    this.discordInstanceId = options.discordInstanceId || null;
     this.setMetadata({
       mode: this.state.mode,
-      discordInstanceId: options.discordInstanceId || null,
+      discordInstanceId: this.discordInstanceId,
+      maxPlayers: this.state.maxPlayers,
+      playerCount: 0,
+      spectatorCount: 0,
+      phase: this.state.phase,
     });
 
     this.testModeDeck = options.testModeDeck;
 
     // Register Handlers
     this.onMessage('attack', (client, message) => {
+      if (this.spectators.has(client.sessionId)) return;
       if (this.isRateLimited(client.sessionId)) return;
       this.handleAttack(client, message);
     });
     this.onMessage('defend', (client, message) => {
+      if (this.spectators.has(client.sessionId)) return;
       if (this.isRateLimited(client.sessionId)) return;
       this.handleDefend(client, message);
     });
     this.onMessage('pickUp', (client) => {
+      if (this.spectators.has(client.sessionId)) return;
       if (this.isRateLimited(client.sessionId)) return;
       this.handlePickUp(client);
     });
     this.onMessage('swapHuzur', (client) => {
+      if (this.spectators.has(client.sessionId)) return;
       if (this.isRateLimited(client.sessionId)) return;
       this.handleSwapHuzur(client);
     });
@@ -172,7 +183,6 @@ export class DurakRoom extends Room<GameState> {
         this.state.teamSelection = String(message.teamSelection).slice(0, MAX_SHORT_STRING_LEN);
       if (message.maxPlayers) {
         this.state.maxPlayers = parseInt(message.maxPlayers, 10);
-        this.maxClients = this.state.maxPlayers;
       }
       if (message.targetHandSize) {
         const requestedHandSize = parseInt(message.targetHandSize, 10);
@@ -230,8 +240,36 @@ export class DurakRoom extends Room<GameState> {
     });
   }
 
+  private updateLobbyMetadata() {
+    this.setMetadata({
+      mode: this.state.mode,
+      discordInstanceId: this.discordInstanceId,
+      maxPlayers: this.state.maxPlayers,
+      playerCount: this.state.players.size,
+      spectatorCount: this.spectators.size,
+      phase: this.state.phase,
+    });
+  }
+
+  async onAuth(_client: Client, options: any) {
+    if (this.state.phase === 'playing') {
+      if (!options?.spectator) throw new Error('Game already in progress');
+      return true;
+    }
+    if (options?.spectator) throw new Error('Game has not started yet');
+    if (this.state.players.size >= this.state.maxPlayers) throw new Error('Room is full');
+    return true;
+  }
+
   onJoin(client: Client, options: any) {
     console.log(client.sessionId, 'joined!');
+
+    if (options?.spectator) {
+      this.spectators.add(client.sessionId);
+      this.state.spectatorCount = this.spectators.size;
+      this.updateLobbyMetadata();
+      return;
+    }
 
     const player = new Player(client.sessionId);
     if (options.username)
@@ -246,11 +284,19 @@ export class DurakRoom extends Room<GameState> {
     }
 
     this.state.players.set(client.sessionId, player);
+    this.updateLobbyMetadata();
   }
 
   async onLeave(client: Client, consented: boolean) {
     console.log(client.sessionId, 'left!', consented ? '(consented)' : '(unexpected)');
     this.rateLimitMap.delete(client.sessionId);
+
+    if (this.spectators.has(client.sessionId)) {
+      this.spectators.delete(client.sessionId);
+      this.state.spectatorCount = this.spectators.size;
+      this.updateLobbyMetadata();
+      return;
+    }
 
     const isInGame = this.state.phase === 'playing';
 
@@ -308,10 +354,12 @@ export class DurakRoom extends Room<GameState> {
           clearInterval(this.turnTimeoutId);
           this.turnTimeoutId = null;
         }
+        this.updateLobbyMetadata();
         return;
       }
       if (wasCurrentTurn) this.nextTurn();
     }
+    this.updateLobbyMetadata();
   }
 
   private formatCard(c: Card): string {
@@ -329,6 +377,7 @@ export class DurakRoom extends Room<GameState> {
     this.clearRoundStateForNewGame();
 
     this.state.phase = 'playing';
+    this.updateLobbyMetadata();
     this.state.seatOrder.splice(0, this.state.seatOrder.length);
     this.state.lastDefenseAt = 0;
 

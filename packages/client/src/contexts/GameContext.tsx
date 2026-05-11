@@ -23,6 +23,7 @@ interface GameContextState {
   error: string | null;
   isConnected: boolean;
   isReconnecting: boolean;
+  isSpectator: boolean;
   gameState: GameState | null;
   gameMessage: string | null;
   clearGameMessage: () => void;
@@ -31,6 +32,7 @@ interface GameContextState {
   clearSuhuhResult: () => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
   joinGame: (roomId: string) => Promise<void>;
+  spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
   autoJoinDiscordRoom: (instanceId: string, username: string, avatarUrl: string) => Promise<void>;
@@ -45,6 +47,7 @@ const GameContext = createContext<GameContextState>({
   error: null,
   isConnected: false,
   isReconnecting: false,
+  isSpectator: false,
   gameState: null,
   gameMessage: null,
   clearGameMessage: () => {},
@@ -53,6 +56,7 @@ const GameContext = createContext<GameContextState>({
   clearSuhuhResult: () => {},
   createGame: async () => {},
   joinGame: async () => {},
+  spectateGame: async () => {},
   findPublicGames: async () => [],
   leaveGame: () => {},
   autoJoinDiscordRoom: async () => {},
@@ -91,6 +95,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [gameMessage, setGameMessage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isSpectator, setIsSpectator] = useState(false);
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
   const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
@@ -103,6 +108,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     clientRef.current = client;
   }, [client]);
+
+  // Stable ref so the onLeave closure can read current spectator state
+  const isSpectatorRef = useRef(false);
+  useEffect(() => {
+    isSpectatorRef.current = isSpectator;
+  }, [isSpectator]);
 
   const clearGameMessage = () => setGameMessage(null);
   const clearSuhuhResult = () => setSuhuhResult(null);
@@ -207,6 +218,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRoom(null);
       setSuhuhResult(null);
 
+      // Spectators don't have a reconnection token and don't need reconnect logic
+      if (isSpectatorRef.current) {
+        setIsSpectator(false);
+        return;
+      }
+
       // WebSocket close codes: 1000 = normal, 4000+ = room-level consented closes.
       // Anything else is an unexpected drop — try to reconnect.
       const isCleanExit = code === 1000 || code >= 4000;
@@ -243,6 +260,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const spectateGame = async (roomId: string) => {
+    try {
+      const roomInstance = await client.joinById<GameState>(roomId, { spectator: true });
+      setIsSpectator(true);
+      handleRoomEvents(roomInstance);
+    } catch (e: unknown) {
+      console.error('Error spectating room:', e);
+      setError(e instanceof Error ? e.message : 'Failed to spectate game');
+    }
+  };
+
   const findPublicGames = async () => {
     return await client.getAvailableRooms('durak');
   };
@@ -268,6 +296,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const leaveGame = () => {
     if (room) {
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      setIsSpectator(false);
       room.leave();
     }
   };
@@ -306,6 +335,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         isConnected,
         isReconnecting,
+        isSpectator,
         gameState,
         gameMessage,
         clearGameMessage,
@@ -314,6 +344,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearSuhuhResult,
         createGame,
         joinGame,
+        spectateGame,
         findPublicGames,
         leaveGame,
         autoJoinDiscordRoom,

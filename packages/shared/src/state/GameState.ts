@@ -37,4 +37,6 @@ export class GameState extends Schema {
 
   // Developer Mode: Full turn-by-turn game log for easy e2e test export
   @type(['string']) actionLog = new ArraySchema<string>();
+
+  @type('number') spectatorCount: number = 0;
 }

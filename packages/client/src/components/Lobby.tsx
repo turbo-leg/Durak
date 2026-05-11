@@ -15,7 +15,7 @@ const getAvailableHandSizes = (mode: string, players: number) => {
 };
 
 export const Lobby: React.FC = () => {
-  const { createGame, joinGame, findPublicGames, error } = useGame();
+  const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
   const [joinCode, setJoinCode] = useState('');
@@ -216,31 +216,51 @@ export const Lobby: React.FC = () => {
               </div>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {rooms.map((r) => (
-                  <li
-                    key={r.roomId}
-                    className="p-4 hover:bg-green-50 transition flex justify-between items-center"
-                  >
-                    <div>
-                      <div className="font-bold text-gray-800">
-                        Room {r.roomId.substring(0, 6)}...
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {r.clients} / {r.maxClients} Players •{' '}
-                        {(r.metadata as Record<string, unknown>)?.mode === 'teams'
-                          ? 'Teams'
-                          : 'Classic'}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => joinGame(r.roomId)}
-                      disabled={isLoading || r.clients >= r.maxClients}
-                      className="bg-green-100 text-green-800 hover:bg-green-200 font-bold px-4 py-2 rounded text-sm transition disabled:opacity-50"
+                {rooms.map((r) => {
+                  const meta = r.metadata as Record<string, unknown> | null;
+                  const playerCount = (meta?.playerCount as number) ?? r.clients;
+                  const maxPlayers = (meta?.maxPlayers as number) ?? r.maxClients;
+                  const spectatorCount = (meta?.spectatorCount as number) ?? 0;
+                  const phase = (meta?.phase as string) ?? 'waiting';
+                  const isFull = playerCount >= maxPlayers;
+                  const canWatch = phase === 'playing';
+                  return (
+                    <li
+                      key={r.roomId}
+                      className="p-4 hover:bg-green-50 transition flex justify-between items-center"
                     >
-                      Join
-                    </button>
-                  </li>
-                ))}
+                      <div>
+                        <div className="font-bold text-gray-800">
+                          Room {r.roomId.substring(0, 6)}...
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {playerCount} / {maxPlayers} Players •{' '}
+                          {meta?.mode === 'teams' ? 'Teams' : 'Classic'}
+                          {spectatorCount > 0 && (
+                            <span className="ml-2 text-purple-500">👁 {spectatorCount}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => joinGame(r.roomId)}
+                          disabled={isLoading || isFull}
+                          className="bg-green-100 text-green-800 hover:bg-green-200 font-bold px-4 py-2 rounded text-sm transition disabled:opacity-50"
+                        >
+                          Join
+                        </button>
+                        <button
+                          onClick={() => spectateGame(r.roomId)}
+                          disabled={isLoading || !canWatch}
+                          title={!canWatch ? 'Game has not started yet' : undefined}
+                          className="bg-purple-100 text-purple-800 hover:bg-purple-200 font-bold px-3 py-2 rounded text-sm transition disabled:opacity-50"
+                        >
+                          Watch
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
