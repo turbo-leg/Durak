@@ -182,6 +182,45 @@ describe('Lobby component', () => {
     });
   });
 
+  describe('Watch button', () => {
+    const room = {
+      roomId: 'ROOM01',
+      clients: 2,
+      maxClients: 100,
+      metadata: { playerCount: 2, maxPlayers: 6, spectatorCount: 0, mode: 'classic' },
+    };
+
+    it('is disabled when phase is not playing', async () => {
+      mockGameContext({
+        findPublicGames: vi
+          .fn()
+          .mockResolvedValue([{ ...room, metadata: { ...room.metadata, phase: 'waiting' } }]),
+      });
+      render(<Lobby />);
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: /watch/i })).toBeInTheDocument(),
+      );
+      expect(screen.getByRole('button', { name: /watch/i })).toBeDisabled();
+    });
+
+    it('calls spectateGame with the roomId when phase is playing', async () => {
+      const user = userEvent.setup();
+      const spectateGame = vi.fn().mockResolvedValue(undefined);
+      mockGameContext({
+        spectateGame,
+        findPublicGames: vi
+          .fn()
+          .mockResolvedValue([{ ...room, metadata: { ...room.metadata, phase: 'playing' } }]),
+      });
+      render(<Lobby />);
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: /watch/i })).toBeInTheDocument(),
+      );
+      await user.click(screen.getByRole('button', { name: /watch/i }));
+      await waitFor(() => expect(spectateGame).toHaveBeenCalledWith('ROOM01'));
+    });
+  });
+
   describe('public room list', () => {
     it('shows "No public games" when the list is empty', async () => {
       mockGameContext({ findPublicGames: vi.fn().mockResolvedValue([]) });

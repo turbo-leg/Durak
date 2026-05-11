@@ -252,10 +252,11 @@ export class DurakRoom extends Room<GameState> {
   }
 
   async onAuth(_client: Client, options: any) {
-    if (options?.spectator) {
-      if (this.state.phase !== 'playing') throw new Error('Game has not started yet');
+    if (this.state.phase === 'playing') {
+      if (!options?.spectator) throw new Error('Game already in progress');
       return true;
     }
+    if (options?.spectator) throw new Error('Game has not started yet');
     if (this.state.players.size >= this.state.maxPlayers) throw new Error('Room is full');
     return true;
   }
@@ -353,6 +354,7 @@ export class DurakRoom extends Room<GameState> {
           clearInterval(this.turnTimeoutId);
           this.turnTimeoutId = null;
         }
+        this.updateLobbyMetadata();
         return;
       }
       if (wasCurrentTurn) this.nextTurn();
