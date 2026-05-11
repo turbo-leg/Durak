@@ -38,37 +38,48 @@ export const useAudio = () => {
     return audioCtxRef.current;
   }, []);
 
+  // Shared compressor keeps everything from clipping and adds warmth
+  const getCompressor = useCallback((ctx: AudioContext): DynamicsCompressorNode => {
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 12;
+    comp.ratio.value = 4;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.15;
+    comp.connect(ctx.destination);
+    return comp;
+  }, []);
+
+  // Soft bandpass noise — more of a gentle thud/rustle than a harsh snap
   const playNoise = useCallback(
-    (
-      filterFreq: number,
-      duration: number,
-      gainPeak: number,
-      filterType: BiquadFilterType = 'highpass',
-    ) => {
+    (centerFreq: number, duration: number, gainPeak: number) => {
       const ctx = getCtx();
       if (!ctx) return;
+      const comp = getCompressor(ctx);
       const bufferSize = ctx.sampleRate * duration;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
         const t = i / bufferSize;
-        const env = Math.max(0, 1 - t * t * 6);
+        // Smooth bell-curve envelope: quick rise, gentle fall
+        const env = Math.sin(t * Math.PI) * Math.exp(-t * 5);
         data[i] = (Math.random() * 2 - 1) * env;
       }
       const src = ctx.createBufferSource();
       src.buffer = buffer;
       const filter = ctx.createBiquadFilter();
-      filter.type = filterType;
-      filter.frequency.setValueAtTime(filterFreq, ctx.currentTime);
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(centerFreq, ctx.currentTime);
+      filter.Q.value = 1.2;
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(gainPeak, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
       src.connect(filter);
       filter.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(comp);
       src.start();
     },
-    [getCtx],
+    [getCtx, getCompressor],
   );
 
   const playTone = useCallback(
@@ -81,59 +92,60 @@ export const useAudio = () => {
     ) => {
       const ctx = getCtx();
       if (!ctx) return;
+      const comp = getCompressor(ctx);
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = type;
       osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
       gain.gain.setValueAtTime(0.001, ctx.currentTime + startTime);
-      gain.gain.linearRampToValueAtTime(gainPeak, ctx.currentTime + startTime + 0.02);
+      gain.gain.linearRampToValueAtTime(gainPeak, ctx.currentTime + startTime + 0.04);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(comp);
       osc.start(ctx.currentTime + startTime);
       osc.stop(ctx.currentTime + startTime + duration);
     },
-    [getCtx],
+    [getCtx, getCompressor],
   );
 
-  // Card dealt / drawn from deck — crisp paper snap
+  // Card dealt — soft papery rustle
   const playDealSound = useCallback(() => {
-    playNoise(1200, 0.15, 1.5, 'highpass');
+    playNoise(800, 0.18, 0.35);
   }, [playNoise]);
 
-  // Card played to the table (attack or defend) — sharper, higher-pitched snap
+  // Card played to the table — gentle tap
   const playCardSound = useCallback(() => {
-    playNoise(2200, 0.08, 1.8, 'highpass');
+    playNoise(600, 0.12, 0.3);
   }, [playNoise]);
 
-  // Cards picked up — low shuffle rumble
+  // Cards picked up — soft low whoosh
   const playPickupSound = useCallback(() => {
-    playNoise(350, 0.28, 1.2, 'lowpass');
+    playNoise(280, 0.22, 0.25);
   }, [playNoise]);
 
-  // Timer warning beep when < 5 s remaining — single sharp tone
+  // Timer warning — muted soft chime, not a harsh beep
   const playTimerWarning = useCallback(() => {
-    playTone(880, 0, 0.12, 0.4);
+    playTone(660, 0, 0.2, 0.15, 'sine');
   }, [playTone]);
 
-  // Victory jingle — ascending C-E-G-C arpeggio
+  // Victory — gentle ascending C-E-G-C, sine for warmth
   const playVictorySound = useCallback(() => {
     [
       [523, 0],
-      [659, 0.15],
-      [784, 0.3],
-      [1047, 0.45],
-    ].forEach(([freq, t]) => playTone(freq, t, 0.35, 0.35, 'triangle'));
+      [659, 0.16],
+      [784, 0.32],
+      [1047, 0.48],
+    ].forEach(([freq, t]) => playTone(freq, t, 0.4, 0.18, 'sine'));
   }, [playTone]);
 
-  // Defeat jingle — descending C-A-F-C
+  // Defeat — soft descending C-A-F-C
   const playDefeatSound = useCallback(() => {
     [
       [523, 0],
-      [440, 0.18],
-      [349, 0.36],
-      [262, 0.54],
-    ].forEach(([freq, t]) => playTone(freq, t, 0.38, 0.3, 'sine'));
+      [440, 0.2],
+      [349, 0.4],
+      [262, 0.6],
+    ].forEach(([freq, t]) => playTone(freq, t, 0.42, 0.14, 'sine'));
   }, [playTone]);
 
   return {
