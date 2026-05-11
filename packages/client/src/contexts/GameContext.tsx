@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
@@ -13,11 +13,16 @@ type DefenseSnapshot = {
 export type SuhuhDraw = { playerId: string; suit: string; rank: number; isJoker: boolean };
 export type SuhuhResult = { draws: SuhuhDraw[]; winnerId: string } | null;
 
+const RECONNECT_TOKEN_KEY = 'durak_reconnection_token';
+const MAX_RECONNECT_ATTEMPTS = 3;
+const RECONNECT_DELAYS = [500, 2000, 4000]; // ms per attempt
+
 interface GameContextState {
   client: Client | null;
   room: Room<GameState> | null;
   error: string | null;
   isConnected: boolean;
+  isReconnecting: boolean;
   gameState: GameState | null;
   gameMessage: string | null;
   clearGameMessage: () => void;
@@ -39,6 +44,7 @@ const GameContext = createContext<GameContextState>({
   room: null,
   error: null,
   isConnected: false,
+  isReconnecting: false,
   gameState: null,
   gameMessage: null,
   clearGameMessage: () => {},
@@ -84,6 +90,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
   const [gameMessage, setGameMessage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
   const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
@@ -91,10 +98,44 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [, setTick] = useState(0);
   const gameState = room?.state || null;
 
+  // Stable ref so onLeave can access the latest client without a stale closure
+  const clientRef = useRef(client);
+  useEffect(() => {
+    clientRef.current = client;
+  }, [client]);
+
   const clearGameMessage = () => setGameMessage(null);
   const clearSuhuhResult = () => setSuhuhResult(null);
 
+  const attemptReconnect = async () => {
+    const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
+    if (!token) return false;
+
+    setIsReconnecting(true);
+    for (let i = 0; i < MAX_RECONNECT_ATTEMPTS; i++) {
+      await new Promise((res) => setTimeout(res, RECONNECT_DELAYS[i]));
+      try {
+        const newRoom = await clientRef.current.reconnect<GameState>(token);
+        handleRoomEvents(newRoom);
+        setIsReconnecting(false);
+        return true;
+      } catch {
+        // continue to next attempt
+      }
+    }
+
+    // All attempts exhausted
+    sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+    setIsReconnecting(false);
+    return false;
+  };
+
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
+    // Persist token so the client can reconnect after a network drop or page refresh
+    if (roomInstance.reconnectionToken) {
+      sessionStorage.setItem(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
+    }
+
     roomInstance.onStateChange(() => setTick((t) => t + 1));
 
     // Calculate server time offset
@@ -145,6 +186,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? '😭 Game Over. You are the Durak (Fool)!'
             : `🎉 Game Over! ${data.loser} is the Durak.`,
         );
+      // Game is over — no reconnection needed after this point
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     });
     roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
       setGameMessage(
@@ -158,11 +201,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Room error:', code, message);
       setError(message || 'Unknown room error');
     });
-    roomInstance.onLeave((code) => {
+    roomInstance.onLeave(async (code) => {
       console.log('Left room:', code);
       setIsConnected(false);
       setRoom(null);
       setSuhuhResult(null);
+
+      // WebSocket close codes: 1000 = normal, 4000+ = room-level consented closes.
+      // Anything else is an unexpected drop — try to reconnect.
+      const isCleanExit = code === 1000 || code >= 4000;
+      if (!isCleanExit) {
+        const reconnected = await attemptReconnect();
+        if (reconnected) return;
+      }
+
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     });
     setRoom(roomInstance);
     setIsConnected(true);
@@ -214,6 +267,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const leaveGame = () => {
     if (room) {
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
       room.leave();
     }
   };
@@ -230,6 +284,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // On mount: if there's a saved reconnection token (e.g. after a page refresh), restore session
+  useEffect(() => {
+    if (sessionStorage.getItem(RECONNECT_TOKEN_KEY)) {
+      attemptReconnect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     return () => {
       if (room) room.leave();
@@ -243,6 +305,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         room,
         error,
         isConnected,
+        isReconnecting,
         gameState,
         gameMessage,
         clearGameMessage,

@@ -6,7 +6,8 @@ import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from '.
 import './App.css';
 
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
-  const { room, isConnected, error, leaveGame, autoJoinDiscordRoom, gameState } = useGame();
+  const { room, isConnected, isReconnecting, error, leaveGame, autoJoinDiscordRoom, gameState } =
+    useGame();
 
   // Issue #69: Auto-join the Discord Instance Lobby
   useEffect(() => {
@@ -68,7 +69,14 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
           </div>
         )}
 
-        {!isConnected ? (
+        {isReconnecting ? (
+          <div className="flex flex-col items-center justify-center h-64 space-y-4">
+            <div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="text-yellow-400 font-bold animate-pulse uppercase tracking-widest text-sm">
+              Reconnecting…
+            </div>
+          </div>
+        ) : !isConnected ? (
           isEmbedded ? (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
               <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>

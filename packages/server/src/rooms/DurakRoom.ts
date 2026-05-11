@@ -226,6 +226,10 @@ export class DurakRoom extends Room<GameState> {
     const isInGame = this.state.phase === 'playing';
 
     if (isInGame && !consented) {
+      const player = this.state.players.get(client.sessionId);
+      const displayName = player?.username || client.sessionId.slice(0, 6);
+      this.broadcast('info', `${displayName} disconnected. Waiting up to 30s for reconnection...`);
+
       // Schedule auto-pickup after 5s if it's their turn, so the game doesn't freeze
       let pickupTimer: NodeJS.Timeout | null = null;
       if (this.state.currentTurn === client.sessionId) {
@@ -243,7 +247,8 @@ export class DurakRoom extends Room<GameState> {
       try {
         await this.allowReconnection(client, 30);
         if (pickupTimer) clearTimeout(pickupTimer);
-        return; // Client reconnected - nothing more to do
+        this.broadcast('info', `${displayName} reconnected.`);
+        return;
       } catch {
         if (pickupTimer) clearTimeout(pickupTimer);
         // Reconnection window expired - fall through to permanent removal
