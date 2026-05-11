@@ -34,8 +34,17 @@ export const GameBoard: React.FC = () => {
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const { playDealSound } = useAudio();
+  const {
+    playDealSound,
+    playCardSound,
+    playPickupSound,
+    playTimerWarning,
+    playVictorySound,
+    playDefeatSound,
+  } = useAudio();
   const isDesktop = useIsDesktop();
+  const warningPlayedRef = React.useRef(false);
+  const gameResultKeyRef = React.useRef<string | null>(null);
 
   // Update timer smoothly using requestAnimationFrame
   useEffect(() => {
@@ -67,6 +76,37 @@ export const GameBoard: React.FC = () => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
   }, []);
+
+  // Reset warning flag when the active turn changes
+  React.useEffect(() => {
+    warningPlayedRef.current = false;
+  }, [gameState?.currentTurn]);
+
+  // Timer warning sound — fires once per turn when < 5 s remain
+  React.useEffect(() => {
+    if (
+      gameState?.currentTurn === room?.sessionId &&
+      timeRemaining > 0 &&
+      timeRemaining < 5000 &&
+      !warningPlayedRef.current
+    ) {
+      warningPlayedRef.current = true;
+      playTimerWarning();
+    }
+  }, [timeRemaining, gameState?.currentTurn, room?.sessionId, playTimerWarning]);
+
+  // Victory / defeat jingle — fires once per game result
+  React.useEffect(() => {
+    if (!gameState || gameState.phase !== 'finished' || !room) return;
+    const key = `${gameState.phase}:${gameState.loser}`;
+    if (gameResultKeyRef.current === key) return;
+    gameResultKeyRef.current = key;
+    if (gameState.loser === room.sessionId) {
+      playDefeatSound();
+    } else {
+      playVictorySound();
+    }
+  }, [gameState?.phase, gameState?.loser, room?.sessionId, playVictorySound, playDefeatSound]);
 
   const defenseVisible = !!defenseSnapshot && now - defenseSnapshot.at < 10000;
 
@@ -127,6 +167,7 @@ export const GameBoard: React.FC = () => {
 
   const handleAttack = () => {
     if (selectedCards.length > 0) {
+      playCardSound();
       room.send('attack', { cards: selectedCards });
       setSelectedCards([]);
     }
@@ -134,12 +175,14 @@ export const GameBoard: React.FC = () => {
 
   const handleDefend = () => {
     if (selectedCards.length > 0) {
+      playCardSound();
       room.send('defend', { cards: selectedCards });
       setSelectedCards([]);
     }
   };
 
   const handlePickUp = () => {
+    playPickupSound();
     room.send('pickUp');
   };
 
@@ -655,58 +698,80 @@ export const GameBoard: React.FC = () => {
               )}
 
               {/* Table Pairs */}
-              {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pi) => {
-                const atk = tableCards[pi * 2];
-                const def = tableCards[pi * 2 + 1];
-                if (!atk) return null;
-                return (
-                  <div
-                    key={`tp-${pi}-${atk.suit}-${atk.rank}`}
-                    className="flex items-center gap-0.5 bg-black/30 p-1 rounded-lg border border-white/5"
-                  >
-                    <UICard card={atk} compact />
-                    <span className="text-[8px] text-gray-500">→</span>
-                    {def ? (
-                      <UICard card={def} compact className="ring-1 ring-green-500/30" />
-                    ) : (
-                      <div className="w-12 h-[72px] rounded-md border border-dashed border-white/20 flex items-center justify-center">
-                        <span className="text-[6px] text-white/30">?</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Active Attack Cards */}
-              {attackCards.map((atk, i) => (
-                <div
-                  key={`atk-${i}-${atk.suit}-${atk.rank}`}
-                  className="bg-red-900/30 p-1 rounded-lg border border-red-500/30"
-                >
-                  <UICard card={atk} compact />
-                  <div className="text-[6px] text-red-400 text-center font-bold animate-pulse">
-                    ATK
-                  </div>
-                </div>
-              ))}
-
-              {/* Defense Snapshot */}
-              {defenseSnapshot &&
-                defenseVisible &&
-                defenseSnapshot.attacking.map((atk, idx) => {
-                  const def = defenseSnapshot.defending[idx];
-                  if (!def) return null;
+              <AnimatePresence>
+                {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pi) => {
+                  const atk = tableCards[pi * 2];
+                  const def = tableCards[pi * 2 + 1];
+                  if (!atk) return null;
                   return (
-                    <div key={`snap-${idx}`} className="relative w-12 h-16">
-                      <div className="absolute left-0 top-0">
-                        <UICard card={atk as unknown as SharedCard} compact />
-                      </div>
-                      <div className="absolute left-2 top-2 ring-1 ring-green-400/40 rounded shadow-[0_0_8px_rgba(34,197,94,0.4)]">
-                        <UICard card={def as unknown as SharedCard} compact />
-                      </div>
-                    </div>
+                    <motion.div
+                      key={`tp-${pi}-${atk.suit}-${atk.rank}`}
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.7 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                      className="flex items-center gap-0.5 bg-black/30 p-1 rounded-lg border border-white/5"
+                    >
+                      <UICard card={atk} compact />
+                      <span className="text-[8px] text-gray-500">→</span>
+                      {def ? (
+                        <UICard card={def} compact className="ring-1 ring-green-500/30" />
+                      ) : (
+                        <div className="w-12 h-[72px] rounded-md border border-dashed border-white/20 flex items-center justify-center">
+                          <span className="text-[6px] text-white/30">?</span>
+                        </div>
+                      )}
+                    </motion.div>
                   );
                 })}
+              </AnimatePresence>
+
+              {/* Active Attack Cards */}
+              <AnimatePresence>
+                {attackCards.map((atk) => (
+                  <motion.div
+                    key={`atk-${atk.suit}-${atk.rank}`}
+                    layoutId={`card-${atk.suit}-${atk.rank}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.75, y: 16 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+                    className="bg-red-900/30 p-1 rounded-lg border border-red-500/30"
+                  >
+                    <UICard card={atk} compact />
+                    <div className="text-[6px] text-red-400 text-center font-bold animate-pulse">
+                      ATK
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {/* Defense Snapshot */}
+              <AnimatePresence>
+                {defenseSnapshot &&
+                  defenseVisible &&
+                  defenseSnapshot.attacking.map((atk, idx) => {
+                    const def = defenseSnapshot.defending[idx];
+                    if (!def) return null;
+                    return (
+                      <motion.div
+                        key={`snap-${idx}-${atk.suit}-${atk.rank}`}
+                        initial={{ opacity: 0, scale: 0.85 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                        className="relative w-12 h-16"
+                      >
+                        <div className="absolute left-0 top-0">
+                          <UICard card={atk as unknown as SharedCard} compact />
+                        </div>
+                        <div className="absolute left-2 top-2 ring-1 ring-green-400/40 rounded shadow-[0_0_8px_rgba(34,197,94,0.4)]">
+                          <UICard card={def as unknown as SharedCard} compact />
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+              </AnimatePresence>
             </div>
           </div>
         </div>
