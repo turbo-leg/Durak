@@ -642,6 +642,23 @@ export class DurakRoom extends Room<GameState> {
     return false;
   }
 
+  private logPendingDraws(skipId?: string): void {
+    this.state.players.forEach((p) => {
+      if (skipId && p.id === skipId) return;
+      const amount = DurakEngine.computeDrawAmount(
+        p,
+        this.state.deck.length,
+        this.state.targetHandSize,
+      );
+      if (amount > 0) {
+        const drawnRaw = this.state.deck.slice(-amount).reverse();
+        this.state.actionLog.push(
+          `${p.id} drew: ${drawnRaw.map((c) => `+${this.formatCard(c)}`).join(', ')}`,
+        );
+      }
+    });
+  }
+
   private parseCards(raw: any): Card[] | null {
     if (!Array.isArray(raw) || raw.length === 0) return null;
     const cards: Card[] = [];
@@ -727,21 +744,7 @@ export class DurakRoom extends Room<GameState> {
     this.state.actionLog.push(`${client.sessionId} attacked: ${playedLog}`);
 
     this.checkGameOver();
-
-    // User rule: players should always draw a card immediately if they are below target size.
-    this.state.players.forEach((p) => {
-      const amount = DurakEngine.computeDrawAmount(
-        p,
-        this.state.deck.length,
-        this.state.targetHandSize,
-      );
-      if (amount > 0) {
-        const drawnRaw = this.state.deck.slice(-amount).reverse();
-        const drawnFormatted = drawnRaw.map((c) => `+${this.formatCard(c)}`).join(', ');
-        this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
-      }
-    });
-
+    this.logPendingDraws();
     DurakEngine.replenishAll(this.state);
 
     // Pass turn to next defender
@@ -832,20 +835,7 @@ export class DurakRoom extends Room<GameState> {
     const defLog = defendingCards.map((c) => `-${this.formatCard(c)}`).join(', ');
     this.state.actionLog.push(`${client.sessionId} defended: ${defLog}`);
 
-    // Track draw log for clipboard
-    this.state.players.forEach((p) => {
-      const amount = DurakEngine.computeDrawAmount(
-        p,
-        this.state.deck.length,
-        this.state.targetHandSize,
-      );
-      if (amount > 0) {
-        const drawnRaw = this.state.deck.slice(-amount).reverse();
-        const drawnFormatted = drawnRaw.map((c) => `+${this.formatCard(c)}`).join(', ');
-        this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
-      }
-    });
-
+    this.logPendingDraws();
     DurakEngine.replenishAll(this.state);
     this.checkGameOver();
 
@@ -856,20 +846,7 @@ export class DurakRoom extends Room<GameState> {
       // Everyone in the circle successfully defended!
       DurakEngine.endRound(this.state, null);
 
-      // Log replenishment
-      this.state.players.forEach((p) => {
-        const amount = DurakEngine.computeDrawAmount(
-          p,
-          this.state.deck.length,
-          this.state.targetHandSize,
-        );
-        if (amount > 0) {
-          const drawnRaw = this.state.deck.slice(-amount).reverse(); // simulate draw for log
-          const drawnFormatted = drawnRaw.map((c) => `+${this.formatCard(c)}`).join(', ');
-          this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
-        }
-      });
-
+      this.logPendingDraws();
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
 
@@ -903,22 +880,7 @@ export class DurakRoom extends Room<GameState> {
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
 
-    // Also check for replenishment if picker-upper had few cards (per standard rules or variant)
-    // Though usually picker-upper doesn't draw if they pick up, but we let replenishAll handle checks
-    this.state.players.forEach((p) => {
-      if (p.id === client.sessionId) return; // Picker upper already got cards from table
-      const amount = DurakEngine.computeDrawAmount(
-        p,
-        this.state.deck.length,
-        this.state.targetHandSize,
-      );
-      if (amount > 0) {
-        const drawnRaw = this.state.deck.slice(-amount).reverse();
-        const drawnFormatted = drawnRaw.map((c) => `+${this.formatCard(c)}`).join(', ');
-        this.state.actionLog.push(`${p.id} drew: ${drawnFormatted}`);
-      }
-    });
-
+    this.logPendingDraws(client.sessionId); // picker-upper already got cards from table
     DurakEngine.replenishAll(this.state);
     this.checkGameOver();
 
