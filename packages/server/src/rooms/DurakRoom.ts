@@ -5,11 +5,18 @@ import { GameLog } from '../models/GameLog';
 import mongoose from 'mongoose';
 import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
 
+const RATE_LIMIT_MAX = 10; // messages per window
+const RATE_LIMIT_WINDOW_MS = 1000;
+const MAX_USERNAME_LEN = 32;
+const MAX_AVATAR_URL_LEN = 256;
+const MAX_SHORT_STRING_LEN = 32; // mode, teamSelection, etc.
+
 export class DurakRoom extends Room<GameState> {
   maxClients = 6;
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
+  private rateLimitMap = new Map<string, { count: number; windowStart: number }>();
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -41,11 +48,24 @@ export class DurakRoom extends Room<GameState> {
     this.testModeDeck = options.testModeDeck;
 
     // Register Handlers
-    this.onMessage('attack', (client, message) => this.handleAttack(client, message));
-    this.onMessage('defend', (client, message) => this.handleDefend(client, message));
-    this.onMessage('pickUp', (client) => this.handlePickUp(client));
-    this.onMessage('swapHuzur', (client) => this.handleSwapHuzur(client));
+    this.onMessage('attack', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handleAttack(client, message);
+    });
+    this.onMessage('defend', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handleDefend(client, message);
+    });
+    this.onMessage('pickUp', (client) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handlePickUp(client);
+    });
+    this.onMessage('swapHuzur', (client) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handleSwapHuzur(client);
+    });
     this.onMessage('ping', (client, message: { clientTime: number }) => {
+      if (this.isRateLimited(client.sessionId)) return;
       client.send('pong', { clientTime: message.clientTime, serverTime: Date.now() });
     });
 
@@ -103,6 +123,7 @@ export class DurakRoom extends Room<GameState> {
 
     // Team selection handler in lobby
     this.onMessage('switchTeam', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
       if (
         this.state.phase === 'waiting' &&
         this.state.mode === 'teams' &&
@@ -143,9 +164,11 @@ export class DurakRoom extends Room<GameState> {
 
     // Update Lobby Settings
     this.onMessage('updateSettings', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
       if (this.state.phase !== 'waiting' || client.sessionId !== this.state.hostId) return;
-      if (message.mode) this.state.mode = message.mode;
-      if (message.teamSelection) this.state.teamSelection = message.teamSelection;
+      if (message.mode) this.state.mode = String(message.mode).slice(0, MAX_SHORT_STRING_LEN);
+      if (message.teamSelection)
+        this.state.teamSelection = String(message.teamSelection).slice(0, MAX_SHORT_STRING_LEN);
       if (message.maxPlayers) {
         this.state.maxPlayers = parseInt(message.maxPlayers, 10);
         this.maxClients = this.state.maxPlayers;
@@ -158,6 +181,7 @@ export class DurakRoom extends Room<GameState> {
 
     // Start Game Manually
     this.onMessage('startGame', (client) => {
+      if (this.isRateLimited(client.sessionId)) return;
       if (client.sessionId !== this.state.hostId) return;
 
       if (this.state.phase === 'finished') {
@@ -196,6 +220,7 @@ export class DurakRoom extends Room<GameState> {
 
     // Allow players to ready up manually
     this.onMessage('toggleReady', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
       if (this.state.phase !== 'waiting') return;
       const player = this.state.players.get(client.sessionId);
       if (player) {
@@ -208,8 +233,10 @@ export class DurakRoom extends Room<GameState> {
     console.log(client.sessionId, 'joined!');
 
     const player = new Player(client.sessionId);
-    if (options.username) player.username = options.username;
-    if (options.avatarUrl) player.avatarUrl = options.avatarUrl;
+    if (options.username)
+      player.username = String(options.username).trim().slice(0, MAX_USERNAME_LEN);
+    if (options.avatarUrl)
+      player.avatarUrl = String(options.avatarUrl).trim().slice(0, MAX_AVATAR_URL_LEN);
 
     // First player is host
     if (this.state.players.size === 0) {
@@ -222,6 +249,7 @@ export class DurakRoom extends Room<GameState> {
 
   async onLeave(client: Client, consented: boolean) {
     console.log(client.sessionId, 'left!', consented ? '(consented)' : '(unexpected)');
+    this.rateLimitMap.delete(client.sessionId);
 
     const isInGame = this.state.phase === 'playing';
 
@@ -596,6 +624,18 @@ export class DurakRoom extends Room<GameState> {
       else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
       else if (move.action === 'pickup') this.handlePickUp(fakeClient);
     }, delay);
+  }
+
+  private isRateLimited(sessionId: string): boolean {
+    const now = Date.now();
+    const entry = this.rateLimitMap.get(sessionId);
+    if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      this.rateLimitMap.set(sessionId, { count: 1, windowStart: now });
+      return false;
+    }
+    if (entry.count >= RATE_LIMIT_MAX) return true;
+    entry.count++;
+    return false;
   }
 
   private parseCards(raw: any): Card[] | null {
