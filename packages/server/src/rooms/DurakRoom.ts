@@ -421,7 +421,7 @@ export class DurakRoom extends Room<GameState> {
     if (a.isJoker && b.isJoker) return a.rank > b.rank;
     if (a.suit === this.state.huzurSuit && b.suit !== this.state.huzurSuit) return true;
     if (a.suit !== this.state.huzurSuit && b.suit === this.state.huzurSuit) return false;
-    return a.suit === b.suit ? a.rank > b.rank : false;
+    return a.rank > b.rank;
   }
 
   /**
