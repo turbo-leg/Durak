@@ -16,7 +16,7 @@ export class DurakRoom extends Room<GameState> {
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
-  private rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+  private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -29,11 +29,11 @@ export class DurakRoom extends Room<GameState> {
     this.setPrivate(this.state.isPrivate);
 
     if (options.mode) {
-      this.state.mode = String(options.mode);
+      this.state.mode = String(options.mode).slice(0, MAX_SHORT_STRING_LEN);
     } // "classic" | "teams" etc. (defaults to "classic" in GameState)
 
     if (options.teamSelection) {
-      this.state.teamSelection = String(options.teamSelection);
+      this.state.teamSelection = String(options.teamSelection).slice(0, MAX_SHORT_STRING_LEN);
     }
 
     if (options.handSize) {
@@ -71,6 +71,7 @@ export class DurakRoom extends Room<GameState> {
 
     // Developer Mode Action Handler
     this.onMessage('dev_action', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
       // NOTE: In a real app, verify process.env.NODE_ENV !== "production"
       // Host-only: only the lobby leader can mutate game state via dev actions.
       if (client.sessionId !== this.state.hostId) return;
@@ -628,13 +629,16 @@ export class DurakRoom extends Room<GameState> {
 
   private isRateLimited(sessionId: string): boolean {
     const now = Date.now();
-    const entry = this.rateLimitMap.get(sessionId);
-    if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
-      this.rateLimitMap.set(sessionId, { count: 1, windowStart: now });
-      return false;
+    const cutoff = now - RATE_LIMIT_WINDOW_MS;
+    const timestamps = this.rateLimitMap.get(sessionId) ?? [];
+    // Prune entries outside the sliding window
+    const recent = timestamps.filter((t) => t > cutoff);
+    if (recent.length >= RATE_LIMIT_MAX) {
+      this.rateLimitMap.set(sessionId, recent);
+      return true;
     }
-    if (entry.count >= RATE_LIMIT_MAX) return true;
-    entry.count++;
+    recent.push(now);
+    this.rateLimitMap.set(sessionId, recent);
     return false;
   }
 
