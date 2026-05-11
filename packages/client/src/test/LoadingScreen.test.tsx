@@ -40,15 +40,22 @@ describe('LoadingScreen component', () => {
   it('retry button reloads the page', async () => {
     const user = userEvent.setup();
     const reload = vi.fn();
+    const originalLocation = window.location;
     Object.defineProperty(window, 'location', {
       value: { reload },
       writable: true,
     });
 
-    render(<LoadingScreen isError />);
-    await user.click(screen.getByRole('button', { name: /retry/i }));
-
-    expect(reload).toHaveBeenCalledOnce();
+    try {
+      render(<LoadingScreen isError />);
+      await user.click(screen.getByRole('button', { name: /retry/i }));
+      expect(reload).toHaveBeenCalledOnce();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+      });
+    }
   });
 
   it('does not show retry button when not in error state', () => {
