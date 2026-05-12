@@ -19,6 +19,8 @@ function mockGameContext(overrides: Partial<ReturnType<typeof GameContextModule.
     defenseSnapshot: null,
     suhuhResult: null,
     clearSuhuhResult: vi.fn(),
+    discardedCards: null,
+    clearDiscardedCards: vi.fn(),
     isSpectator: false,
     createGame: vi.fn().mockResolvedValue(undefined),
     joinGame: vi.fn().mockResolvedValue(undefined),

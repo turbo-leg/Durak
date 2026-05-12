@@ -148,6 +148,37 @@ export const useAudio = () => {
     ].forEach(([freq, t]) => playTone(freq, t, 0.42, 0.14, 'sine'));
   }, [playTone]);
 
+  // Discard — bright rising swoosh + soft body thump (cards swept off the table)
+  const playDiscardSound = useCallback(() => {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const comp = getCompressor(ctx);
+    const duration = 0.32;
+    const bufferSize = Math.ceil(ctx.sampleRate * duration);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const t = i / bufferSize;
+      const env = Math.pow(1 - t, 1.5) * Math.exp(-t * 4);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    // Frequency sweeps from 1600 → 600 Hz for a "whoosh" feel
+    filter.frequency.setValueAtTime(1600, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + duration);
+    filter.Q.value = 0.8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.45, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(comp);
+    src.start();
+  }, [getCtx, getCompressor]);
+
   return {
     playDealSound,
     playCardSound,
@@ -155,5 +186,6 @@ export const useAudio = () => {
     playTimerWarning,
     playVictorySound,
     playDefeatSound,
+    playDiscardSound,
   };
 };

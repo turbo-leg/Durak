@@ -88,16 +88,17 @@ export class DurakRoom extends Room<GameState> {
       if (client.sessionId !== this.state.hostId) return;
 
       if (message.action === 'spawn_dummies') {
-        const currentPlayers = this.state.players.size;
-        const count = message.count || this.state.maxPlayers - currentPlayers;
+        const count = message.count || this.state.maxPlayers - this.state.players.size;
+        const isDummy = message.difficulty === 'dummy';
         const difficulty: BotDifficulty = message.difficulty === 'hard' ? 'hard' : 'easy';
 
         let spawned = 0;
         for (let i = 0; i < count; i++) {
           if (this.state.players.size >= this.state.maxPlayers) break;
-          const id = `bot-${Math.random().toString(36).substring(2, 7)}`;
+          const prefix = isDummy ? 'dummy' : 'bot';
+          const id = `${prefix}-${Math.random().toString(36).substring(2, 7)}`;
           const p = new Player(id);
-          p.username = `Bot (${difficulty})`;
+          p.username = isDummy ? `Dummy` : `Bot (${difficulty})`;
           p.isReady = true;
 
           if (this.state.mode === 'teams') {
@@ -111,12 +112,14 @@ export class DurakRoom extends Room<GameState> {
           }
 
           this.state.players.set(id, p);
-          this.botIds.set(id, difficulty);
+          // Dummies have no AI — they are controlled manually via play_as dev actions
+          if (!isDummy) this.botIds.set(id, difficulty);
           spawned++;
         }
+        const label = isDummy ? 'dummy/dummies' : `${difficulty} bot(s)`;
         this.broadcast(
           'info',
-          `Spawned ${spawned} ${difficulty} bot(s). Room is at ${this.state.players.size}/${this.state.maxPlayers}`,
+          `Spawned ${spawned} ${label}. Room is at ${this.state.players.size}/${this.state.maxPlayers}`,
         );
       }
 
@@ -632,14 +635,17 @@ export class DurakRoom extends Room<GameState> {
   private nextTurn() {
     const ids = Array.from(this.state.seatOrder);
     const idx = ids.indexOf(this.state.currentTurn);
-    if (idx !== -1) {
-      const nextId = ids[(idx + 1) % ids.length];
-      if (nextId) {
-        this.state.currentTurn = nextId;
-        this.state.turnStartTime = Date.now();
-        this.startTurnTimer();
-        this.scheduleBotTurn(nextId);
-      }
+    if (idx === -1) return;
+
+    // Skip players who have already won — they have no cards and can't act
+    for (let skip = 1; skip < ids.length; skip++) {
+      const candidateId = ids[(idx + skip) % ids.length];
+      if (!candidateId || this.state.winners.includes(candidateId)) continue;
+      this.state.currentTurn = candidateId;
+      this.state.turnStartTime = Date.now();
+      this.startTurnTimer();
+      this.scheduleBotTurn(candidateId);
+      return;
     }
   }
 
@@ -891,7 +897,17 @@ export class DurakRoom extends Room<GameState> {
     // Increment chain
     this.state.defenseChainCount++;
 
-    if (this.state.defenseChainCount >= this.state.players.size - 1) {
+    const activePlayers = Array.from(this.state.seatOrder).filter(
+      (id): id is string => !!id && !this.state.winners.includes(id),
+    ).length;
+    if (this.state.defenseChainCount >= activePlayers - 1) {
+      // Broadcast the cards before clearing so clients can animate the discard
+      const discardedCards = [
+        ...Array.from(this.state.tableStacks).filter((c): c is Card => !!c),
+        ...Array.from(this.state.activeAttackCards).filter((c): c is Card => !!c),
+      ].map((c) => ({ suit: c.suit, rank: c.rank, isJoker: c.isJoker }));
+      this.broadcast('roundDiscarded', { cards: discardedCards });
+
       // Everyone in the circle successfully defended!
       DurakEngine.endRound(this.state, null);
 
