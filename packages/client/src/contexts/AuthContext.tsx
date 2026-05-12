@@ -1,22 +1,28 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
-const STORAGE_KEY = 'durak_discord_auth';
-// Use current origin so it works in dev (5173) and prod alike
+const STORAGE_KEY = 'durak_auth';
 const REDIRECT_URI = `${window.location.origin}/auth/callback`;
 
-export interface DiscordUser {
-  id: string;
+export type AuthMethod = 'discord' | 'email';
+
+export interface AuthUser {
+  id: string; // discordId for Discord users, MongoDB _id for email users
+  method: AuthMethod;
   username: string;
   globalName: string | null;
   avatarUrl: string;
-  accessToken: string;
+  email?: string;
+  token?: string; // JWT for email users
 }
 
 interface AuthContextState {
-  user: DiscordUser | null;
+  user: AuthUser | null;
   isLoading: boolean;
+  error: string | null;
   loginWithDiscord: () => void;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => void;
   handleOAuthCallback: (code: string) => Promise<void>;
 }
@@ -24,7 +30,10 @@ interface AuthContextState {
 const AuthContext = createContext<AuthContextState>({
   user: null,
   isLoading: false,
+  error: null,
   loginWithDiscord: () => {},
+  loginWithEmail: async () => {},
+  register: async () => {},
   logout: () => {},
   handleOAuthCallback: async () => {},
 });
@@ -37,10 +46,10 @@ function buildAvatarUrl(id: string, hash: string | null): string {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<DiscordUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Restore saved session on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -52,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const persist = (u: DiscordUser | null) => {
+  const persist = (u: AuthUser | null) => {
     if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     else localStorage.removeItem(STORAGE_KEY);
     setUser(u);
@@ -70,8 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleOAuthCallback = useCallback(async (code: string) => {
     setIsLoading(true);
+    setError(null);
     try {
-      // Exchange code for access token via our server (keeps client secret server-side)
       const tokenRes = await fetch('/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,7 +89,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!tokenRes.ok) throw new Error('Token exchange failed');
       const { access_token } = await tokenRes.json();
 
-      // Fetch Discord user info
       const meRes = await fetch('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${access_token}` },
       });
@@ -89,16 +97,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       persist({
         id: me.id,
+        method: 'discord',
         username: me.username,
         globalName: me.global_name ?? null,
         avatarUrl: buildAvatarUrl(me.id, me.avatar),
-        accessToken: access_token,
+        token: access_token,
       });
 
-      // Remove OAuth params from URL without triggering a reload
       window.history.replaceState({}, '', window.location.pathname);
-    } catch (e) {
-      console.error('Discord OAuth failed:', e);
+    } catch (e: any) {
+      setError(e.message || 'Discord login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Login failed');
+
+      persist({
+        id: data.user.id,
+        method: 'email',
+        username: data.user.username,
+        globalName: null,
+        avatarUrl: data.user.avatarUrl || '',
+        email: data.user.email,
+        token: data.token,
+      });
+    } catch (e: any) {
+      setError(e.message || 'Login failed');
+      throw e;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const register = useCallback(async (email: string, password: string, username: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, username }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Registration failed');
+
+      persist({
+        id: data.user.id,
+        method: 'email',
+        username: data.user.username,
+        globalName: null,
+        avatarUrl: data.user.avatarUrl || '',
+        email: data.user.email,
+        token: data.token,
+      });
+    } catch (e: any) {
+      setError(e.message || 'Registration failed');
+      throw e;
     } finally {
       setIsLoading(false);
     }
@@ -106,11 +172,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     persist(null);
+    setError(null);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, loginWithDiscord, logout, handleOAuthCallback }}
+      value={{
+        user,
+        isLoading,
+        error,
+        loginWithDiscord,
+        loginWithEmail,
+        register,
+        logout,
+        handleOAuthCallback,
+      }}
     >
       {children}
     </AuthContext.Provider>

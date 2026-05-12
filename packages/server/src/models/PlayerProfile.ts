@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 export interface IPlayerProfile extends mongoose.Document {
   discordId: string;
+  userId: string; // internal user ID for email/password accounts
   username: string;
   avatarUrl: string;
   stats: {
@@ -15,7 +16,8 @@ export interface IPlayerProfile extends mongoose.Document {
 
 const PlayerProfileSchema = new mongoose.Schema(
   {
-    discordId: { type: String, required: true, unique: true, index: true },
+    discordId: { type: String, default: '', index: true, sparse: true },
+    userId: { type: String, default: '', index: true, sparse: true },
     username: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },
     stats: {

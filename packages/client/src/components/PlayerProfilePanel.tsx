@@ -26,26 +26,31 @@ interface MatchRecord {
 }
 
 interface Props {
-  discordId: string;
+  discordId?: string;
+  userId?: string;
   avatarUrl: string;
   username: string;
 }
 
 const API = '/api';
 
-export const PlayerProfilePanel: React.FC<Props> = ({ discordId, avatarUrl, username }) => {
+export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarUrl, username }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<MatchRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'stats' | 'history'>('stats');
 
+  const id = discordId ?? userId ?? '';
+  const byParam = userId && !discordId ? '&by=user' : '';
+
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
     setLoading(true);
 
     Promise.all([
-      fetch(`${API}/profile/${discordId}`).then((r) => (r.ok ? r.json() : null)),
-      fetch(`${API}/history/${discordId}?limit=10`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`${API}/profile/${id}?${byParam.slice(1)}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${API}/history/${id}?limit=10${byParam}`).then((r) => (r.ok ? r.json() : [])),
     ])
       .then(([prof, hist]) => {
         if (cancelled) return;
@@ -122,7 +127,7 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, avatarUrl, user
           </div>
         )
       ) : (
-        <HistoryList history={history} discordId={discordId} />
+        <HistoryList history={history} playerId={id} />
       )}
     </div>
   );
@@ -144,9 +149,9 @@ const StatCard: React.FC<{
   </div>
 );
 
-const HistoryList: React.FC<{ history: MatchRecord[]; discordId: string }> = ({
+const HistoryList: React.FC<{ history: MatchRecord[]; playerId: string }> = ({
   history,
-  discordId,
+  playerId,
 }) => {
   if (history.length === 0) {
     return <div className="text-indigo-400 text-sm text-center py-4">No match history yet.</div>;
@@ -155,8 +160,8 @@ const HistoryList: React.FC<{ history: MatchRecord[]; discordId: string }> = ({
   return (
     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
       {history.map((m) => {
-        const won = m.winners.includes(discordId);
-        const wasDurak = m.durak === discordId;
+        const won = m.winners.includes(playerId);
+        const wasDurak = m.durak === playerId;
         const result = won ? 'Win' : wasDurak ? 'Durak' : 'Loss';
         const resultColor = won ? 'text-green-400' : wasDurak ? 'text-red-400' : 'text-yellow-400';
         const date = new Date(m.date).toLocaleDateString(undefined, {

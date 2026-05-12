@@ -5,12 +5,17 @@ import cors from 'cors';
 import { monitor } from '@colyseus/monitor';
 import path from 'path';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 import { DurakRoom } from './src/rooms/DurakRoom';
-import 'dotenv/config'; // Load environment variables from .env
+import 'dotenv/config';
 import mongoose from 'mongoose';
 import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
+import { User } from './src/models/User';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'durak-dev-secret-change-in-prod';
 
 if (process.env.MONGO_URI) {
   mongoose
@@ -32,7 +37,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Token exchange endpoint for Discord Embedded App SDK
+// ── Discord token exchange (Embedded App SDK) ────────────────────────────────
+
 app.post('/api/token', async (req, res) => {
   try {
     const { code } = req.body;
@@ -53,7 +59,6 @@ app.post('/api/token', async (req, res) => {
       grant_type: 'authorization_code',
       code: code,
     };
-    // Browser OAuth sends redirect_uri; embedded SDK flow does not
     if (req.body.redirect_uri) params.redirect_uri = String(req.body.redirect_uri);
 
     const response = await fetch('https://discord.com/api/oauth2/token', {
@@ -75,11 +80,110 @@ app.post('/api/token', async (req, res) => {
   }
 });
 
-// ── Profile API ─────────────────────────────────────────────────────────────
+// ── Email / password auth ────────────────────────────────────────────────────
 
-app.get('/api/profile/:discordId', async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const profile = await PlayerProfile.findOne({ discordId: req.params.discordId }).lean();
+    const { email, password, username } = req.body;
+    if (!email || !password || !username) {
+      res.status(400).json({ error: 'email, password, and username are required' });
+      return;
+    }
+    if (password.length < 6) {
+      res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    const exists = await User.findOne({ email: email.toLowerCase().trim() });
+    if (exists) {
+      res.status(409).json({ error: 'An account with that email already exists' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      username: username.trim().slice(0, 32),
+    });
+
+    const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET, { expiresIn: '30d' });
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+      },
+    });
+  } catch (e: any) {
+    console.error('Register error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: 'email and password are required' });
+      return;
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user || !(await user.comparePassword(password))) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({
+      token,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+      },
+    });
+  } catch (e: any) {
+    console.error('Login error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Missing token' });
+      return;
+    }
+    const payload = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
+    const user = await User.findById(payload.userId).select('-passwordHash');
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({
+      id: user._id.toString(),
+      email: user.email,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+    });
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
+// ── Profile & history API ────────────────────────────────────────────────────
+
+// Accepts ?by=discord (default) or ?by=user
+app.get('/api/profile/:id', async (req, res) => {
+  try {
+    const by = req.query.by === 'user' ? 'userId' : 'discordId';
+    const profile = await PlayerProfile.findOne({ [by]: req.params.id }).lean();
     if (!profile) {
       res.status(404).json({ error: 'Profile not found' });
       return;
@@ -90,13 +194,14 @@ app.get('/api/profile/:discordId', async (req, res) => {
   }
 });
 
-app.get('/api/history/:discordId', async (req, res) => {
+app.get('/api/history/:id', async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10), 100);
-    const logs = await GameLog.find({ discordIds: req.params.discordId })
+    const by = req.query.by === 'user' ? 'userIds' : 'discordIds';
+    const logs = await GameLog.find({ [by]: req.params.id })
       .sort({ date: -1 })
       .limit(limit)
-      .select('-actionLog') // exclude verbose action log from list view
+      .select('-actionLog')
       .lean();
     res.json(logs);
   } catch (e: any) {
@@ -107,14 +212,10 @@ app.get('/api/history/:discordId', async (req, res) => {
 // ────────────────────────────────────────────────────────────────────────────
 
 const server = http.createServer(app);
-const gameServer = new Server({
-  server,
-});
+const gameServer = new Server({ server });
 
-// Register the Durak game room
 gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
 
-// Add colyseus monitor for debugging
 app.use('/colyseus', monitor());
 
 const clientDistPath = path.resolve(__dirname, '../client/dist');

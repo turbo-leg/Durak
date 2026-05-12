@@ -34,7 +34,7 @@ interface GameContextState {
   discardedCards: DiscardedCard[] | null;
   clearDiscardedCards: () => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
-  joinGame: (roomId: string, discordId?: string) => Promise<void>;
+  joinGame: (roomId: string, discordId?: string, userId?: string) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
@@ -272,9 +272,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const joinGame = async (roomId: string, discordId?: string) => {
+  const joinGame = async (roomId: string, discordId?: string, userId?: string) => {
     try {
-      const roomInstance = await client.joinById<GameState>(roomId, discordId ? { discordId } : {});
+      const opts: Record<string, string> = {};
+      if (discordId) opts.discordId = discordId;
+      if (userId) opts.userId = userId;
+      const roomInstance = await client.joinById<GameState>(roomId, opts);
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error joining room:', e);

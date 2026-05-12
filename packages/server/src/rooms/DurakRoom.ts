@@ -282,6 +282,7 @@ export class DurakRoom extends Room<GameState> {
       player.avatarUrl = String(options.avatarUrl).trim().slice(0, MAX_AVATAR_URL_LEN);
     if (options.discordId)
       player.discordId = String(options.discordId).trim().slice(0, MAX_SHORT_STRING_LEN);
+    if (options.userId) player.userId = String(options.userId).trim().slice(0, 64);
 
     // First player is host
     if (this.state.players.size === 0) {
@@ -1020,6 +1021,7 @@ export class DurakRoom extends Room<GameState> {
       const sessionIds = Array.from(this.state.players.keys());
       const players = sessionIds.map((id) => this.state.players.get(id)!);
       const discordIds = players.map((p) => p?.discordId ?? '');
+      const userIds = players.map((p) => p?.userId ?? '');
       const winnerSessions = Array.from(this.state.winners);
 
       const log = new GameLog({
@@ -1027,6 +1029,7 @@ export class DurakRoom extends Room<GameState> {
         mode: this.state.mode,
         players: sessionIds,
         discordIds,
+        userIds,
         winners: winnerSessions,
         durak: this.state.loser,
         huzurSetting: this.state.huzurSuit,
@@ -1035,16 +1038,20 @@ export class DurakRoom extends Room<GameState> {
       await log.save();
       console.log(`Saved GameLog to MongoDB for room ${this.roomId}`);
 
-      // Upsert a PlayerProfile for every Discord-authenticated participant
+      // Upsert PlayerProfile for every authenticated participant (Discord or email)
       const profileOps = players
-        .filter((p) => p?.discordId)
+        .filter((p) => p?.discordId || p?.userId)
         .map((p) => {
           const isWinner = winnerSessions.includes(p.id);
           const isDurak = this.state.loser === p.id;
+          const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
+          const setFields = p.discordId
+            ? { discordId: p.discordId, username: p.username, avatarUrl: p.avatarUrl }
+            : { userId: p.userId, username: p.username, avatarUrl: p.avatarUrl };
           return PlayerProfile.findOneAndUpdate(
-            { discordId: p.discordId },
+            filter,
             {
-              $set: { username: p.username, avatarUrl: p.avatarUrl },
+              $set: setFields,
               $inc: {
                 'stats.gamesPlayed': 1,
                 'stats.wins': isWinner ? 1 : 0,

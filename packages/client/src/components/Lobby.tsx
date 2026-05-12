@@ -3,7 +3,6 @@ import { useGame } from '../contexts/GameContext';
 import type { RoomAvailable } from 'colyseus.js';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 import { LoginPanel } from './LoginPanel';
-import { useAuth } from '../contexts/AuthContext';
 
 const getAvailablePlayers = (mode: string) => {
   return mode === 'teams' ? [4, 6] : [2, 3, 4, 5, 6];
@@ -18,25 +17,19 @@ const getAvailableHandSizes = (mode: string, players: number) => {
 };
 
 interface LobbyProps {
-  // These props carry the Discord Activity SDK identity (embedded mode).
-  // In browser mode the identity comes from AuthContext instead.
   discordId?: string;
+  userId?: string;
   username?: string;
   avatarUrl?: string;
 }
 
 export const Lobby: React.FC<LobbyProps> = ({
-  discordId: sdkDiscordId,
-  username: sdkUsername,
-  avatarUrl: sdkAvatarUrl,
+  discordId,
+  userId,
+  username = '',
+  avatarUrl = '',
 }) => {
   const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
-  const { user: browserUser } = useAuth();
-
-  // Browser OAuth takes precedence over empty SDK props; SDK props win when embedded
-  const discordId = sdkDiscordId ?? browserUser?.id;
-  const username = sdkUsername ?? browserUser?.globalName ?? browserUser?.username ?? '';
-  const avatarUrl = sdkAvatarUrl ?? browserUser?.avatarUrl ?? '';
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
   const [joinCode, setJoinCode] = useState('');
@@ -78,7 +71,7 @@ export const Lobby: React.FC<LobbyProps> = ({
     e.preventDefault();
     if (!joinCode.trim()) return;
     setIsLoading(true);
-    await joinGame(joinCode.trim(), discordId);
+    await joinGame(joinCode.trim(), discordId, userId);
     setIsLoading(false);
   };
 
@@ -201,8 +194,13 @@ export const Lobby: React.FC<LobbyProps> = ({
         <LoginPanel />
 
         {/* Expanded profile stats when logged in */}
-        {discordId && (
-          <PlayerProfilePanel discordId={discordId} username={username} avatarUrl={avatarUrl} />
+        {(discordId || userId) && (
+          <PlayerProfilePanel
+            discordId={discordId}
+            userId={userId}
+            username={username}
+            avatarUrl={avatarUrl}
+          />
         )}
 
         {/* Join by Code */}
@@ -272,7 +270,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => joinGame(r.roomId, discordId)}
+                          onClick={() => joinGame(r.roomId, discordId, userId)}
                           disabled={isLoading || isFull}
                           className="bg-green-100 text-green-800 hover:bg-green-200 font-bold px-4 py-2 rounded text-sm transition disabled:opacity-50"
                         >

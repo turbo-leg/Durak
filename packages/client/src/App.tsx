@@ -35,8 +35,10 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
     }
   }, [discordAuth, isConnected, room, autoJoinDiscordRoom]);
 
-  // Resolve the active Discord identity: embedded SDK auth takes priority over browser OAuth
-  const activeDiscordId = discordAuth?.user.id ?? browserAuth?.id;
+  // Resolve the active identity: embedded SDK > browser Discord OAuth > email account
+  const activeDiscordId =
+    discordAuth?.user.id ?? (browserAuth?.method === 'discord' ? browserAuth.id : undefined);
+  const activeUserId = browserAuth?.method === 'email' ? browserAuth.id : undefined;
   const activeUsername =
     discordAuth?.user.global_name ||
     discordAuth?.user.username ||
@@ -102,6 +104,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
           ) : (
             <Lobby
               discordId={activeDiscordId}
+              userId={activeUserId}
               username={activeUsername}
               avatarUrl={activeAvatarUrl}
             />
