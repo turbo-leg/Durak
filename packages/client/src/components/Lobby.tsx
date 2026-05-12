@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import type { RoomAvailable } from 'colyseus.js';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
+import { LoginPanel } from './LoginPanel';
+import { useAuth } from '../contexts/AuthContext';
 
 const getAvailablePlayers = (mode: string) => {
   return mode === 'teams' ? [4, 6] : [2, 3, 4, 5, 6];
@@ -16,13 +18,25 @@ const getAvailableHandSizes = (mode: string, players: number) => {
 };
 
 interface LobbyProps {
+  // These props carry the Discord Activity SDK identity (embedded mode).
+  // In browser mode the identity comes from AuthContext instead.
   discordId?: string;
   username?: string;
   avatarUrl?: string;
 }
 
-export const Lobby: React.FC<LobbyProps> = ({ discordId, username = '', avatarUrl = '' }) => {
+export const Lobby: React.FC<LobbyProps> = ({
+  discordId: sdkDiscordId,
+  username: sdkUsername,
+  avatarUrl: sdkAvatarUrl,
+}) => {
   const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
+  const { user: browserUser } = useAuth();
+
+  // Browser OAuth takes precedence over empty SDK props; SDK props win when embedded
+  const discordId = sdkDiscordId ?? browserUser?.id;
+  const username = sdkUsername ?? browserUser?.globalName ?? browserUser?.username ?? '';
+  const avatarUrl = sdkAvatarUrl ?? browserUser?.avatarUrl ?? '';
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
   const [joinCode, setJoinCode] = useState('');
@@ -70,12 +84,6 @@ export const Lobby: React.FC<LobbyProps> = ({ discordId, username = '', avatarUr
 
   return (
     <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 text-black relative z-20">
-      {/* Profile panel spans full width when discordId is available */}
-      {discordId && (
-        <div className="col-span-full">
-          <PlayerProfilePanel discordId={discordId} username={username} avatarUrl={avatarUrl} />
-        </div>
-      )}
       {/* Create Room Panel */}
       <div className="bg-green-100 p-8 rounded-xl shadow-lg border border-green-300">
         <h2 className="text-2xl font-bold text-green-900 mb-6">Create New Game</h2>
@@ -187,8 +195,16 @@ export const Lobby: React.FC<LobbyProps> = ({ discordId, username = '', avatarUr
         </form>
       </div>
 
-      {/* Join Room Panel */}
+      {/* Right column: auth/profile + join + public rooms */}
       <div className="flex flex-col space-y-6">
+        {/* Login / profile panel — always shown in browser mode */}
+        <LoginPanel />
+
+        {/* Expanded profile stats when logged in */}
+        {discordId && (
+          <PlayerProfilePanel discordId={discordId} username={username} avatarUrl={avatarUrl} />
+        )}
+
         {/* Join by Code */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Join Private Game</h2>

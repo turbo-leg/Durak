@@ -47,17 +47,19 @@ app.post('/api/token', async (req, res) => {
       return;
     }
 
+    const params: Record<string, string> = {
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code: code,
+    };
+    // Browser OAuth sends redirect_uri; embedded SDK flow does not
+    if (req.body.redirect_uri) params.redirect_uri = String(req.body.redirect_uri);
+
     const response = await fetch('https://discord.com/api/oauth2/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code: code,
-      }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params),
     });
 
     const data = await response.json();
