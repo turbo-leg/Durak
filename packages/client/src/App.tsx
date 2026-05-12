@@ -20,7 +20,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
         ? `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.png?size=128`
         : `https://cdn.discordapp.com/embed/avatars/${parseInt(userId || '0') % 5}.png`;
 
-      autoJoinDiscordRoom(discordSdk.instanceId, username, avatarUrl);
+      autoJoinDiscordRoom(discordSdk.instanceId, username, avatarUrl, userId);
     }
   }, [discordAuth, isConnected, room, autoJoinDiscordRoom]);
 
@@ -85,7 +85,15 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
               </div>
             </div>
           ) : (
-            <Lobby />
+            <Lobby
+              discordId={discordAuth?.user.id}
+              username={discordAuth?.user.global_name || discordAuth?.user.username}
+              avatarUrl={
+                discordAuth?.user.avatar
+                  ? `https://cdn.discordapp.com/avatars/${discordAuth.user.id}/${discordAuth.user.avatar}.png?size=128`
+                  : undefined
+              }
+            />
           )
         ) : (
           <GameBoard />

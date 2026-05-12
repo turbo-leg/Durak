@@ -9,6 +9,8 @@ import fs from 'fs';
 import { DurakRoom } from './src/rooms/DurakRoom';
 import 'dotenv/config'; // Load environment variables from .env
 import mongoose from 'mongoose';
+import { PlayerProfile } from './src/models/PlayerProfile';
+import { GameLog } from './src/models/GameLog';
 
 if (process.env.MONGO_URI) {
   mongoose
@@ -70,6 +72,37 @@ app.post('/api/token', async (req, res) => {
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
+
+// ── Profile API ─────────────────────────────────────────────────────────────
+
+app.get('/api/profile/:discordId', async (req, res) => {
+  try {
+    const profile = await PlayerProfile.findOne({ discordId: req.params.discordId }).lean();
+    if (!profile) {
+      res.status(404).json({ error: 'Profile not found' });
+      return;
+    }
+    res.json(profile);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/history/:discordId', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10), 100);
+    const logs = await GameLog.find({ discordIds: req.params.discordId })
+      .sort({ date: -1 })
+      .limit(limit)
+      .select('-actionLog') // exclude verbose action log from list view
+      .lean();
+    res.json(logs);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 
 const server = http.createServer(app);
 const gameServer = new Server({

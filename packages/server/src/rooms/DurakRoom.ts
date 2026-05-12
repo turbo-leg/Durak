@@ -2,6 +2,7 @@ import { Room, Client } from 'colyseus';
 import { GameState, DurakEngine, Card, Player } from '@durak/shared';
 
 import { GameLog } from '../models/GameLog';
+import { PlayerProfile } from '../models/PlayerProfile';
 import mongoose from 'mongoose';
 import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
 
@@ -279,6 +280,8 @@ export class DurakRoom extends Room<GameState> {
       player.username = String(options.username).trim().slice(0, MAX_USERNAME_LEN);
     if (options.avatarUrl)
       player.avatarUrl = String(options.avatarUrl).trim().slice(0, MAX_AVATAR_URL_LEN);
+    if (options.discordId)
+      player.discordId = String(options.discordId).trim().slice(0, MAX_SHORT_STRING_LEN);
 
     // First player is host
     if (this.state.players.size === 0) {
@@ -1012,20 +1015,47 @@ export class DurakRoom extends Room<GameState> {
 
   private async saveGameLog() {
     try {
-      // Only attempt to save if mongoose has an active connection (i.e. MONGO_URI is set)
-      if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
-        const log = new GameLog({
-          roomId: this.roomId,
-          mode: this.state.mode,
-          players: Array.from(this.state.players.keys()),
-          winners: Array.from(this.state.winners),
-          durak: this.state.loser,
-          huzurSetting: this.state.huzurSuit,
-          actionLog: Array.from(this.state.actionLog),
+      if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) return;
+
+      const sessionIds = Array.from(this.state.players.keys());
+      const players = sessionIds.map((id) => this.state.players.get(id)!);
+      const discordIds = players.map((p) => p?.discordId ?? '');
+      const winnerSessions = Array.from(this.state.winners);
+
+      const log = new GameLog({
+        roomId: this.roomId,
+        mode: this.state.mode,
+        players: sessionIds,
+        discordIds,
+        winners: winnerSessions,
+        durak: this.state.loser,
+        huzurSetting: this.state.huzurSuit,
+        actionLog: Array.from(this.state.actionLog),
+      });
+      await log.save();
+      console.log(`Saved GameLog to MongoDB for room ${this.roomId}`);
+
+      // Upsert a PlayerProfile for every Discord-authenticated participant
+      const profileOps = players
+        .filter((p) => p?.discordId)
+        .map((p) => {
+          const isWinner = winnerSessions.includes(p.id);
+          const isDurak = this.state.loser === p.id;
+          return PlayerProfile.findOneAndUpdate(
+            { discordId: p.discordId },
+            {
+              $set: { username: p.username, avatarUrl: p.avatarUrl },
+              $inc: {
+                'stats.gamesPlayed': 1,
+                'stats.wins': isWinner ? 1 : 0,
+                'stats.losses': isDurak ? 1 : 0,
+                'stats.durakCount': isDurak ? 1 : 0,
+              },
+            },
+            { upsert: true, new: true },
+          );
         });
-        await log.save();
-        console.log(`Saved GameLog to MongoDB for room ${this.roomId}`);
-      }
+      await Promise.all(profileOps);
     } catch (e) {
       console.error('Failed to save GameLog to MongoDB:', e);
     }

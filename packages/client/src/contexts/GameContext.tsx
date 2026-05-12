@@ -34,11 +34,16 @@ interface GameContextState {
   discardedCards: DiscardedCard[] | null;
   clearDiscardedCards: () => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
-  joinGame: (roomId: string) => Promise<void>;
+  joinGame: (roomId: string, discordId?: string) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
-  autoJoinDiscordRoom: (instanceId: string, username: string, avatarUrl: string) => Promise<void>;
+  autoJoinDiscordRoom: (
+    instanceId: string,
+    username: string,
+    avatarUrl: string,
+    discordId?: string,
+  ) => Promise<void>;
   updateLobbySettings: (settings: Partial<GameState>) => void;
   startLobbyGame: () => void;
   serverTimeOffset: number;
@@ -267,9 +272,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const joinGame = async (roomId: string) => {
+  const joinGame = async (roomId: string, discordId?: string) => {
     try {
-      const roomInstance = await client.joinById<GameState>(roomId);
+      const roomInstance = await client.joinById<GameState>(roomId, discordId ? { discordId } : {});
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error joining room:', e);
@@ -296,12 +301,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     discordInstanceId: string,
     username: string,
     avatarUrl: string,
+    discordId?: string,
   ) => {
     try {
       const roomInstance = await client.joinOrCreate<GameState>('durak', {
         discordInstanceId,
         username,
         avatarUrl,
+        ...(discordId ? { discordId } : {}),
       });
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {

@@ -7,6 +7,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
 import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
+import { PlayerProfilePanel } from './PlayerProfilePanel';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -506,6 +507,17 @@ export const GameBoard: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* Profile panel — shown when player has a Discord account */}
+            {myPlayer?.discordId && (
+              <div className="shrink-0 mb-3">
+                <PlayerProfilePanel
+                  discordId={myPlayer.discordId}
+                  username={myPlayer.username}
+                  avatarUrl={myPlayer.avatarUrl}
+                />
+              </div>
+            )}
 
             {/* Action buttons pinned at bottom */}
             <div className="shrink-0 pt-3 border-t border-white/10 mt-2">

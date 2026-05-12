@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import type { RoomAvailable } from 'colyseus.js';
+import { PlayerProfilePanel } from './PlayerProfilePanel';
 
 const getAvailablePlayers = (mode: string) => {
   return mode === 'teams' ? [4, 6] : [2, 3, 4, 5, 6];
@@ -14,7 +15,13 @@ const getAvailableHandSizes = (mode: string, players: number) => {
   }
 };
 
-export const Lobby: React.FC = () => {
+interface LobbyProps {
+  discordId?: string;
+  username?: string;
+  avatarUrl?: string;
+}
+
+export const Lobby: React.FC<LobbyProps> = ({ discordId, username = '', avatarUrl = '' }) => {
   const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
@@ -57,12 +64,18 @@ export const Lobby: React.FC = () => {
     e.preventDefault();
     if (!joinCode.trim()) return;
     setIsLoading(true);
-    await joinGame(joinCode.trim());
+    await joinGame(joinCode.trim(), discordId);
     setIsLoading(false);
   };
 
   return (
     <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 text-black relative z-20">
+      {/* Profile panel spans full width when discordId is available */}
+      {discordId && (
+        <div className="col-span-full">
+          <PlayerProfilePanel discordId={discordId} username={username} avatarUrl={avatarUrl} />
+        </div>
+      )}
       {/* Create Room Panel */}
       <div className="bg-green-100 p-8 rounded-xl shadow-lg border border-green-300">
         <h2 className="text-2xl font-bold text-green-900 mb-6">Create New Game</h2>
@@ -243,7 +256,7 @@ export const Lobby: React.FC = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => joinGame(r.roomId)}
+                          onClick={() => joinGame(r.roomId, discordId)}
                           disabled={isLoading || isFull}
                           className="bg-green-100 text-green-800 hover:bg-green-200 font-bold px-4 py-2 rounded text-sm transition disabled:opacity-50"
                         >
