@@ -65,6 +65,9 @@ describe('E2E Durak Match', () => {
     defenderClient.send('defend', {
       cards: [{ suit: defenseCard.suit, rank: defenseCard.rank, isJoker: defenseCard.isJoker }],
     });
+    // Two patches: one for the intermediate defend state, one after endRound clears the table.
+    // The broadcast('roundDiscarded') mid-handler can cause CI to observe an intermediate patch.
+    await room.waitForNextPatch();
     await room.waitForNextPatch();
 
     // activeAttackCards should now be cleared / moved to table
