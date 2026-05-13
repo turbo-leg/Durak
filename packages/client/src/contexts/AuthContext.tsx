@@ -86,8 +86,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
       });
-      if (!tokenRes.ok) throw new Error('Token exchange failed');
-      const { access_token } = await tokenRes.json();
+      const tokenData = await tokenRes.json();
+      if (!tokenRes.ok) {
+        const msg = tokenData?.error_description || tokenData?.error || 'Token exchange failed';
+        throw new Error(msg);
+      }
+      const { access_token } = tokenData;
 
       const meRes = await fetch('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${access_token}` },
