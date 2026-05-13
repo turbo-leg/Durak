@@ -46,6 +46,7 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
 
     Promise.all([
