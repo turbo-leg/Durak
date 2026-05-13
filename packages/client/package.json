@@ -23,6 +23,7 @@
     "@capacitor/status-bar": "^8.0.2",
     "@discord/embedded-app-sdk": "^1.2.0",
     "@durak/shared": "*",
+    "@sentry/react": "^10.53.1",
     "@tailwindcss/vite": "^4.2.2",
     "colyseus.js": "^0.15.0",
     "framer-motion": "^12.38.0",

@@ -2,6 +2,7 @@ import { useGame } from './contexts/GameContext';
 import { useEffect, useState } from 'react';
 import { GameBoard } from './components/GameBoard';
 import { Lobby } from './components/Lobby';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
 import { useAuth } from './contexts/AuthContext';
 import './App.css';
@@ -93,16 +94,32 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
         )}
 
         {isReconnecting ? (
-          <div className="flex flex-col items-center justify-center h-64 space-y-4">
-            <div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+          <div
+            className="flex flex-col items-center justify-center h-64 space-y-4"
+            role="status"
+            aria-live="polite"
+            aria-label="Reconnecting to game..."
+          >
+            <div
+              className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"
+              aria-hidden="true"
+            ></div>
             <div className="text-yellow-400 font-bold animate-pulse uppercase tracking-widest text-sm">
               Reconnecting…
             </div>
           </div>
         ) : !isConnected ? (
           isEmbedded ? (
-            <div className="flex flex-col items-center justify-center h-64 space-y-4">
-              <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            <div
+              className="flex flex-col items-center justify-center h-64 space-y-4"
+              role="status"
+              aria-live="polite"
+              aria-label="Connecting to Discord..."
+            >
+              <div
+                className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"
+                aria-hidden="true"
+              ></div>
               <div className="text-green-400 font-bold animate-pulse uppercase tracking-widest text-sm">
                 Connecting to Discord
               </div>
@@ -152,14 +169,16 @@ function App() {
   }, []);
 
   return (
-    <>
-      {authError && (
-        <div className="bg-red-900/90 text-white p-2 text-center text-xs w-full fixed top-0 z-50">
-          Failed to connect to Discord Activity: {authError}
-        </div>
-      )}
-      <Game discordAuth={auth} />
-    </>
+    <ErrorBoundary>
+      <>
+        {authError && (
+          <div className="bg-red-900/90 text-white p-2 text-center text-xs w-full fixed top-0 z-50">
+            Failed to connect to Discord Activity: {authError}
+          </div>
+        )}
+        <Game discordAuth={auth} />
+      </>
+    </ErrorBoundary>
   );
 }
 

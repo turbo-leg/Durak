@@ -14,6 +14,8 @@ export type SuhuhDraw = { playerId: string; suit: string; rank: number; isJoker:
 export type SuhuhResult = { draws: SuhuhDraw[]; winnerId: string } | null;
 export type DiscardedCard = { suit: string; rank: number; isJoker: boolean };
 
+export type ConnectionStatus = 'connected' | 'reconnecting' | 'waiting_opponent';
+
 const RECONNECT_TOKEN_KEY = 'durak_reconnection_token';
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAYS = [500, 2000, 4000]; // ms per attempt
@@ -25,6 +27,8 @@ interface GameContextState {
   isConnected: boolean;
   isReconnecting: boolean;
   isSpectator: boolean;
+  connectionStatus: ConnectionStatus;
+  disconnectedOpponent: string | null;
   gameState: GameState | null;
   gameMessage: string | null;
   clearGameMessage: () => void;
@@ -56,6 +60,8 @@ const GameContext = createContext<GameContextState>({
   isConnected: false,
   isReconnecting: false,
   isSpectator: false,
+  connectionStatus: 'connected',
+  disconnectedOpponent: null,
   gameState: null,
   gameMessage: null,
   clearGameMessage: () => {},
@@ -106,6 +112,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isSpectator, setIsSpectator] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connected');
+  const [disconnectedOpponent, setDisconnectedOpponent] = useState<string | null>(null);
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
   const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
   const [discardedCards, setDiscardedCards] = useState<DiscardedCard[] | null>(null);
@@ -139,12 +147,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!token) return false;
 
     setIsReconnecting(true);
+    setConnectionStatus('reconnecting');
     for (let i = 0; i < MAX_RECONNECT_ATTEMPTS; i++) {
       await new Promise((res) => setTimeout(res, RECONNECT_DELAYS[i]));
       try {
         const newRoom = await clientRef.current.reconnect<GameState>(token);
         handleRoomEvents(newRoom);
         setIsReconnecting(false);
+        setConnectionStatus('connected');
         return true;
       } catch {
         // continue to next attempt
@@ -154,6 +164,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // All attempts exhausted
     sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     setIsReconnecting(false);
+    setConnectionStatus('connected');
     return false;
   };
 
@@ -189,6 +200,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     roomInstance.onMessage('clearDefenseSnapshot', () => {
       setDefenseSnapshot(null);
+    });
+
+    roomInstance.onMessage(
+      'playerDisconnected',
+      (data: { sessionId: string; username: string }) => {
+        // Only flag waiting-for-opponent if it's not our own session
+        if (data.sessionId !== roomInstance.sessionId) {
+          setDisconnectedOpponent(data.username);
+          setConnectionStatus('waiting_opponent');
+        }
+      },
+    );
+
+    roomInstance.onMessage('playerReconnected', (data: { sessionId: string }) => {
+      if (data.sessionId !== roomInstance.sessionId) {
+        setDisconnectedOpponent(null);
+        setConnectionStatus('connected');
+      }
     });
 
     roomInstance.onMessage('roundDiscarded', (data: { cards: DiscardedCard[] }) => {
@@ -239,6 +268,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsConnected(false);
       setRoom(null);
       setSuhuhResult(null);
+      setDisconnectedOpponent(null);
+      setConnectionStatus('connected');
 
       // Spectators don't have a reconnection token and don't need reconnect logic
       if (isSpectatorRef.current) {
@@ -363,6 +394,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isConnected,
         isReconnecting,
         isSpectator,
+        connectionStatus,
+        disconnectedOpponent,
         gameState,
         gameMessage,
         clearGameMessage,

@@ -51,9 +51,16 @@ export const Card: React.FC<CardProps> = ({
   const symbol = card.isJoker ? '★' : suitSymbols[card.suit];
   const name = rankNames[card.rank] || String(card.rank);
 
+  const cardLabel = card.isJoker ? `${name} Joker` : `${name} of ${card.suit}`;
+  const ariaLabel = onClick ? (isPlayable ? `Play ${cardLabel}` : cardLabel) : cardLabel;
+
   if (compact) {
     return (
-      <div
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-disabled={onClick && !isPlayable ? true : undefined}
+        disabled={onClick !== undefined && !isPlayable ? true : undefined}
         className={`
           relative w-12 h-[72px] bg-white rounded-md shadow border border-gray-300
           flex flex-col justify-between p-0.5 select-none text-[11px]
@@ -70,15 +77,19 @@ export const Card: React.FC<CardProps> = ({
           <div>{name}</div>
           <div className="-mt-0.5 text-xs">{symbol}</div>
         </div>
-      </div>
+      </button>
     );
   }
 
   return (
-    <div
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      aria-disabled={onClick && !isPlayable ? true : undefined}
+      disabled={onClick !== undefined && !isPlayable ? true : undefined}
       className={`
-        relative w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-36 bg-white rounded-lg shadow-md border border-gray-200 
-        flex flex-col justify-between p-1 md:p-2 select-none 
+        relative w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-36 bg-white rounded-lg shadow-md border border-gray-200
+        flex flex-col justify-between p-1 md:p-2 select-none
         transition-transform duration-200
         ${isPlayable ? 'cursor-pointer hover:-translate-y-4 hover:shadow-xl hover:ring-2 hover:ring-yellow-400' : 'opacity-90'}
         ${className}
@@ -103,6 +114,6 @@ export const Card: React.FC<CardProps> = ({
         <div>{name}</div>
         <div className="text-xl -mt-1">{symbol}</div>
       </div>
-    </div>
+    </button>
   );
 };
