@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/node';
 import { GameLog } from '../models/GameLog';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
+import { evaluateBadges } from '../utils/Badges';
 import mongoose from 'mongoose';
 import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
 
@@ -320,6 +321,7 @@ export class DurakRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       const displayName = player?.username || client.sessionId.slice(0, 6);
       this.broadcast('info', `${displayName} disconnected. Waiting up to 30s for reconnection...`);
+      this.broadcast('playerDisconnected', { sessionId: client.sessionId, username: displayName });
 
       // Schedule auto-pickup after 5s if it's their turn, so the game doesn't freeze
       let pickupTimer: NodeJS.Timeout | null = null;
@@ -339,6 +341,7 @@ export class DurakRoom extends Room<GameState> {
         await this.allowReconnection(client, 30);
         if (pickupTimer) clearTimeout(pickupTimer);
         this.broadcast('info', `${displayName} reconnected.`);
+        this.broadcast('playerReconnected', { sessionId: client.sessionId });
         return;
       } catch {
         if (pickupTimer) clearTimeout(pickupTimer);
@@ -1129,7 +1132,20 @@ export class DurakRoom extends Room<GameState> {
           { upsert: true, new: true },
         );
       });
-      await Promise.all(profileOps);
+      const updatedProfiles = await Promise.all(profileOps);
+
+      // Award any newly earned badges
+      const badgeOps = authedPlayers.map((p, i) => {
+        const updatedProfile = updatedProfiles[i];
+        if (!updatedProfile) return null;
+        const isWinner = winnerSessions.includes(p.id);
+        const newBadges = evaluateBadges(updatedProfile, isWinner);
+        if (newBadges.length === 0) return null;
+        return PlayerProfile.findByIdAndUpdate(updatedProfile._id, {
+          $addToSet: { badges: { $each: newBadges } },
+        });
+      });
+      await Promise.all(badgeOps.filter(Boolean));
     } catch (e) {
       Sentry.captureException(e);
       logger.error({ err: e }, 'Failed to save GameLog to MongoDB');

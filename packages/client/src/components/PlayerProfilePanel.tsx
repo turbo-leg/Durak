@@ -7,6 +7,26 @@ interface ProfileStats {
   durakCount: number;
 }
 
+interface BadgeDef {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+}
+
+const BADGES: BadgeDef[] = [
+  { id: 'first_win', name: 'First Blood', emoji: '🏆', description: 'Win your first game' },
+  {
+    id: 'survivor_5',
+    name: 'Survivor',
+    emoji: '🛡️',
+    description: 'Survive 5 games without being durak',
+  },
+  { id: 'durak_free', name: 'Clean Streak', emoji: '✨', description: 'Win 3 games in a row' },
+  { id: 'veteran', name: 'Veteran', emoji: '⚔️', description: 'Play 50 games' },
+  { id: 'champion', name: 'Champion', emoji: '👑', description: 'Reach 1200 ELO' },
+];
+
 interface Profile {
   _id: string;
   discordId: string;
@@ -15,6 +35,7 @@ interface Profile {
   stats: ProfileStats;
   eloClassic: number;
   eloTeams: number;
+  badges: string[];
   updatedAt: string;
 }
 
@@ -136,13 +157,21 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
           <button
             key={t}
             onClick={() => setTab(t)}
+            aria-label={t === 'leaderboard' ? 'Leaderboard' : undefined}
             className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
               tab === t
                 ? 'bg-indigo-600 text-white'
                 : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
             }`}
           >
-            {t === 'leaderboard' ? '🏆' : t}
+            {t === 'leaderboard' ? (
+              <>
+                <span aria-hidden="true">🏆</span>
+                <span className="sr-only">Leaderboard</span>
+              </>
+            ) : (
+              t
+            )}
           </button>
         ))}
       </div>
@@ -170,6 +199,7 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
                 <div className="text-indigo-400 text-xs mt-0.5">Teams ELO</div>
               </div>
             </div>
+            <BadgesSection earned={profile?.badges ?? []} />
           </div>
         ) : (
           <div className="text-indigo-400 text-sm text-center py-4">
@@ -239,6 +269,28 @@ const HistoryList: React.FC<{ history: MatchRecord[]; playerId: string }> = ({
           </div>
         );
       })}
+    </div>
+  );
+};
+
+const BadgesSection: React.FC<{ earned: string[] }> = ({ earned }) => {
+  const earnedBadges = BADGES.filter((b) => earned.includes(b.id));
+  if (earnedBadges.length === 0) return null;
+  return (
+    <div className="col-span-2 mt-1">
+      <div className="text-indigo-400 text-xs mb-1.5">Badges</div>
+      <div className="flex flex-wrap gap-1.5">
+        {earnedBadges.map((b) => (
+          <span
+            key={b.id}
+            title={b.description}
+            className="inline-flex items-center gap-1 bg-indigo-800/70 border border-indigo-600 rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+          >
+            <span>{b.emoji}</span>
+            <span>{b.name}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 };

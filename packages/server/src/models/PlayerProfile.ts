@@ -13,6 +13,7 @@ export interface IPlayerProfile extends mongoose.Document {
   };
   eloClassic: number;
   eloTeams: number;
+  badges: string[];
   updatedAt: Date;
 }
 
@@ -30,6 +31,7 @@ const PlayerProfileSchema = new mongoose.Schema(
     },
     eloClassic: { type: Number, default: 1000 },
     eloTeams: { type: Number, default: 1000 },
+    badges: { type: [String], default: [] },
   },
   { timestamps: true },
 );
