@@ -147,7 +147,7 @@ describe('Lobby component', () => {
       await user.click(joinButtons[0]!);
 
       await waitFor(() => {
-        expect(joinGame).toHaveBeenCalledWith('ABC123');
+        expect(joinGame).toHaveBeenCalledWith('ABC123', undefined, undefined);
       });
     });
 
@@ -179,7 +179,7 @@ describe('Lobby component', () => {
       await user.click(joinButtons[0]!);
 
       await waitFor(() => {
-        expect(joinGame).toHaveBeenCalledWith('XY99');
+        expect(joinGame).toHaveBeenCalledWith('XY99', undefined, undefined);
       });
     });
   });

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
 const STORAGE_KEY = 'durak_auth';
@@ -38,6 +38,7 @@ const AuthContext = createContext<AuthContextState>({
   handleOAuthCallback: async () => {},
 });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 function buildAvatarUrl(id: string, hash: string | null): string {
@@ -46,20 +47,19 @@ function buildAvatarUrl(id: string, hash: string | null): string {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [user, setUser] = useState<AuthUser | null>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        setUser(JSON.parse(saved));
+        return JSON.parse(saved) as AuthUser;
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, []);
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const persist = (u: AuthUser | null) => {
     if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
@@ -105,8 +105,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       window.history.replaceState({}, '', window.location.pathname);
-    } catch (e: any) {
-      setError(e.message || 'Discord login failed');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Discord login failed');
     } finally {
       setIsLoading(false);
     }
@@ -133,8 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: data.user.email,
         token: data.token,
       });
-    } catch (e: any) {
-      setError(e.message || 'Login failed');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Login failed');
       throw e;
     } finally {
       setIsLoading(false);
@@ -162,8 +162,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: data.user.email,
         token: data.token,
       });
-    } catch (e: any) {
-      setError(e.message || 'Registration failed');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Registration failed');
       throw e;
     } finally {
       setIsLoading(false);
