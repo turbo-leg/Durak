@@ -8,6 +8,7 @@ interface ProfileStats {
 }
 
 interface Profile {
+  _id: string;
   discordId: string;
   username: string;
   avatarUrl: string;
@@ -182,7 +183,7 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
           leaders={leaders}
           mode={leaderMode}
           onModeChange={setLeaderMode}
-          myId={id}
+          myProfileId={profile?._id}
         />
       )}
     </div>
@@ -246,8 +247,8 @@ const LeaderboardList: React.FC<{
   leaders: LeaderEntry[];
   mode: 'classic' | 'teams';
   onModeChange: (m: 'classic' | 'teams') => void;
-  myId: string;
-}> = ({ leaders, mode, onModeChange, myId }) => (
+  myProfileId?: string;
+}> = ({ leaders, mode, onModeChange, myProfileId }) => (
   <div>
     <div className="flex gap-2 mb-3">
       {(['classic', 'teams'] as const).map((m) => (
@@ -270,7 +271,7 @@ const LeaderboardList: React.FC<{
       <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
         {leaders.map((p, i) => {
           const elo = mode === 'classic' ? p.eloClassic : p.eloTeams;
-          const isMe = p._id === myId || p.username === myId;
+          const isMe = !!myProfileId && p._id === myProfileId;
           return (
             <div
               key={p._id}

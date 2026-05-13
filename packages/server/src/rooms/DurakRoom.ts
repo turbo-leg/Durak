@@ -1065,27 +1065,31 @@ export class DurakRoom extends Room<GameState> {
 
       const eloDeltas = calculateEloDeltas(eloInputs);
 
-      const profileOps = authedPlayers.map((p, i) => {
+      const profileOps = authedPlayers.map((p) => {
         const isWinner = winnerSessions.includes(p.id);
         const isDurak = this.state.loser === p.id;
         const delta = eloDeltas.get(p.id) ?? 0;
-        const currentElo = eloInputs[i].currentElo;
-        const newElo = Math.max(100, currentElo + delta);
         const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
         const setFields = p.discordId
           ? { discordId: p.discordId, username: p.username, avatarUrl: p.avatarUrl }
           : { userId: p.userId, username: p.username, avatarUrl: p.avatarUrl };
+        // Aggregation pipeline update so Elo is computed atomically in the DB:
+        // max(100, storedElo + delta) prevents JS read-modify-write races when
+        // a player finishes two concurrent games in different rooms.
         return PlayerProfile.findOneAndUpdate(
           filter,
-          {
-            $set: { ...setFields, [eloField]: newElo },
-            $inc: {
-              'stats.gamesPlayed': 1,
-              'stats.wins': isWinner ? 1 : 0,
-              'stats.losses': isDurak ? 1 : 0,
-              'stats.durakCount': isDurak ? 1 : 0,
+          [
+            {
+              $set: {
+                ...setFields,
+                [eloField]: { $max: [100, { $add: [`$${eloField}`, delta] }] },
+                'stats.gamesPlayed': { $add: ['$stats.gamesPlayed', 1] },
+                'stats.wins': { $add: ['$stats.wins', isWinner ? 1 : 0] },
+                'stats.losses': { $add: ['$stats.losses', isDurak ? 1 : 0] },
+                'stats.durakCount': { $add: ['$stats.durakCount', isDurak ? 1 : 0] },
+              },
             },
-          },
+          ],
           { upsert: true, new: true },
         );
       });

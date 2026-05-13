@@ -34,4 +34,8 @@ const PlayerProfileSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Compound indexes to cover leaderboard query: filter by gamesPlayed, sort by elo
+PlayerProfileSchema.index({ 'stats.gamesPlayed': 1, eloClassic: -1 });
+PlayerProfileSchema.index({ 'stats.gamesPlayed': 1, eloTeams: -1 });
+
 export const PlayerProfile = mongoose.model<IPlayerProfile>('PlayerProfile', PlayerProfileSchema);
