@@ -194,6 +194,21 @@ app.get('/api/profile/:id', async (req, res) => {
   }
 });
 
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const mode = req.query.mode === 'teams' ? 'eloTeams' : 'eloClassic';
+    const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10), 50);
+    const leaders = await PlayerProfile.find({ 'stats.gamesPlayed': { $gte: 1 } })
+      .sort({ [mode]: -1 })
+      .limit(limit)
+      .select('username avatarUrl eloClassic eloTeams stats.gamesPlayed')
+      .lean();
+    res.json(leaders);
+  } catch (e: unknown) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Server error' });
+  }
+});
+
 app.get('/api/history/:id', async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10), 100);

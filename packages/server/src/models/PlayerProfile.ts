@@ -11,6 +11,8 @@ export interface IPlayerProfile extends mongoose.Document {
     losses: number;
     durakCount: number;
   };
+  eloClassic: number;
+  eloTeams: number;
   updatedAt: Date;
 }
 
@@ -26,6 +28,8 @@ const PlayerProfileSchema = new mongoose.Schema(
       losses: { type: Number, default: 0 },
       durakCount: { type: Number, default: 0 },
     },
+    eloClassic: { type: Number, default: 1000 },
+    eloTeams: { type: Number, default: 1000 },
   },
   { timestamps: true },
 );

@@ -12,6 +12,8 @@ interface Profile {
   username: string;
   avatarUrl: string;
   stats: ProfileStats;
+  eloClassic: number;
+  eloTeams: number;
   updatedAt: string;
 }
 
@@ -23,6 +25,15 @@ interface MatchRecord {
   discordIds: string[];
   winners: string[];
   durak: string | null;
+}
+
+interface LeaderEntry {
+  _id: string;
+  username: string;
+  avatarUrl: string;
+  eloClassic: number;
+  eloTeams: number;
+  stats: { gamesPlayed: number };
 }
 
 interface Props {
@@ -37,8 +48,10 @@ const API = '/api';
 export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarUrl, username }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<MatchRecord[]>([]);
+  const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'stats' | 'history'>('stats');
+  const [tab, setTab] = useState<'stats' | 'history' | 'leaderboard'>('stats');
+  const [leaderMode, setLeaderMode] = useState<'classic' | 'teams'>('classic');
 
   const id = discordId ?? userId ?? '';
   const byParam = userId && !discordId ? '&by=user' : '';
@@ -70,9 +83,26 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
     };
   }, [discordId]);
 
+  useEffect(() => {
+    if (tab !== 'leaderboard') return;
+    let cancelled = false;
+    fetch(`${API}/leaderboard?mode=${leaderMode}&limit=10`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (!cancelled) setLeaders(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setLeaders([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, leaderMode]);
+
   const stats = profile?.stats;
   const winRate =
     stats && stats.gamesPlayed > 0 ? Math.round((stats.wins / stats.gamesPlayed) * 100) : 0;
+  const elo = profile?.eloClassic ?? 1000;
 
   return (
     <div className="bg-indigo-950 border border-indigo-700 rounded-xl p-5 text-white">
@@ -91,13 +121,17 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
         )}
         <div>
           <div className="font-bold text-lg leading-tight">{username}</div>
-          <div className="text-indigo-400 text-xs">Discord Player</div>
+          {profile && (
+            <div className="text-yellow-400 text-xs font-semibold">
+              ★ {elo} <span className="text-indigo-400 font-normal">ELO</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
-        {(['stats', 'history'] as const).map((t) => (
+        {(['stats', 'history', 'leaderboard'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -107,12 +141,12 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
                 : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
             }`}
           >
-            {t}
+            {t === 'leaderboard' ? '🏆' : t}
           </button>
         ))}
       </div>
 
-      {loading ? (
+      {loading && tab !== 'leaderboard' ? (
         <div className="text-indigo-400 text-sm text-center py-4 animate-pulse">Loading...</div>
       ) : tab === 'stats' ? (
         stats ? (
@@ -121,14 +155,35 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
             <StatCard label="Win Rate" value={`${winRate}%`} highlight={winRate >= 50} />
             <StatCard label="Wins" value={stats.wins} highlight />
             <StatCard label="Durak" value={stats.durakCount} dim />
+            <div className="col-span-2 bg-indigo-900/60 rounded-lg p-3 flex justify-between items-center">
+              <div>
+                <div className="text-yellow-400 font-bold text-xl">
+                  ★ {profile?.eloClassic ?? 1000}
+                </div>
+                <div className="text-indigo-400 text-xs mt-0.5">Classic ELO</div>
+              </div>
+              <div className="text-right">
+                <div className="text-yellow-400 font-bold text-xl">
+                  ★ {profile?.eloTeams ?? 1000}
+                </div>
+                <div className="text-indigo-400 text-xs mt-0.5">Teams ELO</div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="text-indigo-400 text-sm text-center py-4">
             No stats yet — play a game to get started.
           </div>
         )
-      ) : (
+      ) : tab === 'history' ? (
         <HistoryList history={history} playerId={id} />
+      ) : (
+        <LeaderboardList
+          leaders={leaders}
+          mode={leaderMode}
+          onModeChange={setLeaderMode}
+          myId={id}
+        />
       )}
     </div>
   );
@@ -186,3 +241,50 @@ const HistoryList: React.FC<{ history: MatchRecord[]; playerId: string }> = ({
     </div>
   );
 };
+
+const LeaderboardList: React.FC<{
+  leaders: LeaderEntry[];
+  mode: 'classic' | 'teams';
+  onModeChange: (m: 'classic' | 'teams') => void;
+  myId: string;
+}> = ({ leaders, mode, onModeChange, myId }) => (
+  <div>
+    <div className="flex gap-2 mb-3">
+      {(['classic', 'teams'] as const).map((m) => (
+        <button
+          key={m}
+          onClick={() => onModeChange(m)}
+          className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
+            mode === m
+              ? 'bg-yellow-600 text-white'
+              : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
+          }`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+    {leaders.length === 0 ? (
+      <div className="text-indigo-400 text-sm text-center py-4">No ranked players yet.</div>
+    ) : (
+      <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+        {leaders.map((p, i) => {
+          const elo = mode === 'classic' ? p.eloClassic : p.eloTeams;
+          const isMe = p._id === myId || p.username === myId;
+          return (
+            <div
+              key={p._id}
+              className={`flex items-center gap-2 px-3 py-2 rounded text-xs ${
+                isMe ? 'bg-yellow-900/40 border border-yellow-700' : 'bg-indigo-900/50'
+              }`}
+            >
+              <span className="text-indigo-500 w-4 text-right shrink-0">{i + 1}</span>
+              <span className="flex-1 font-semibold truncate">{p.username}</span>
+              <span className="text-yellow-400 font-bold">★ {elo}</span>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);

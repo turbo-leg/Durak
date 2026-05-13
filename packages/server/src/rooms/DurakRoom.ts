@@ -3,6 +3,7 @@ import { GameState, DurakEngine, Card, Player } from '@durak/shared';
 
 import { GameLog } from '../models/GameLog';
 import { PlayerProfile } from '../models/PlayerProfile';
+import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import mongoose from 'mongoose';
 import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
 
@@ -1039,29 +1040,55 @@ export class DurakRoom extends Room<GameState> {
       console.log(`Saved GameLog to MongoDB for room ${this.roomId}`);
 
       // Upsert PlayerProfile for every authenticated participant (Discord or email)
-      const profileOps = players
-        .filter((p) => p?.discordId || p?.userId)
-        .map((p) => {
-          const isWinner = winnerSessions.includes(p.id);
-          const isDurak = this.state.loser === p.id;
+      const authedPlayers = players.filter((p) => p?.discordId || p?.userId);
+      const eloField = this.state.mode === 'teams' ? 'eloTeams' : 'eloClassic';
+
+      // Fetch current profiles so we can compute Elo deltas
+      const currentProfiles = await Promise.all(
+        authedPlayers.map((p) => {
           const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
-          const setFields = p.discordId
-            ? { discordId: p.discordId, username: p.username, avatarUrl: p.avatarUrl }
-            : { userId: p.userId, username: p.username, avatarUrl: p.avatarUrl };
-          return PlayerProfile.findOneAndUpdate(
-            filter,
-            {
-              $set: setFields,
-              $inc: {
-                'stats.gamesPlayed': 1,
-                'stats.wins': isWinner ? 1 : 0,
-                'stats.losses': isDurak ? 1 : 0,
-                'stats.durakCount': isDurak ? 1 : 0,
-              },
+          return PlayerProfile.findOne(filter);
+        }),
+      );
+
+      const eloInputs: EloPlayer[] = authedPlayers.map((p, i) => {
+        const prof = currentProfiles[i];
+        const isWinner = winnerSessions.includes(p.id);
+        const isDurak = this.state.loser === p.id;
+        return {
+          id: p.id,
+          currentElo: prof?.[eloField] ?? 1000,
+          gamesPlayed: prof?.stats.gamesPlayed ?? 0,
+          placement: isWinner ? 'winner' : isDurak ? 'durak' : 'middle',
+        };
+      });
+
+      const eloDeltas = calculateEloDeltas(eloInputs);
+
+      const profileOps = authedPlayers.map((p, i) => {
+        const isWinner = winnerSessions.includes(p.id);
+        const isDurak = this.state.loser === p.id;
+        const delta = eloDeltas.get(p.id) ?? 0;
+        const currentElo = eloInputs[i].currentElo;
+        const newElo = Math.max(100, currentElo + delta);
+        const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
+        const setFields = p.discordId
+          ? { discordId: p.discordId, username: p.username, avatarUrl: p.avatarUrl }
+          : { userId: p.userId, username: p.username, avatarUrl: p.avatarUrl };
+        return PlayerProfile.findOneAndUpdate(
+          filter,
+          {
+            $set: { ...setFields, [eloField]: newElo },
+            $inc: {
+              'stats.gamesPlayed': 1,
+              'stats.wins': isWinner ? 1 : 0,
+              'stats.losses': isDurak ? 1 : 0,
+              'stats.durakCount': isDurak ? 1 : 0,
             },
-            { upsert: true, new: true },
-          );
-        });
+          },
+          { upsert: true, new: true },
+        );
+      });
       await Promise.all(profileOps);
     } catch (e) {
       console.error('Failed to save GameLog to MongoDB:', e);
