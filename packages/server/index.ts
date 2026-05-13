@@ -16,9 +16,19 @@ import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
 
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
-  console.error('FATAL: JWT_SECRET must be set in production');
-  process.exit(1);
+const JWT_PLACEHOLDERS = new Set([
+  'durak-dev-secret-change-in-prod',
+  'change-me-in-production',
+  'secret',
+  '',
+]);
+if (process.env.NODE_ENV === 'production') {
+  if (!JWT_SECRET || JWT_PLACEHOLDERS.has(JWT_SECRET)) {
+    console.error(
+      'FATAL: JWT_SECRET is missing or uses a known insecure placeholder in production',
+    );
+    process.exit(1);
+  }
 }
 const _JWT_SECRET = JWT_SECRET ?? 'durak-dev-secret-change-in-prod';
 
