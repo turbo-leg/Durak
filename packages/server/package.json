@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@colyseus/monitor": "^0.15.0",
+    "@colyseus/redis-driver": "^0.15.0",
+    "@colyseus/redis-presence": "^0.15.0",
     "@durak/shared": "*",
     "bcryptjs": "^3.0.3",
     "colyseus": "^0.15.0",
