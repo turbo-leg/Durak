@@ -11,11 +11,17 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
     useGame();
   const { user: browserAuth, handleOAuthCallback } = useAuth();
 
-  // Handle Discord OAuth callback (?code=...) for browser login
+  // Handle Discord OAuth callback (?code=... or ?error=...) for browser login
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
-    if (code && !isEmbedded) {
+    const oauthError = params.get('error');
+    if (!isEmbedded && oauthError) {
+      // Discord returned an error (e.g. user denied, invalid redirect URI)
+      const desc = params.get('error_description') ?? oauthError;
+      console.error('Discord OAuth error:', desc);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (code && !isEmbedded) {
       void handleOAuthCallback(code);
     }
   }, [handleOAuthCallback]);
