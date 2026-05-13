@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@colyseus/monitor": "^0.15.0",
+    "@colyseus/redis-driver": "^0.15.0",
+    "@colyseus/redis-presence": "^0.15.0",
     "@durak/shared": "*",
     "colyseus": "^0.15.0",
     "cors": "^2.8.5",
