@@ -12,17 +12,21 @@
   "dependencies": {
     "@colyseus/monitor": "^0.15.0",
     "@durak/shared": "*",
+    "bcryptjs": "^3.0.3",
     "colyseus": "^0.15.0",
     "cors": "^2.8.5",
     "dotenv": "^8.6.0",
     "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.0",
     "openai": "^6.37.0"
   },
   "devDependencies": {
     "@colyseus/testing": "^0.15.4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",

@@ -15,7 +15,12 @@ import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'durak-dev-secret-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: JWT_SECRET must be set in production');
+  process.exit(1);
+}
+const _JWT_SECRET = JWT_SECRET ?? 'durak-dev-secret-change-in-prod';
 
 if (process.env.MONGO_URI) {
   mongoose
@@ -107,7 +112,7 @@ app.post('/api/auth/register', async (req, res) => {
       username: username.trim().slice(0, 32),
     });
 
-    const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: user._id.toString() }, _JWT_SECRET, { expiresIn: '30d' });
     res.status(201).json({
       token,
       user: {
@@ -137,7 +142,7 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
-    const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: user._id.toString() }, _JWT_SECRET, { expiresIn: '30d' });
     res.json({
       token,
       user: {
@@ -160,7 +165,7 @@ app.get('/api/auth/me', async (req, res) => {
       res.status(401).json({ error: 'Missing token' });
       return;
     }
-    const payload = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
+    const payload = jwt.verify(auth.slice(7), _JWT_SECRET) as { userId: string };
     const user = await User.findById(payload.userId).select('-passwordHash');
     if (!user) {
       res.status(404).json({ error: 'User not found' });
