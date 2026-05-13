@@ -1,11 +1,19 @@
 import { Room, Client } from 'colyseus';
 import { GameState, DurakEngine, Card, Player } from '@durak/shared';
+import pino from 'pino';
+import * as Sentry from '@sentry/node';
 
 import { GameLog } from '../models/GameLog';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import mongoose from 'mongoose';
 import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
+
+const logger = pino(
+  process.env.NODE_ENV !== 'production'
+    ? { transport: { target: 'pino-pretty' } }
+    : { level: process.env.LOG_LEVEL ?? 'info' },
+);
 
 const RATE_LIMIT_MAX = 10; // messages per window
 const RATE_LIMIT_WINDOW_MS = 1000;
@@ -267,7 +275,7 @@ export class DurakRoom extends Room<GameState> {
   }
 
   onJoin(client: Client, options: any) {
-    console.log(client.sessionId, 'joined!');
+    logger.info({ sessionId: client.sessionId }, 'client joined');
 
     if (options?.spectator) {
       this.spectators.add(client.sessionId);
@@ -296,7 +304,7 @@ export class DurakRoom extends Room<GameState> {
   }
 
   async onLeave(client: Client, consented: boolean) {
-    console.log(client.sessionId, 'left!', consented ? '(consented)' : '(unexpected)');
+    logger.info({ sessionId: client.sessionId, consented }, 'client left');
     this.rateLimitMap.delete(client.sessionId);
 
     if (this.spectators.has(client.sessionId)) {
@@ -665,13 +673,23 @@ export class DurakRoom extends Room<GameState> {
 
       const activeLen = this.state.activeAttackCards.length;
       const handLen = this.state.players.get(playerId)?.hand.length ?? 0;
-      console.log(
-        `[Bot ${playerId.slice(0, 8)}] firing: role=${activeLen > 0 ? 'DEFEND' : 'ATTACK'} activeAttacks=${activeLen} hand=${handLen}`,
+      logger.info(
+        {
+          botId: playerId.slice(0, 8),
+          role: activeLen > 0 ? 'DEFEND' : 'ATTACK',
+          activeAttacks: activeLen,
+          hand: handLen,
+        },
+        'bot firing',
       );
 
       const move = await openAIBot.think(this.state, playerId, difficulty);
-      console.log(
-        `[Bot ${playerId.slice(0, 8)}] chose: ${move ? `${move.action} cards=${JSON.stringify(move.cards)}` : 'null'}`,
+      logger.info(
+        {
+          botId: playerId.slice(0, 8),
+          move: move ? { action: move.action, cards: move.cards } : null,
+        },
+        'bot chose move',
       );
       if (!move) return;
       if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
@@ -679,7 +697,7 @@ export class DurakRoom extends Room<GameState> {
       const fakeClient = {
         sessionId: playerId,
         send: (type: string, msg: string) =>
-          console.log(`[Bot ${playerId.slice(0, 8)}] server error: ${type} ${msg}`),
+          logger.error({ botId: playerId.slice(0, 8), type, msg }, 'bot server error'),
       } as unknown as Client;
       if (move.action === 'attack') this.handleAttack(fakeClient, { cards: move.cards });
       else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
@@ -1015,6 +1033,20 @@ export class DurakRoom extends Room<GameState> {
     }
   }
 
+  async onDispose() {
+    if (this.turnTimeoutId) {
+      clearInterval(this.turnTimeoutId);
+      this.turnTimeoutId = null;
+    }
+    if (this.state.phase === 'playing') {
+      try {
+        await this.saveGameLog();
+      } catch (e) {
+        logger.error({ err: e }, 'onDispose: failed to persist game state');
+      }
+    }
+  }
+
   private async saveGameLog() {
     try {
       if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) return;
@@ -1037,7 +1069,7 @@ export class DurakRoom extends Room<GameState> {
         actionLog: Array.from(this.state.actionLog),
       });
       await log.save();
-      console.log(`Saved GameLog to MongoDB for room ${this.roomId}`);
+      logger.info({ roomId: this.roomId }, 'GameLog saved to MongoDB');
 
       // Upsert PlayerProfile for every authenticated participant (Discord or email)
       const authedPlayers = players.filter((p) => p?.discordId || p?.userId);
@@ -1095,7 +1127,8 @@ export class DurakRoom extends Room<GameState> {
       });
       await Promise.all(profileOps);
     } catch (e) {
-      console.error('Failed to save GameLog to MongoDB:', e);
+      Sentry.captureException(e);
+      logger.error({ err: e }, 'Failed to save GameLog to MongoDB');
     }
   }
 }
