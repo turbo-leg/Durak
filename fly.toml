@@ -6,6 +6,8 @@ primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
+  [build.args]
+    VITE_DISCORD_CLIENT_ID = ""
 
 [env]
   PORT = "2567"

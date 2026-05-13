@@ -76,9 +76,18 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
-// Issue #69: Allow Discord to embed this application in an iframe
 app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy', 'frame-ancestors *');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // API routes don't need iframe embedding
+  if (req.path.startsWith('/api') || req.path.startsWith('/matchmake')) {
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  } else {
+    // Allow Discord and localhost to embed the Activity
+    res.setHeader(
+      'Content-Security-Policy',
+      'frame-ancestors https://*.discord.com https://discord.com http://localhost:*',
+    );
+  }
   res.setHeader('Access-Control-Allow-Origin', '*');
   next();
 });
@@ -136,8 +145,8 @@ app.post('/api/auth/register', async (req, res) => {
       res.status(400).json({ error: 'email, password, and username are required' });
       return;
     }
-    if (password.length < 6) {
-      res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
       return;
     }
 

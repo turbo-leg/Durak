@@ -1,6 +1,11 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
-const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
+const clientId: string = import.meta.env.VITE_DISCORD_CLIENT_ID;
+if (!clientId) {
+  console.error(
+    'VITE_DISCORD_CLIENT_ID is not set — Discord auth will not work. Add it to packages/client/.env.local',
+  );
+}
 
 export const isEmbedded =
   window.location.search.includes('frame_id') || document.referrer.includes('discord.com');
