@@ -6,7 +6,7 @@ import * as Sentry from '@sentry/node';
 import { GameLog } from '../models/GameLog';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
-import { evaluateBadges } from '../utils/Badges';
+import { evaluateBadges, BADGES } from '../utils/Badges';
 import mongoose from 'mongoose';
 import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
 
@@ -1126,6 +1126,12 @@ export class DurakRoom extends Room<GameState> {
                 'stats.wins': { $add: ['$stats.wins', isWinner ? 1 : 0] },
                 'stats.losses': { $add: ['$stats.losses', isDurak ? 1 : 0] },
                 'stats.durakCount': { $add: ['$stats.durakCount', isDurak ? 1 : 0] },
+                'stats.winStreak': isWinner
+                  ? { $add: [{ $ifNull: ['$stats.winStreak', 0] }, 1] }
+                  : 0,
+                'stats.durakFreeStreak': isDurak
+                  ? 0
+                  : { $add: [{ $ifNull: ['$stats.durakFreeStreak', 0] }, 1] },
               },
             },
           ],
@@ -1135,20 +1141,39 @@ export class DurakRoom extends Room<GameState> {
       const updatedProfiles = await Promise.all(profileOps);
 
       // Award any newly earned badges
+      const badgeResults: { playerName: string; newBadges: string[] }[] = [];
       const badgeOps = authedPlayers.map((p, i) => {
         const updatedProfile = updatedProfiles[i];
         if (!updatedProfile) return null;
         const isWinner = winnerSessions.includes(p.id);
         const newBadges = evaluateBadges(updatedProfile, isWinner);
         if (newBadges.length === 0) return null;
+        badgeResults.push({ playerName: p.username, newBadges });
         return PlayerProfile.findByIdAndUpdate(updatedProfile._id, {
           $addToSet: { badges: { $each: newBadges } },
         });
       });
       await Promise.all(badgeOps.filter(Boolean));
+
+      for (const { playerName, newBadges } of badgeResults) {
+        this.notifyBadgeUnlocks(playerName, newBadges);
+      }
     } catch (e) {
       Sentry.captureException(e);
       logger.error({ err: e }, 'Failed to save GameLog to MongoDB');
     }
+  }
+
+  private notifyBadgeUnlocks(playerName: string, badgeIds: string[]): void {
+    const defs = badgeIds
+      .map((id) => BADGES.find((b) => b.id === id))
+      .filter(Boolean) as (typeof BADGES)[number][];
+    if (defs.length === 0) return;
+    const lines = defs.map((b) => `${b.emoji} **${b.name}** — ${b.description}`).join('\n');
+    this.broadcast('badgeUnlocked', {
+      playerName,
+      badges: defs.map((b) => b.id),
+      message: `${playerName} unlocked:\n${lines}`,
+    });
   }
 }
