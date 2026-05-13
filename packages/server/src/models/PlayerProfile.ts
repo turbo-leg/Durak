@@ -11,6 +11,8 @@ export interface IPlayerProfile extends mongoose.Document {
     losses: number;
     durakCount: number;
   };
+  eloClassic: number;
+  eloTeams: number;
   updatedAt: Date;
 }
 
@@ -26,8 +28,14 @@ const PlayerProfileSchema = new mongoose.Schema(
       losses: { type: Number, default: 0 },
       durakCount: { type: Number, default: 0 },
     },
+    eloClassic: { type: Number, default: 1000 },
+    eloTeams: { type: Number, default: 1000 },
   },
   { timestamps: true },
 );
+
+// Compound indexes to cover leaderboard query: filter by gamesPlayed, sort by elo
+PlayerProfileSchema.index({ 'stats.gamesPlayed': 1, eloClassic: -1 });
+PlayerProfileSchema.index({ 'stats.gamesPlayed': 1, eloTeams: -1 });
 
 export const PlayerProfile = mongoose.model<IPlayerProfile>('PlayerProfile', PlayerProfileSchema);
