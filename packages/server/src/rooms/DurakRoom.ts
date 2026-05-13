@@ -736,13 +736,17 @@ export class DurakRoom extends Room<GameState> {
 
   /** Returns true iff every card in `cards` is present in the player's hand (deduplication-aware). */
   private playerOwnsCards(player: Player, cards: Card[]): boolean {
-    const remaining = Array.from(player.hand)
-      .filter((c): c is Card => !!c)
-      .map((c) => ({ suit: c.suit, rank: c.rank }));
+    const counts = new Map<string, number>();
+    for (const c of player.hand) {
+      if (!c) continue;
+      const key = `${c.suit}:${c.rank}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
     for (const c of cards) {
-      const idx = remaining.findIndex((h) => h.suit === c.suit && h.rank === c.rank);
-      if (idx === -1) return false;
-      remaining.splice(idx, 1);
+      const key = `${c.suit}:${c.rank}`;
+      const count = counts.get(key) || 0;
+      if (count <= 0) return false;
+      counts.set(key, count - 1);
     }
     return true;
   }
