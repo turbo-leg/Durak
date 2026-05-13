@@ -3,11 +3,22 @@ import { useEffect, useState } from 'react';
 import { GameBoard } from './components/GameBoard';
 import { Lobby } from './components/Lobby';
 import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
+import { useAuth } from './contexts/AuthContext';
 import './App.css';
 
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { room, isConnected, isReconnecting, error, leaveGame, autoJoinDiscordRoom, gameState } =
     useGame();
+  const { user: browserAuth, handleOAuthCallback } = useAuth();
+
+  // Handle Discord OAuth callback (?code=...) for browser login
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code && !isEmbedded) {
+      void handleOAuthCallback(code);
+    }
+  }, [handleOAuthCallback]);
 
   // Issue #69: Auto-join the Discord Instance Lobby
   useEffect(() => {
@@ -20,9 +31,22 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
         ? `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.png?size=128`
         : `https://cdn.discordapp.com/embed/avatars/${parseInt(userId || '0') % 5}.png`;
 
-      autoJoinDiscordRoom(discordSdk.instanceId, username, avatarUrl);
+      autoJoinDiscordRoom(discordSdk.instanceId, username, avatarUrl, userId);
     }
   }, [discordAuth, isConnected, room, autoJoinDiscordRoom]);
+
+  // Resolve the active identity: embedded SDK > browser Discord OAuth > email account
+  const activeDiscordId =
+    discordAuth?.user.id ?? (browserAuth?.method === 'discord' ? browserAuth.id : undefined);
+  const activeUserId = browserAuth?.method === 'email' ? browserAuth.id : undefined;
+  const activeUsername =
+    discordAuth?.user.global_name ||
+    discordAuth?.user.username ||
+    browserAuth?.globalName ||
+    browserAuth?.username;
+  const activeAvatarUrl = discordAuth?.user.avatar
+    ? `https://cdn.discordapp.com/avatars/${discordAuth.user.id}/${discordAuth.user.avatar}.png?size=128`
+    : browserAuth?.avatarUrl;
 
   // When in waiting phase, GameBoard renders a full-screen lobby — hide all App chrome
   const isWaitingPhase = isConnected && gameState?.phase === 'waiting';
@@ -34,16 +58,9 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   return (
     <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative safe-p">
       <header className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
-            ♦ Durak <span className="text-yellow-400">Online</span> ♦
-          </h1>
-          {discordAuth && (
-            <div className="bg-indigo-900/50 text-indigo-200 px-3 py-1 rounded text-xs ml-4 border border-indigo-500/50">
-              Discord Connected as <span className="font-bold">{discordAuth.user.username}</span>
-            </div>
-          )}
-        </div>
+        <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
+          ♦ Durak <span className="text-yellow-400">Online</span> ♦
+        </h1>
         {isConnected && room && (
           <div className="flex space-x-4 items-center">
             <div className="bg-black/50 px-4 py-2 rounded-full text-xs font-mono shadow-inner border border-white/10 flex items-center space-x-2">
@@ -85,7 +102,12 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
               </div>
             </div>
           ) : (
-            <Lobby />
+            <Lobby
+              discordId={activeDiscordId}
+              userId={activeUserId}
+              username={activeUsername}
+              avatarUrl={activeAvatarUrl}
+            />
           )
         ) : (
           <GameBoard />

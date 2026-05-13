@@ -7,6 +7,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
 import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
+import { PlayerProfilePanel } from './PlayerProfilePanel';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -24,9 +25,10 @@ export const GameBoard: React.FC = () => {
     gameState,
     gameMessage,
     clearGameMessage,
-    defenseSnapshot,
     suhuhResult,
     clearSuhuhResult,
+    discardedCards,
+    clearDiscardedCards,
     serverTimeOffset,
     updateLobbySettings,
     startLobbyGame,
@@ -42,6 +44,7 @@ export const GameBoard: React.FC = () => {
     playTimerWarning,
     playVictorySound,
     playDefeatSound,
+    playDiscardSound,
   } = useAudio();
   const isDesktop = useIsDesktop();
   const warningPlayedRef = React.useRef(false);
@@ -71,12 +74,19 @@ export const GameBoard: React.FC = () => {
     return () => cancelAnimationFrame(animationFrameId);
   }, [gameState?.phase, gameState?.turnStartTime, gameState?.turnTimeLimit, serverTimeOffset]);
 
-  // Issue #80: drive time-based visibility without calling Date.now() during render
-  const [now, setNow] = React.useState(() => Date.now());
+  // Play discard sound when cards are marked for discard
   React.useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, []);
+    if (discardedCards && discardedCards.length > 0) playDiscardSound();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discardedCards]);
+
+  // Clear the discard snapshot the moment a new attack is played
+  React.useEffect(() => {
+    if (discardedCards && gameState && gameState.activeAttackCards.length > 0) {
+      clearDiscardedCards();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.activeAttackCards.length]);
 
   // Reset warning flag when the active turn changes
   React.useEffect(() => {
@@ -108,8 +118,6 @@ export const GameBoard: React.FC = () => {
       playVictorySound();
     }
   }, [gameState?.phase, gameState?.loser, room?.sessionId, playVictorySound, playDefeatSound]);
-
-  const defenseVisible = !!defenseSnapshot && now - defenseSnapshot.at < 10000;
 
   if (!room || !gameState) {
     return null;
@@ -207,7 +215,7 @@ export const GameBoard: React.FC = () => {
 
   const isHost = !!gameState.hostId && room.sessionId === gameState.hostId;
 
-  const devSpawnDummies = (difficulty: 'easy' | 'hard' = 'easy') => {
+  const devSpawnDummies = (difficulty: 'easy' | 'hard' | 'dummy' = 'easy') => {
     if (!isHost) return;
     room.send('dev_action', { action: 'spawn_dummies', difficulty });
   };
@@ -255,6 +263,12 @@ export const GameBoard: React.FC = () => {
             <div className="font-bold uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
               Dev Tools
             </div>
+            <button
+              onClick={() => devSpawnDummies('dummy')}
+              className="bg-purple-800 hover:bg-purple-700 px-2 py-1 rounded transition border border-purple-600"
+            >
+              Spawn Dummy
+            </button>
             <button
               onClick={() => devSpawnDummies('easy')}
               className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
@@ -394,8 +408,16 @@ export const GameBoard: React.FC = () => {
                     Developer
                   </h3>
                   <p className="text-[9px] text-gray-500 leading-snug">
-                    Bots spawn as ready players so you can start a match solo or fill empty seats.
+                    Dummies are manually controlled via the in-game dev panel. Bots play with AI.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => devSpawnDummies('dummy')}
+                    disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
+                    className="w-full bg-purple-900/55 hover:bg-purple-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-purple-50 text-xs font-bold py-2 px-3 rounded-lg border border-purple-500/40 transition"
+                  >
+                    Spawn dummy (manual control)
+                  </button>
                   <button
                     type="button"
                     onClick={() => devSpawnDummies('easy')}
@@ -485,6 +507,17 @@ export const GameBoard: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* Profile panel — shown when player has a Discord account */}
+            {myPlayer?.discordId && (
+              <div className="shrink-0 mb-3">
+                <PlayerProfilePanel
+                  discordId={myPlayer.discordId}
+                  username={myPlayer.username}
+                  avatarUrl={myPlayer.avatarUrl}
+                />
+              </div>
+            )}
 
             {/* Action buttons pinned at bottom */}
             <div className="shrink-0 pt-3 border-t border-white/10 mt-2">
@@ -669,6 +702,14 @@ export const GameBoard: React.FC = () => {
           </div>
           <button
             type="button"
+            onClick={() => devSpawnDummies('dummy')}
+            disabled={!isHost}
+            className="bg-purple-900/75 hover:bg-purple-800 px-2 py-1.5 rounded-lg transition border border-purple-500/45 font-bold text-left disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Spawn dummy
+          </button>
+          <button
+            type="button"
             onClick={() => devSpawnDummies('easy')}
             disabled={!isHost}
             className="bg-orange-900/75 hover:bg-orange-800 px-2 py-1.5 rounded-lg transition border border-orange-500/45 font-bold text-left disabled:opacity-40 disabled:cursor-not-allowed"
@@ -733,80 +774,126 @@ export const GameBoard: React.FC = () => {
                 </div>
               )}
 
-              {/* Table Pairs */}
+              {/* Table stack — pair-aware: shows atk→def pairing explicitly so mass attack
+                  defenses are obvious. Hidden while the discard overlay is active. */}
               <AnimatePresence>
-                {Array.from({ length: Math.ceil(tableCards.length / 2) }).map((_, pi) => {
-                  const atk = tableCards[pi * 2];
-                  const def = tableCards[pi * 2 + 1];
-                  if (!atk) return null;
-                  return (
-                    <motion.div
-                      key={`tp-${pi}-${atk.suit}-${atk.rank}`}
-                      initial={{ opacity: 0, scale: 0.85 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.7 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                      className="flex items-center gap-0.5 bg-black/30 p-1 rounded-lg border border-white/5"
-                    >
-                      <UICard card={atk} compact />
-                      <span className="text-[8px] text-gray-500">→</span>
-                      {def ? (
-                        <UICard card={def} compact className="ring-1 ring-green-500/30" />
-                      ) : (
-                        <div className="w-12 h-[72px] rounded-md border border-dashed border-white/20 flex items-center justify-center">
-                          <span className="text-[6px] text-white/30">?</span>
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })}
+                {!discardedCards &&
+                  (() => {
+                    // Build pairs from tableStacks (consecutive [atk, def] entries)
+                    type Pair = { atk: SharedCard; def?: SharedCard; pairKey: string };
+                    const pairs: Pair[] = [];
+                    const defSeen = new Set<string>();
+                    for (let i = 0; i < tableCards.length; i += 2) {
+                      const atk = tableCards[i];
+                      if (!atk) continue;
+                      const def = tableCards[i + 1];
+                      // Skip later "pair" entries whose atk is just a previous def
+                      // (chain re-uses def cards as the next round of attackers)
+                      const atkKey = `${atk.suit}:${atk.rank}`;
+                      if (defSeen.has(atkKey)) continue;
+                      if (def) defSeen.add(`${def.suit}:${def.rank}`);
+                      pairs.push({
+                        atk,
+                        def,
+                        pairKey: `${atkKey}-${def ? `${def.suit}:${def.rank}` : 'open'}`,
+                      });
+                    }
+                    // Active attacks not yet attached to any pair — fresh incoming attacks
+                    const pairedKeys = new Set([
+                      ...pairs.map((p) => `${p.atk.suit}:${p.atk.rank}`),
+                      ...pairs.filter((p) => p.def).map((p) => `${p.def!.suit}:${p.def!.rank}`),
+                    ]);
+                    const freshAttacks = attackCards.filter(
+                      (c) => !pairedKeys.has(`${c.suit}:${c.rank}`),
+                    );
+                    // If there are pending pairs (atk played, def not yet), merge fresh attacks into them.
+                    // Otherwise fresh attacks render standalone.
+                    const renderItems: Pair[] = [
+                      ...pairs,
+                      ...freshAttacks.map((atk) => ({
+                        atk,
+                        def: undefined,
+                        pairKey: `fresh-${atk.suit}:${atk.rank}`,
+                      })),
+                    ];
+                    return renderItems.map((p, i) => {
+                      const rotate =
+                        (i % 2 === 0 ? -3 : 3) + (i - (renderItems.length - 1) / 2) * 4;
+                      return (
+                        <motion.div
+                          key={`pair-${p.pairKey}`}
+                          initial={{ opacity: 0, scale: 0.85, y: 12 }}
+                          animate={{ opacity: 1, scale: 1, y: 0, rotate }}
+                          exit={{ opacity: 0, scale: 1, transition: { duration: 0 } }}
+                          transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                          style={{ zIndex: i }}
+                          className="relative flex-shrink-0"
+                        >
+                          {/* Attacker — underlying card */}
+                          <UICard card={p.atk} compact />
+                          {/* Defender — overlaps the attacker, offset bottom-right, with subtle tilt */}
+                          {p.def && (
+                            <motion.div
+                              initial={{ opacity: 0, x: -6, y: -6, rotate: -8 }}
+                              animate={{ opacity: 1, x: 0, y: 0, rotate: 8 }}
+                              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                              className="absolute left-3 top-3 ring-1 ring-green-400/50 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
+                            >
+                              <UICard card={p.def} compact />
+                            </motion.div>
+                          )}
+                        </motion.div>
+                      );
+                    });
+                  })()}
               </AnimatePresence>
 
-              {/* Active Attack Cards */}
+              {/* Discard animation — shown briefly after a successful defense round */}
               <AnimatePresence>
-                {attackCards.map((atk) => (
-                  <motion.div
-                    key={`atk-${atk.suit}-${atk.rank}`}
-                    layoutId={`card-${atk.suit}-${atk.rank}`}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.75, y: 16 }}
-                    transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-                    className="bg-red-900/30 p-1 rounded-lg border border-red-500/30"
-                  >
-                    <UICard card={atk} compact />
-                    <div className="text-[6px] text-red-400 text-center font-bold animate-pulse">
-                      ATK
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {/* Defense Snapshot */}
-              <AnimatePresence>
-                {defenseSnapshot &&
-                  defenseVisible &&
-                  defenseSnapshot.attacking.map((atk, idx) => {
-                    const def = defenseSnapshot.defending[idx];
-                    if (!def) return null;
+                {discardedCards &&
+                  discardedCards.length > 0 &&
+                  (() => {
+                    // Server sends raw tableStacks (each card appears twice in a chain — as the
+                    // def in one pair and the atk in the next) plus activeAttackCards (the latest
+                    // defs again). Dedupe so the discard pile is clean.
+                    const seen = new Set<string>();
+                    const uniqueDiscarded = discardedCards.filter((c) => {
+                      const k = `${c.suit}:${c.rank}`;
+                      if (seen.has(k)) return false;
+                      seen.add(k);
+                      return true;
+                    });
                     return (
                       <motion.div
-                        key={`snap-${idx}-${atk.suit}-${atk.rank}`}
-                        initial={{ opacity: 0, scale: 0.85 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                        className="relative w-12 h-16"
+                        key="discard-pile"
+                        className="absolute inset-0 flex items-center justify-center pointer-events-none"
                       >
-                        <div className="absolute left-0 top-0">
-                          <UICard card={atk as unknown as SharedCard} compact />
-                        </div>
-                        <div className="absolute left-2 top-2 ring-1 ring-green-400/40 rounded shadow-[0_0_8px_rgba(34,197,94,0.4)]">
-                          <UICard card={def as unknown as SharedCard} compact />
-                        </div>
+                        {uniqueDiscarded.map((card, i) => (
+                          <motion.div
+                            key={`discard-${card.suit}-${card.rank}-${i}`}
+                            initial={{
+                              opacity: 1,
+                              y: 0,
+                              scale: 1,
+                              rotate: (i % 2 === 0 ? -3 : 3) + (i * 1.5 - uniqueDiscarded.length),
+                            }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{
+                              opacity: 0,
+                              y: -55,
+                              scale: 0.45,
+                              rotate: i % 2 === 0 ? -15 : 15,
+                              transition: { duration: 0.38, delay: i * 0.035, ease: 'easeIn' },
+                            }}
+                            style={{ marginLeft: i > 0 ? '-28px' : 0, zIndex: i }}
+                            className="flex-shrink-0"
+                          >
+                            <UICard card={card as unknown as SharedCard} compact />
+                          </motion.div>
+                        ))}
                       </motion.div>
                     );
-                  })}
+                  })()}
               </AnimatePresence>
             </div>
           </div>

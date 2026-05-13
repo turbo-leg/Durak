@@ -12,6 +12,7 @@ type DefenseSnapshot = {
 
 export type SuhuhDraw = { playerId: string; suit: string; rank: number; isJoker: boolean };
 export type SuhuhResult = { draws: SuhuhDraw[]; winnerId: string } | null;
+export type DiscardedCard = { suit: string; rank: number; isJoker: boolean };
 
 const RECONNECT_TOKEN_KEY = 'durak_reconnection_token';
 const MAX_RECONNECT_ATTEMPTS = 3;
@@ -30,12 +31,19 @@ interface GameContextState {
   defenseSnapshot: DefenseSnapshot;
   suhuhResult: SuhuhResult;
   clearSuhuhResult: () => void;
+  discardedCards: DiscardedCard[] | null;
+  clearDiscardedCards: () => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
-  joinGame: (roomId: string) => Promise<void>;
+  joinGame: (roomId: string, discordId?: string, userId?: string) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
-  autoJoinDiscordRoom: (instanceId: string, username: string, avatarUrl: string) => Promise<void>;
+  autoJoinDiscordRoom: (
+    instanceId: string,
+    username: string,
+    avatarUrl: string,
+    discordId?: string,
+  ) => Promise<void>;
   updateLobbySettings: (settings: Partial<GameState>) => void;
   startLobbyGame: () => void;
   serverTimeOffset: number;
@@ -54,6 +62,8 @@ const GameContext = createContext<GameContextState>({
   defenseSnapshot: null,
   suhuhResult: null,
   clearSuhuhResult: () => {},
+  discardedCards: null,
+  clearDiscardedCards: () => {},
   createGame: async () => {},
   joinGame: async () => {},
   spectateGame: async () => {},
@@ -98,6 +108,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSpectator, setIsSpectator] = useState(false);
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
   const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
+  const [discardedCards, setDiscardedCards] = useState<DiscardedCard[] | null>(null);
+  const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
   const [, setTick] = useState(0);
@@ -117,6 +129,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearGameMessage = () => setGameMessage(null);
   const clearSuhuhResult = () => setSuhuhResult(null);
+  const clearDiscardedCards = () => {
+    if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
+    setDiscardedCards(null);
+  };
 
   const attemptReconnect = async () => {
     const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
@@ -173,6 +189,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     roomInstance.onMessage('clearDefenseSnapshot', () => {
       setDefenseSnapshot(null);
+    });
+
+    roomInstance.onMessage('roundDiscarded', (data: { cards: DiscardedCard[] }) => {
+      if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
+      setDiscardedCards(data.cards);
+      discardTimerRef.current = setTimeout(() => setDiscardedCards(null), 2500);
     });
 
     roomInstance.onMessage('suhuhResult', (data: { draws: SuhuhDraw[]; winnerId: string }) => {
@@ -250,9 +272,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const joinGame = async (roomId: string) => {
+  const joinGame = async (roomId: string, discordId?: string, userId?: string) => {
     try {
-      const roomInstance = await client.joinById<GameState>(roomId);
+      const opts: Record<string, string> = {};
+      if (discordId) opts.discordId = discordId;
+      if (userId) opts.userId = userId;
+      const roomInstance = await client.joinById<GameState>(roomId, opts);
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error joining room:', e);
@@ -279,12 +304,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     discordInstanceId: string,
     username: string,
     avatarUrl: string,
+    discordId?: string,
   ) => {
     try {
       const roomInstance = await client.joinOrCreate<GameState>('durak', {
         discordInstanceId,
         username,
         avatarUrl,
+        ...(discordId ? { discordId } : {}),
       });
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
@@ -342,6 +369,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         defenseSnapshot,
         suhuhResult,
         clearSuhuhResult,
+        discardedCards,
+        clearDiscardedCards,
         createGame,
         joinGame,
         spectateGame,

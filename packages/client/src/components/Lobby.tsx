@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import type { RoomAvailable } from 'colyseus.js';
+import { PlayerProfilePanel } from './PlayerProfilePanel';
+import { LoginPanel } from './LoginPanel';
 
 const getAvailablePlayers = (mode: string) => {
   return mode === 'teams' ? [4, 6] : [2, 3, 4, 5, 6];
@@ -14,7 +16,19 @@ const getAvailableHandSizes = (mode: string, players: number) => {
   }
 };
 
-export const Lobby: React.FC = () => {
+interface LobbyProps {
+  discordId?: string;
+  userId?: string;
+  username?: string;
+  avatarUrl?: string;
+}
+
+export const Lobby: React.FC<LobbyProps> = ({
+  discordId,
+  userId,
+  username = '',
+  avatarUrl = '',
+}) => {
   const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
@@ -57,7 +71,7 @@ export const Lobby: React.FC = () => {
     e.preventDefault();
     if (!joinCode.trim()) return;
     setIsLoading(true);
-    await joinGame(joinCode.trim());
+    await joinGame(joinCode.trim(), discordId, userId);
     setIsLoading(false);
   };
 
@@ -174,8 +188,21 @@ export const Lobby: React.FC = () => {
         </form>
       </div>
 
-      {/* Join Room Panel */}
+      {/* Right column: auth/profile + join + public rooms */}
       <div className="flex flex-col space-y-6">
+        {/* Login / profile panel — always shown in browser mode */}
+        <LoginPanel />
+
+        {/* Expanded profile stats when logged in */}
+        {(discordId || userId) && (
+          <PlayerProfilePanel
+            discordId={discordId}
+            userId={userId}
+            username={username}
+            avatarUrl={avatarUrl}
+          />
+        )}
+
         {/* Join by Code */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Join Private Game</h2>
@@ -243,7 +270,7 @@ export const Lobby: React.FC = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => joinGame(r.roomId)}
+                          onClick={() => joinGame(r.roomId, discordId, userId)}
                           disabled={isLoading || isFull}
                           className="bg-green-100 text-green-800 hover:bg-green-200 font-bold px-4 py-2 rounded text-sm transition disabled:opacity-50"
                         >
