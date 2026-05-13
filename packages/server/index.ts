@@ -1,4 +1,6 @@
 import { Server } from 'colyseus';
+import { RedisPresence } from '@colyseus/redis-presence';
+import { RedisDriver } from '@colyseus/redis-driver';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -228,7 +230,17 @@ app.get('/api/history/:id', async (req, res) => {
 // ────────────────────────────────────────────────────────────────────────────
 
 const server = http.createServer(app);
-const gameServer = new Server({ server });
+
+const redisUrl = process.env.REDIS_URL;
+const gameServer = new Server({
+  server,
+  ...(redisUrl
+    ? {
+        presence: new RedisPresence(redisUrl),
+        driver: new RedisDriver(redisUrl),
+      }
+    : {}),
+});
 
 gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
 
