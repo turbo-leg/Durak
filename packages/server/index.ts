@@ -9,6 +9,8 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import pino from 'pino';
+import * as Sentry from '@sentry/node';
 
 import { DurakRoom } from './src/rooms/DurakRoom';
 import 'dotenv/config';
@@ -16,6 +18,16 @@ import mongoose from 'mongoose';
 import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN });
+}
+
+const logger = pino(
+  process.env.NODE_ENV !== 'production'
+    ? { transport: { target: 'pino-pretty' } }
+    : { level: process.env.LOG_LEVEL ?? 'info' },
+);
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_PLACEHOLDERS = new Set([
@@ -26,9 +38,7 @@ const JWT_PLACEHOLDERS = new Set([
 ]);
 if (process.env.NODE_ENV === 'production') {
   if (!JWT_SECRET || JWT_PLACEHOLDERS.has(JWT_SECRET)) {
-    console.error(
-      'FATAL: JWT_SECRET is missing or uses a known insecure placeholder in production',
-    );
+    logger.error('FATAL: JWT_SECRET is missing or uses a known insecure placeholder in production');
     process.exit(1);
   }
 }
@@ -36,14 +46,33 @@ const _JWT_SECRET = JWT_SECRET ?? 'durak-dev-secret-change-in-prod';
 
 if (process.env.MONGO_URI) {
   mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => console.log('📦 Connected to MongoDB (Production)'))
-    .catch((err) => console.error('❌ MongoDB connection error:', err));
+    .connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 10,
+      retryWrites: true,
+    })
+    .then(async () => {
+      logger.info('Connected to MongoDB');
+      await Promise.all([
+        PlayerProfile.ensureIndexes(),
+        GameLog.ensureIndexes(),
+        User.ensureIndexes(),
+      ]);
+    })
+    .catch((err) => {
+      Sentry.captureException(err);
+      logger.error({ err }, 'MongoDB connection error');
+    });
+} else if (process.env.NODE_ENV === 'production') {
+  logger.error('FATAL: MONGO_URI must be set in production');
+  process.exit(1);
 } else {
-  console.warn('⚠️ No MONGO_URI provided in .env, game logs will not be saved externally.');
+  logger.warn('No MONGO_URI provided — game logs will not be saved.');
 }
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
@@ -92,7 +121,8 @@ app.post('/api/token', async (req, res) => {
 
     res.json(data);
   } catch (error: any) {
-    console.error('Token exchange error:', error);
+    Sentry.captureException(error);
+    logger.error({ err: error }, 'Token exchange error');
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -135,7 +165,8 @@ app.post('/api/auth/register', async (req, res) => {
       },
     });
   } catch (e: any) {
-    console.error('Register error:', e);
+    Sentry.captureException(e);
+    logger.error({ err: e }, 'Register error');
     res.status(500).json({ error: e.message });
   }
 });
@@ -165,7 +196,8 @@ app.post('/api/auth/login', async (req, res) => {
       },
     });
   } catch (e: any) {
-    console.error('Login error:', e);
+    Sentry.captureException(e);
+    logger.error({ err: e }, 'Login error');
     res.status(500).json({ error: e.message });
   }
 });
@@ -242,6 +274,12 @@ app.get('/api/history/:id', async (req, res) => {
   }
 });
 
+// ── Health ───────────────────────────────────────────────────────────────────
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 
 const server = http.createServer(app);
@@ -274,5 +312,28 @@ if (fs.existsSync(clientDistPath)) {
 
 const port = Number(process.env.PORT || 2567);
 gameServer.listen(port, '0.0.0.0').then(() => {
-  console.log(`🎮 Durak Game server is listening on port ${port}`);
+  logger.info({ port }, 'Durak game server listening');
 });
+
+let isShuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info({ signal }, 'Signal received, draining...');
+
+  server.close();
+
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const roomCount = (await gameServer.driver.getRooms('durak')).length;
+    if (roomCount === 0) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  await gameServer.gracefullyShutdown();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
