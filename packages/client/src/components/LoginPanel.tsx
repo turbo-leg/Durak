@@ -62,6 +62,10 @@ export const LoginPanel: React.FC = () => {
           setLocalError('Username is required');
           return;
         }
+        if (password.length < 8) {
+          setLocalError('Password must be at least 8 characters');
+          return;
+        }
         await register(email, password, username);
       }
     } catch {

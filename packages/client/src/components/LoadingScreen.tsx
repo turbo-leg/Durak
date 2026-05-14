@@ -9,9 +9,17 @@ export const LoadingScreen: React.FC<{ message?: string; isError?: boolean }> = 
     <div
       className={`min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white`}
     >
-      <div className="flex flex-col items-center gap-6">
+      <div
+        className="flex flex-col items-center gap-6"
+        role="status"
+        aria-live="polite"
+        aria-label={isError ? message : 'Loading game...'}
+      >
         {!isError && (
-          <div className="w-16 h-16 border-4 border-t-purple-500 border-gray-700 rounded-full animate-spin"></div>
+          <div
+            className="w-16 h-16 border-4 border-t-purple-500 border-gray-700 rounded-full animate-spin"
+            aria-hidden="true"
+          ></div>
         )}
         <h2 className={`text-2xl font-bold ${isError ? 'text-red-500' : 'text-gray-200'}`}>
           {message}

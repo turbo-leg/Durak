@@ -44,6 +44,33 @@ if (process.env.NODE_ENV === 'production') {
 }
 const _JWT_SECRET = JWT_SECRET ?? 'durak-dev-secret-change-in-prod';
 
+const COMMON_PASSWORDS = new Set([
+  'password',
+  'password1',
+  'password123',
+  '12345678',
+  '123456789',
+  '1234567890',
+  'qwerty123',
+  'iloveyou',
+  'admin123',
+  'letmein1',
+  'welcome1',
+  'monkey123',
+  'dragon123',
+  'master123',
+  'sunshine',
+  'princess',
+  'football',
+  'baseball',
+  'abc12345',
+  'shadow123',
+  'superman',
+  'michael1',
+  'jessica1',
+  'charlie1',
+]);
+
 if (process.env.MONGO_URI) {
   mongoose
     .connect(process.env.MONGO_URI, {
@@ -136,8 +163,12 @@ app.post('/api/auth/register', async (req, res) => {
       res.status(400).json({ error: 'email, password, and username are required' });
       return;
     }
-    if (password.length < 6) {
-      res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return;
+    }
+    if (COMMON_PASSWORDS.has(password.toLowerCase())) {
+      res.status(400).json({ error: 'Password is too common. Please choose a stronger password.' });
       return;
     }
 

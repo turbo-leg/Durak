@@ -33,6 +33,8 @@ export const GameBoard: React.FC = () => {
     updateLobbySettings,
     startLobbyGame,
     isSpectator,
+    connectionStatus,
+    disconnectedOpponent,
   } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
@@ -687,7 +689,11 @@ export const GameBoard: React.FC = () => {
             className="absolute top-12 left-1/2 -translate-x-1/2 bg-red-600 border border-red-400 font-bold text-white px-4 py-2 rounded-lg shadow-2xl flex items-center z-50 text-sm max-w-[90%]"
           >
             <span>{gameMessage}</span>
-            <button onClick={clearGameMessage} className="text-red-200 hover:text-white ml-3">
+            <button
+              onClick={clearGameMessage}
+              aria-label="Dismiss message"
+              className="text-red-200 hover:text-white ml-3"
+            >
               &times;
             </button>
           </motion.div>
@@ -1132,34 +1138,98 @@ export const GameBoard: React.FC = () => {
         </div>
       )}
 
+      {/* ── Own Connection Lost Banner ── */}
+      <AnimatePresence>
+        {connectionStatus === 'reconnecting' && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="absolute top-0 inset-x-0 z-[90] flex items-center justify-center pointer-events-none"
+          >
+            <div className="mt-12 flex items-center gap-3 bg-amber-900/95 border border-amber-400/60 text-amber-100 px-5 py-3 rounded-xl shadow-2xl backdrop-blur-sm">
+              <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
+              <span className="font-bold text-sm tracking-wide">
+                Connection lost — reconnecting…
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Opponent Disconnected Banner ── */}
+      <AnimatePresence>
+        {connectionStatus === 'waiting_opponent' && disconnectedOpponent && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="absolute bottom-0 inset-x-0 z-[90] flex items-center justify-center pointer-events-none"
+          >
+            <div className="mb-20 flex items-center gap-3 bg-gray-900/95 border border-white/20 text-gray-200 px-5 py-2.5 rounded-xl shadow-xl backdrop-blur-sm">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin shrink-0" />
+              <span className="text-sm">
+                Waiting for <span className="font-bold text-white">{disconnectedOpponent}</span> to
+                reconnect… <span className="text-gray-400 text-xs">(they have 30s)</span>
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Game Over Overlay ── */}
       {gameState.phase === 'finished' && (
-        <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md safe-p">
+        <div
+          className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md safe-p"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="game-over-title"
+        >
           <div className="bg-gray-900 border-2 border-yellow-500 rounded-3xl p-6 md:p-12 flex flex-col items-center shadow-[0_0_50px_rgba(250,204,21,0.3)] text-center max-w-sm md:max-w-lg w-[90%]">
             {gameState.loser === room.sessionId ? (
               <>
-                <h1 className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full">
+                <h1
+                  className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full"
+                  aria-hidden="true"
+                >
                   🥴
                 </h1>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-red-500 mb-2">
+                <h2
+                  id="game-over-title"
+                  className="text-2xl md:text-4xl font-extrabold text-red-500 mb-2"
+                >
                   YOU ARE THE DURAK!
                 </h2>
                 <p className="text-gray-400 text-sm md:text-lg">Better luck next time.</p>
               </>
             ) : gameState.loser === null ? (
               <>
-                <h1 className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full">
+                <h1
+                  className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full"
+                  aria-hidden="true"
+                >
                   🤝
                 </h1>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-blue-400 mb-2">DRAW!</h2>
+                <h2
+                  id="game-over-title"
+                  className="text-2xl md:text-4xl font-extrabold text-blue-400 mb-2"
+                >
+                  DRAW!
+                </h2>
                 <p className="text-gray-400 text-sm md:text-lg">Everybody wins (or loses?).</p>
               </>
             ) : (
               <>
-                <h1 className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full">
+                <h1
+                  className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full"
+                  aria-hidden="true"
+                >
                   👑
                 </h1>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-yellow-400 mb-2">
+                <h2
+                  id="game-over-title"
+                  className="text-2xl md:text-4xl font-extrabold text-yellow-400 mb-2"
+                >
                   YOU SURVIVED!
                 </h2>
                 <p className="text-gray-400 text-sm md:text-lg">

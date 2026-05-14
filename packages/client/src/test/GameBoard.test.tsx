@@ -152,6 +152,8 @@ function mockGameContext(overrides: Partial<ReturnType<typeof GameContextModule.
     updateLobbySettings: vi.fn(),
     startLobbyGame: vi.fn(),
     serverTimeOffset: 0,
+    connectionStatus: 'connected' as const,
+    disconnectedOpponent: null,
     ...overrides,
   });
 }
@@ -574,8 +576,57 @@ describe('GameBoard component', () => {
         clearGameMessage,
       });
       render(<GameBoard />);
-      fireEvent.click(screen.getByRole('button', { name: '×' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss message' }));
       expect(clearGameMessage).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('connection status banners', () => {
+    function makePlayingContext() {
+      const players = new MapSchema<Player>();
+      players.set('p1', makePlayer('p1'));
+      const gs = makeGameState({
+        phase: 'playing',
+        players,
+        seatOrder: new ArraySchema<string>('p1'),
+      });
+      return { gs, room: makeRoom('p1') };
+    }
+
+    it('shows amber reconnecting banner when connectionStatus is reconnecting', () => {
+      const { gs, room } = makePlayingContext();
+      mockGameContext({
+        room: room as never,
+        gameState: gs,
+        connectionStatus: 'reconnecting',
+      });
+      render(<GameBoard />);
+      expect(screen.getByText('Connection lost — reconnecting…')).toBeDefined();
+    });
+
+    it('shows waiting-for-opponent banner when connectionStatus is waiting_opponent', () => {
+      const { gs, room } = makePlayingContext();
+      mockGameContext({
+        room: room as never,
+        gameState: gs,
+        connectionStatus: 'waiting_opponent',
+        disconnectedOpponent: 'Alice',
+      });
+      render(<GameBoard />);
+      expect(screen.getByText('Alice')).toBeDefined();
+      expect(screen.getByText(/Waiting for/i)).toBeDefined();
+    });
+
+    it('does not show any connection banner when status is connected', () => {
+      const { gs, room } = makePlayingContext();
+      mockGameContext({
+        room: room as never,
+        gameState: gs,
+        connectionStatus: 'connected',
+      });
+      render(<GameBoard />);
+      expect(screen.queryByText('Connection lost — reconnecting…')).toBeNull();
+      expect(screen.queryByText(/Waiting for/i)).toBeNull();
     });
   });
 });
