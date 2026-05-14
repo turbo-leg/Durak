@@ -88,7 +88,7 @@ export const Card: React.FC<CardProps> = ({
       aria-label={ariaLabel}
       aria-disabled={onClick ? (!isPlayable ? true : undefined) : true}
       disabled={onClick ? (!isPlayable ? true : undefined) : true}
-      tabIndex={!onClick || (onClick && !isPlayable) ? -1 : undefined}
+      tabIndex={!onClick || !isPlayable ? -1 : undefined}
       className={`
         relative w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-36 bg-white rounded-lg shadow-md border border-gray-200
         flex flex-col justify-between p-1 md:p-2 select-none
