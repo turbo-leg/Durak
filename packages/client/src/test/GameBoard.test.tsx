@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GameBoard } from '../components/GameBoard';
 import * as GameContextModule from '../contexts/GameContext';
@@ -558,8 +558,7 @@ describe('GameBoard component', () => {
       expect(screen.getByText('Invalid move!')).toBeInTheDocument();
     });
 
-    it('calls clearGameMessage when the toast dismiss button is clicked', async () => {
-      const user = userEvent.setup();
+    it('calls clearGameMessage when the toast dismiss button is clicked', () => {
       const players = new MapSchema<Player>();
       players.set('p1', makePlayer('p1'));
       const gs = makeGameState({
@@ -577,7 +576,7 @@ describe('GameBoard component', () => {
         clearGameMessage,
       });
       render(<GameBoard />);
-      await user.click(screen.getByRole('button', { name: 'Dismiss message' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss message' }));
       expect(clearGameMessage).toHaveBeenCalledOnce();
     });
   });
