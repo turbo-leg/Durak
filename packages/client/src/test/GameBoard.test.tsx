@@ -123,6 +123,7 @@ function makeRoom(sessionId: string, roomId = 'ROOM01') {
     sessionId,
     id: roomId,
     send: vi.fn(),
+    onMessage: vi.fn().mockReturnValue(vi.fn()), // returns unsubscribe fn
   };
 }
 

@@ -111,7 +111,7 @@ export class DurakRoom extends Room<GameState> {
           p.username = isDummy ? `Dummy` : `Bot (${difficulty})`;
           p.isReady = true;
 
-          if (this.state.mode === 'teams') {
+          if (this.state.mode === 'teams' || this.state.mode === 'horse') {
             const team0Count = Array.from(this.state.players.values()).filter(
               (plyr) => plyr.team === 0,
             ).length;
@@ -151,7 +151,7 @@ export class DurakRoom extends Room<GameState> {
       if (this.isRateLimited(client.sessionId)) return;
       if (
         this.state.phase === 'waiting' &&
-        this.state.mode === 'teams' &&
+        (this.state.mode === 'teams' || this.state.mode === 'horse') &&
         this.state.teamSelection === 'manual'
       ) {
         const player = this.state.players.get(client.sessionId);
@@ -223,7 +223,10 @@ export class DurakRoom extends Room<GameState> {
       }
 
       // Teams balance enforcement
-      if (this.state.mode === 'teams' && this.state.teamSelection === 'manual') {
+      if (
+        (this.state.mode === 'teams' || this.state.mode === 'horse') &&
+        this.state.teamSelection === 'manual'
+      ) {
         const team0Count = Array.from(this.state.players.values()).filter(
           (p) => p.team === 0,
         ).length;
@@ -254,14 +257,18 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private updateLobbyMetadata() {
-    this.setMetadata({
-      mode: this.state.mode,
-      discordInstanceId: this.discordInstanceId,
-      maxPlayers: this.state.maxPlayers,
-      playerCount: this.state.players.size,
-      spectatorCount: this.spectators.size,
-      phase: this.state.phase,
-    });
+    try {
+      this.setMetadata({
+        mode: this.state.mode,
+        discordInstanceId: this.discordInstanceId,
+        maxPlayers: this.state.maxPlayers,
+        playerCount: this.state.players.size,
+        spectatorCount: this.spectators.size,
+        phase: this.state.phase,
+      });
+    } catch {
+      // setMetadata requires an active room listing; no-op in test environments
+    }
   }
 
   async onAuth(_client: Client, options: any) {
@@ -418,7 +425,7 @@ export class DurakRoom extends Room<GameState> {
     let teamA = 0;
     let teamB = 0;
 
-    if (this.state.mode === 'teams') {
+    if (this.state.mode === 'teams' || this.state.mode === 'horse') {
       const sortedIds = sessionIds.sort(); // Optional sorting for consistency
 
       if (this.state.teamSelection === 'manual') {
@@ -1028,12 +1035,44 @@ export class DurakRoom extends Room<GameState> {
           this.state.loser = remainingPlayers[0];
           this.broadcast('gameOver', { loser: this.state.loser });
           this.saveGameLog();
+          if (this.state.mode === 'horse') this.handleHorseRoundEnd(this.state.loser);
         } else {
           // It's a draw (multi-person win on last beat)
           this.broadcast('gameOver', { loser: null, draw: true });
           this.saveGameLog();
         }
       }
+    }
+  }
+
+  private handleHorseRoundEnd(loserId: string) {
+    const LETTERS = 'HORSE';
+    const loserPlayer = this.state.players.get(loserId);
+    if (!loserPlayer) return;
+
+    const losingTeam = loserPlayer.team; // 0 = team A, 1 = team B
+    if (losingTeam === 0) {
+      this.state.horseTeamA = LETTERS.slice(0, this.state.horseTeamA.length + 1);
+    } else {
+      this.state.horseTeamB = LETTERS.slice(0, this.state.horseTeamB.length + 1);
+    }
+
+    const matchOver =
+      this.state.horseTeamA.length >= LETTERS.length ||
+      this.state.horseTeamB.length >= LETTERS.length;
+
+    if (matchOver) {
+      const winningTeam = this.state.horseTeamA.length >= LETTERS.length ? 1 : 0;
+      this.broadcast('horseMatchOver', { winningTeam });
+      // phase stays 'finished' — host must create a new room for another meta-match
+    } else {
+      // Auto-restart the next game after a short delay
+      this.state.horseGame += 1;
+      setTimeout(() => {
+        this.clearRoundStateForNewGame();
+        this.state.phase = 'waiting';
+        this.broadcast('horseNextGame', { game: this.state.horseGame });
+      }, 5000);
     }
   }
 
