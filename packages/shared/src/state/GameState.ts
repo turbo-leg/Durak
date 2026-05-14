@@ -39,4 +39,9 @@ export class GameState extends Schema {
   @type(['string']) actionLog = new ArraySchema<string>();
 
   @type('number') spectatorCount: number = 0;
+
+  // Horse mode meta-match state
+  @type('string') horseTeamA: string = '';
+  @type('string') horseTeamB: string = '';
+  @type('number') horseGame: number = 1;
 }
