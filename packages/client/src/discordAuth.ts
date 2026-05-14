@@ -2,7 +2,9 @@ import { DiscordSDK } from '@discord/embedded-app-sdk';
 
 const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
 if (!clientId) {
-  throw new Error('VITE_DISCORD_CLIENT_ID is not set. Add it to your .env.local file (see .env.example).');
+  throw new Error(
+    'VITE_DISCORD_CLIENT_ID is not set. Add it to your .env.local file (see .env.example).',
+  );
 }
 
 export const isEmbedded =

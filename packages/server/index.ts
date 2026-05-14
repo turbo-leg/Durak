@@ -45,10 +45,30 @@ if (process.env.NODE_ENV === 'production') {
 const _JWT_SECRET = JWT_SECRET ?? 'durak-dev-secret-change-in-prod';
 
 const COMMON_PASSWORDS = new Set([
-  'password', 'password1', 'password123', '12345678', '123456789', '1234567890',
-  'qwerty123', 'iloveyou', 'admin123', 'letmein1', 'welcome1', 'monkey123',
-  'dragon123', 'master123', 'sunshine', 'princess', 'football', 'baseball',
-  'abc12345', 'shadow123', 'superman', 'michael1', 'jessica1', 'charlie1',
+  'password',
+  'password1',
+  'password123',
+  '12345678',
+  '123456789',
+  '1234567890',
+  'qwerty123',
+  'iloveyou',
+  'admin123',
+  'letmein1',
+  'welcome1',
+  'monkey123',
+  'dragon123',
+  'master123',
+  'sunshine',
+  'princess',
+  'football',
+  'baseball',
+  'abc12345',
+  'shadow123',
+  'superman',
+  'michael1',
+  'jessica1',
+  'charlie1',
 ]);
 
 if (process.env.MONGO_URI) {
