@@ -30,8 +30,6 @@ function mockGameContext(overrides: Partial<ReturnType<typeof GameContextModule.
     autoJoinDiscordRoom: vi.fn().mockResolvedValue(undefined),
     updateLobbySettings: vi.fn(),
     startLobbyGame: vi.fn(),
-    connectionStatus: 'connected',
-    disconnectedOpponent: null,
     serverTimeOffset: 0,
     ...overrides,
   });
