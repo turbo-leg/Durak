@@ -31,12 +31,22 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <div className="text-5xl mb-4">🃏</div>
             <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
             <p className="text-indigo-300 text-sm mb-6">The game ran into an unexpected error.</p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-semibold transition"
-            >
-              Try again
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-semibold transition"
+              >
+                Try again
+              </button>
+              <a
+                href="https://github.com/yourusername/durak/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-indigo-700 hover:bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold transition inline-block"
+              >
+                Contact Support
+              </a>
+            </div>
           </div>
         </div>
       );
