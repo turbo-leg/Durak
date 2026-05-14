@@ -1,4 +1,4 @@
-import { Server } from 'colyseus';
+import { Server, matchMaker } from 'colyseus';
 import { RedisPresence } from '@colyseus/redis-presence';
 import { RedisDriver } from '@colyseus/redis-driver';
 import express from 'express';
@@ -337,7 +337,7 @@ async function shutdown(signal: string) {
 
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    const roomCount = (await gameServer.driver.getRooms('durak')).length;
+    const roomCount = (await matchMaker.query({ name: 'durak' })).length;
     if (roomCount === 0) break;
     await new Promise((r) => setTimeout(r, 500));
   }
