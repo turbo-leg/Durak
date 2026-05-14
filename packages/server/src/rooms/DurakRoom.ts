@@ -814,13 +814,23 @@ export class DurakRoom extends Room<GameState> {
     this.broadcast('clearDefenseSnapshot');
 
     // Move cards from hand to active attack
-    cardsToPlay.forEach((c) => {
-      const idx = player.hand.findIndex((hc) => hc.suit === c.suit && hc.rank === c.rank);
-      if (idx !== -1) {
-        player.hand.splice(idx, 1);
-        this.state.activeAttackCards.push(c);
+    const attackCounts = new Map<string, number>();
+    for (const c of cardsToPlay) {
+      const key = `${c.suit}:${c.rank}`;
+      attackCounts.set(key, (attackCounts.get(key) || 0) + 1);
+    }
+
+    for (let i = player.hand.length - 1; i >= 0; i--) {
+      const hc = player.hand[i];
+      if (!hc) continue;
+      const key = `${hc.suit}:${hc.rank}`;
+      const count = attackCounts.get(key) || 0;
+      if (count > 0) {
+        attackCounts.set(key, count - 1);
+        player.hand.splice(i, 1);
+        this.state.activeAttackCards.push(new Card(hc.suit, hc.rank, hc.isJoker));
       }
-    });
+    }
 
     const playedLog = cardsToPlay.map((c) => `-${this.formatCard(c)}`).join(', ');
     this.state.actionLog.push(`${client.sessionId} attacked: ${playedLog}`);
@@ -903,16 +913,24 @@ export class DurakRoom extends Room<GameState> {
     this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
 
     // The matched defense cards become the NEW activeAttackCards (next player must beat these)
-    assignments.forEach((pair) => {
+    const defendCounts = new Map<string, number>();
+    for (const pair of assignments) {
       const defCard = pair.def;
-      const idx = player.hand.findIndex(
-        (hc) => hc.suit === defCard.suit && hc.rank === defCard.rank,
-      );
-      if (idx !== -1) {
-        player.hand.splice(idx, 1);
-        this.state.activeAttackCards.push(new Card(defCard.suit, defCard.rank, defCard.isJoker));
+      const key = `${defCard.suit}:${defCard.rank}`;
+      defendCounts.set(key, (defendCounts.get(key) || 0) + 1);
+    }
+
+    for (let i = player.hand.length - 1; i >= 0; i--) {
+      const hc = player.hand[i];
+      if (!hc) continue;
+      const key = `${hc.suit}:${hc.rank}`;
+      const count = defendCounts.get(key) || 0;
+      if (count > 0) {
+        defendCounts.set(key, count - 1);
+        player.hand.splice(i, 1);
+        this.state.activeAttackCards.push(new Card(hc.suit, hc.rank, hc.isJoker));
       }
-    });
+    }
 
     const defLog = defendingCards.map((c) => `-${this.formatCard(c)}`).join(', ');
     this.state.actionLog.push(`${client.sessionId} defended: ${defLog}`);
