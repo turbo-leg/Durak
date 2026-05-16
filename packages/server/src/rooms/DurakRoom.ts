@@ -8,7 +8,7 @@ import { PlayerProfile } from '../models/PlayerProfile';
 import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import { evaluateBadges, BADGES } from '../utils/Badges';
 import mongoose from 'mongoose';
-import { openAIBot, BotDifficulty } from '../ai/OpenAIBot';
+import { botEngine, BotDifficulty } from '../ai/BotEngine';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -693,7 +693,7 @@ export class DurakRoom extends Room<GameState> {
         'bot firing',
       );
 
-      const move = await openAIBot.think(this.state, playerId, difficulty);
+      const move = await botEngine.think(this.state, playerId, difficulty);
       logger.info(
         {
           botId: playerId.slice(0, 8),
@@ -709,7 +709,11 @@ export class DurakRoom extends Room<GameState> {
         send: (type: string, msg: string) =>
           logger.error({ botId: playerId.slice(0, 8), type, msg }, 'bot server error'),
       } as unknown as Client;
-      if (move.action === 'attack') this.handleAttack(fakeClient, { cards: move.cards });
+      if (move.action === 'swapHuzur') {
+        this.handleSwapHuzur(fakeClient);
+        // Swap doesn't consume the turn — re-schedule immediately so the bot still acts.
+        setTimeout(() => this.scheduleBotTurn(playerId), 400);
+      } else if (move.action === 'attack') this.handleAttack(fakeClient, { cards: move.cards });
       else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
       else if (move.action === 'pickup') this.handlePickUp(fakeClient);
     }, delay);
