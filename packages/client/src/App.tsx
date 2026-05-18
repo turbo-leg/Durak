@@ -139,11 +139,21 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
 
       <footer className="mt-4 text-center text-green-700 text-xs">
         © {new Date().getFullYear()} Durak Online — Multiplayer Framework Built with Colyseus.js ·{' '}
-        <a href="/privacy.html" className="underline hover:text-green-400">
+        <a
+          href="https://github.com/turbo-leg/Durak/blob/main/PRIVACY.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-green-400"
+        >
           Privacy
         </a>{' '}
         ·{' '}
-        <a href="/terms.html" className="underline hover:text-green-400">
+        <a
+          href="https://github.com/turbo-leg/Durak/blob/main/TERMS.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-green-400"
+        >
           Terms
         </a>
       </footer>
