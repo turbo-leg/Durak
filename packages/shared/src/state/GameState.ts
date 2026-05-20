@@ -39,4 +39,11 @@ export class GameState extends Schema {
   @type(['string']) actionLog = new ArraySchema<string>();
 
   @type('number') spectatorCount: number = 0;
+
+  // ── Horse (H-O-R-S-E) meta-match progression ──
+  // One letter is added to a team's string every time they lose a sub-game.
+  // First team to spell HORSE loses the meta-match.
+  @type('string') horseTeamA: string = '';
+  @type('string') horseTeamB: string = '';
+  @type('number') horseGame: number = 1;
 }

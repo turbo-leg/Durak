@@ -142,8 +142,8 @@ describe('Game loop regression (#119)', () => {
       (room as any).resetGameStateForReplay();
       (room as any).startGame();
 
-      // 42 deck cards − 5×2 dealt − 2 suhuh draws = 30
-      expect(room.state.deck.length).toBe(30);
+      // 42 deck cards − 5×2 dealt = 32 (suhuh draws are returned to the deck)
+      expect(room.state.deck.length).toBe(32);
     });
 
     it('multiple consecutive replays keep correct deck size', () => {
@@ -156,7 +156,7 @@ describe('Game loop regression (#119)', () => {
       }
       (room as any).startGame();
 
-      expect(room.state.deck.length).toBe(30);
+      expect(room.state.deck.length).toBe(32);
     });
 
     it('player hands are cleared and re-dealt on replay', () => {
@@ -173,14 +173,14 @@ describe('Game loop regression (#119)', () => {
       (room as any).startGame();
 
       const p1 = room.state.players.get('p1')!;
-      // Each player gets 5 dealt + 1 suhuh = 6 cards after start
-      expect(p1.hand.length).toBe(6);
+      // Each player gets exactly targetHandSize (5) cards; suhuh draws are returned to the deck
+      expect(p1.hand.length).toBe(5);
       // hasPickedUp and pickedUpCardKeys reset
       expect(p1.hasPickedUp).toBe(false);
       expect(p1.pickedUpCardKeys.length).toBe(0);
 
       // Sanity: hand is different from game 1 (different shuffle) — not guaranteed,
-      // but we can confirm it's a non-trivial 6-card hand
+      // but we can confirm it's a non-trivial hand
       expect(p1.hand.length).toBeGreaterThan(0);
       void p1HandAfterGame1; // referenced to avoid unused warning
     });
@@ -242,7 +242,6 @@ describe('Game loop regression (#119)', () => {
     it('attack places a card on activeAttackCards and removes it from hand', () => {
       expect(room.state.currentTurn).toBe('p1');
       const p1 = room.state.players.get('p1')!;
-      const p1HandBefore = p1.hand.length;
 
       // p1 attacks with 3♣ (rank 14, Clubs — the first card dealt)
       (room as any).handleAttack(fakeClient('p1'), {
@@ -251,7 +250,13 @@ describe('Game loop regression (#119)', () => {
 
       expect(room.state.activeAttackCards.length).toBe(1);
       expect(room.state.activeAttackCards[0]!.rank).toBe(14);
-      expect(p1.hand.length).toBe(p1HandBefore - 1);
+      // 3♣ left the hand (replenishAll may top up back to targetHandSize from deck,
+      // which is fine — just assert the played card is no longer present)
+      const stillHas3Clubs = Array.from(p1.hand).some(
+        (c: any) => c.suit === 'Clubs' && c.rank === 14,
+      );
+      expect(stillHas3Clubs).toBe(false);
+      expect(p1.hand.length).toBeLessThanOrEqual(room.state.targetHandSize);
       expect(room.state.currentTurn).toBe('p2');
     });
 

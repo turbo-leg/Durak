@@ -91,6 +91,32 @@ export class DurakRoom extends Room<GameState> {
       client.send('pong', { clientTime: message.clientTime, serverTime: Date.now() });
     });
 
+    // Defense staging — transient face-down ghosts visible to other players
+    // while the defender is mid-drag (no card identity leaks).
+    this.onMessage('defendStage', (client, message: { attackerKey?: string }) => {
+      if (this.spectators.has(client.sessionId)) return;
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handleDefendStage(client, message, 'add');
+    });
+    this.onMessage('defendUnstage', (client, message: { attackerKey?: string }) => {
+      if (this.spectators.has(client.sessionId)) return;
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handleDefendStage(client, message, 'remove');
+    });
+
+    // Broadcast that the defender has picked up (started dragging) a card from their hand.
+    // Other players see a face-down ghost on ALL pending attacker slots immediately.
+    this.onMessage('defenderDragging', (client) => {
+      if (this.spectators.has(client.sessionId)) return;
+      if (this.state.currentTurn !== client.sessionId) return;
+      if (this.state.activeAttackCards.length === 0) return;
+      this.broadcast('defenderDragging', { defenderId: client.sessionId }, { except: client });
+    });
+    this.onMessage('defenderDragEnd', (client) => {
+      if (this.spectators.has(client.sessionId)) return;
+      this.broadcast('defenderDragEnd', { defenderId: client.sessionId }, { except: client });
+    });
+
     // Developer Mode Action Handler
     this.onMessage('dev_action', (client, message) => {
       if (this.isRateLimited(client.sessionId)) return;
@@ -314,6 +340,7 @@ export class DurakRoom extends Room<GameState> {
   async onLeave(client: Client, consented: boolean) {
     logger.info({ sessionId: client.sessionId, consented }, 'client left');
     this.rateLimitMap.delete(client.sessionId);
+    this.clearDefenseGhostsFor(client.sessionId);
 
     if (this.spectators.has(client.sessionId)) {
       this.spectators.delete(client.sessionId);
@@ -530,6 +557,9 @@ export class DurakRoom extends Room<GameState> {
     }
 
     const draws: Array<{ playerId: string; suit: string; rank: number; isJoker: boolean }> = [];
+    // Suhuh uses a separate draw: the cards are revealed for comparison only and
+    // returned to the deck (shuffled back in) — they do NOT join player hands.
+    const drawnForReturn: Card[] = [];
 
     if (this.state.mode === 'teams') {
       // One representative per team draws; winning team's first player in seat order starts
@@ -546,14 +576,16 @@ export class DurakRoom extends Room<GameState> {
         if (this.state.deck.length === 0) return;
         const drawn = this.state.deck.pop()!;
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
-        this.state.players.get(repId)!.hand.push(card);
-        this.state.actionLog.push(`suhuh ${repId}: +${this.formatCard(card)}`);
+        drawnForReturn.push(card);
+        this.state.actionLog.push(`suhuh ${repId}: ${this.formatCard(card)}`);
         draws.push({ playerId: repId, suit: card.suit, rank: card.rank, isJoker: card.isJoker });
         if (!winningCard || this.cardBeats(card, winningCard)) {
           winningCard = card;
           winningTeam = team;
         }
       });
+
+      this.returnSuhuhCardsToDeck(drawnForReturn);
 
       const firstId =
         seatOrder.find((id) => this.state.players.get(id)!.team === winningTeam) ?? fallbackId;
@@ -568,8 +600,8 @@ export class DurakRoom extends Room<GameState> {
         if (this.state.deck.length === 0) break;
         const drawn = this.state.deck.pop()!;
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
-        this.state.players.get(id)!.hand.push(card);
-        this.state.actionLog.push(`suhuh ${id}: +${this.formatCard(card)}`);
+        drawnForReturn.push(card);
+        this.state.actionLog.push(`suhuh ${id}: ${this.formatCard(card)}`);
         draws.push({ playerId: id, suit: card.suit, rank: card.rank, isJoker: card.isJoker });
         if (!highCard || this.cardBeats(card, highCard)) {
           highCard = card;
@@ -577,9 +609,36 @@ export class DurakRoom extends Room<GameState> {
         }
       }
 
+      this.returnSuhuhCardsToDeck(drawnForReturn);
+
       this.state.actionLog.push(`suhuh first: ${firstId}`);
       return { firstId, draws };
     }
+  }
+
+  /**
+   * Re-inserts suhuh draw cards at random positions in the deck so they can be
+   * drawn naturally later, without leaking any deterministic ordering signal.
+   * Index 0 is the bottom huzur card and must stay pinned (see startGame).
+   * Uses drain-and-refill via splice+push to avoid ArraySchema v2 mid-insert quirks.
+   */
+  private returnSuhuhCardsToDeck(cards: Card[]): void {
+    if (cards.length === 0) return;
+
+    // If deck still has cards, deck[0] is the pinned huzur; keep it at index 0.
+    const hasHuzur = this.state.deck.length > 0;
+    const huzur = hasHuzur ? this.state.deck[0]! : null;
+    const rest: Card[] = [];
+    for (let i = hasHuzur ? 1 : 0; i < this.state.deck.length; i++) rest.push(this.state.deck[i]!);
+
+    for (const card of cards) {
+      const idx = Math.floor(Math.random() * (rest.length + 1));
+      rest.splice(idx, 0, new Card(card.suit, card.rank, card.isJoker));
+    }
+
+    this.state.deck.splice(0, this.state.deck.length);
+    if (huzur) this.state.deck.push(new Card(huzur.suit, huzur.rank, huzur.isJoker));
+    rest.forEach((c) => this.state.deck.push(new Card(c.suit, c.rank, c.isJoker)));
   }
 
   private clearRoundStateForNewGame() {
@@ -610,6 +669,11 @@ export class DurakRoom extends Room<GameState> {
       player.hasPickedUp = false;
       player.lastDrawLog.splice(0, player.lastDrawLog.length);
     });
+
+    if (this.defenseGhostStaging.size > 0) {
+      this.defenseGhostStaging.clear();
+      this.broadcast('defenseGhostClear', { defenderId: null });
+    }
   }
 
   private resetGameStateForReplay() {
@@ -713,6 +777,52 @@ export class DurakRoom extends Room<GameState> {
       else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
       else if (move.action === 'pickup') this.handlePickUp(fakeClient);
     }, delay);
+  }
+
+  // Per-player set of attacker keys currently "covered" by a face-down ghost during
+  // mass-defense staging. Transient, in-memory only. Cleared on commit, pickup,
+  // round resolution, turn timeout, disconnect, and game start.
+  private defenseGhostStaging = new Map<string, Set<string>>(); // sessionId → atkKeys
+
+  private handleDefendStage(
+    client: Client,
+    message: { attackerKey?: string },
+    action: 'add' | 'remove',
+  ): void {
+    if (this.state.phase !== 'playing') return;
+    // Only the current defender may stage ghosts.
+    if (this.state.currentTurn !== client.sessionId) return;
+    if (this.state.activeAttackCards.length === 0) return;
+    const atkKey = (message.attackerKey ?? '').toString().slice(0, 32);
+    if (!atkKey) return;
+    // The attackerKey must reference an active attacker.
+    const validKeys = new Set(
+      Array.from(this.state.activeAttackCards)
+        .filter((c): c is Card => !!c)
+        .map((c) => `${c.suit}:${c.rank}`),
+    );
+    if (!validKeys.has(atkKey)) return;
+
+    let set = this.defenseGhostStaging.get(client.sessionId);
+    if (!set) {
+      set = new Set();
+      this.defenseGhostStaging.set(client.sessionId, set);
+    }
+    if (action === 'add') set.add(atkKey);
+    else set.delete(atkKey);
+
+    // Broadcast to OTHER players so they see a face-down placeholder.
+    this.broadcast(
+      'defenseGhost',
+      { defenderId: client.sessionId, attackerKey: atkKey, action },
+      { except: client },
+    );
+  }
+
+  private clearDefenseGhostsFor(sessionId: string): void {
+    if (!this.defenseGhostStaging.has(sessionId)) return;
+    this.defenseGhostStaging.delete(sessionId);
+    this.broadcast('defenseGhostClear', { defenderId: sessionId });
   }
 
   private isRateLimited(sessionId: string): boolean {
@@ -893,6 +1003,9 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
+    // Defense accepted — clear any in-flight ghost markers for this defender.
+    this.clearDefenseGhostsFor(client.sessionId);
+
     // Issue #80: broadcast snapshot of what was defended so the UI can show it for 10 seconds.
     this.broadcast('defensePlayed', {
       at: Date.now(),
@@ -991,6 +1104,7 @@ export class DurakRoom extends Room<GameState> {
     }
 
     this.broadcast('clearDefenseSnapshot');
+    this.clearDefenseGhostsFor(client.sessionId);
 
     // Track cards BEFORE they are moved to hand by endRound
     const pickedUpCards: string[] = [];

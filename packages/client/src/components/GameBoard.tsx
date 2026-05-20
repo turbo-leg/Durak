@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useGame } from '../contexts/GameContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { useGame, type RevealPair } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
 import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +29,7 @@ export const GameBoard: React.FC = () => {
     clearSuhuhResult,
     discardedCards,
     clearDiscardedCards,
+    defenseRevealPairs,
     serverTimeOffset,
     updateLobbySettings,
     startLobbyGame,
@@ -209,6 +210,189 @@ export const GameBoard: React.FC = () => {
 
   const handleSwapHuzur = () => {
     room.send('swapHuzur');
+  };
+
+  // ── Drag-and-drop: drop a single card onto the table to play it ──
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const [draggingCardKey, setDraggingCardKey] = useState<string | null>(null);
+  const [isOverDropZone, setIsOverDropZone] = useState(false);
+
+  // ── Mass-defense staging: build attacker→defender pairs by dragging onto
+  // each attacker card individually, then commit the whole defense. ──
+  const attackerDropRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [stagedDefense, setStagedDefense] = useState<Record<string, SharedCard>>({});
+  const [hoveredAttackerKey, setHoveredAttackerKey] = useState<string | null>(null);
+  // Face-down ghosts emitted by the *other* defender currently mid-drag.
+  const [ghostStaging, setGhostStaging] = useState<Record<string, Set<string>>>({});
+  // ghostStaging[defenderId] = set of attacker keys
+  // True while the other player has a card lifted from their hand but not yet staged.
+  const [isDraggingActive, setIsDraggingActive] = useState(false);
+
+  const attackerKey = (c: SharedCard) => `${c.suit}:${c.rank}`;
+
+  const isMassDefense = attackCards.length >= 2 && isMyTurn;
+  const isAnyDefense = attackCards.length >= 1 && isMyTurn;
+
+  const pointIsInDropZone = (x: number, y: number): boolean => {
+    const el = dropZoneRef.current;
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+
+  // Returns the attacker key whose drop-target the pointer is inside, or null.
+  const pointOverAttacker = (x: number, y: number): string | null => {
+    for (const [key, el] of attackerDropRefs.current.entries()) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;
+    }
+    return null;
+  };
+
+  // Cards in hand that are already staged on some attacker (hidden from hand).
+  const stagedCardKeys = new Set(Object.values(stagedDefense).map((c) => `${c.suit}-${c.rank}`));
+
+  const stageDefender = (atkKey: string, defender: SharedCard) => {
+    let movedFromKey: string | null = null;
+    setStagedDefense((prev) => {
+      const next = { ...prev };
+      // If the defender was already staged on another attacker, move it.
+      for (const k of Object.keys(next)) {
+        const c = next[k]!;
+        if (c.suit === defender.suit && c.rank === defender.rank) {
+          movedFromKey = k;
+          delete next[k];
+        }
+      }
+      next[atkKey] = defender;
+      return next;
+    });
+    Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+    if (movedFromKey && movedFromKey !== atkKey) {
+      room.send('defendUnstage', { attackerKey: movedFromKey });
+    }
+    room.send('defendStage', { attackerKey: atkKey });
+  };
+
+  const unstageDefender = (atkKey: string) => {
+    setStagedDefense((prev) => {
+      if (!(atkKey in prev)) return prev;
+      const next = { ...prev };
+      delete next[atkKey];
+      return next;
+    });
+    room.send('defendUnstage', { attackerKey: atkKey });
+  };
+
+  const clearStagedDefense = () => {
+    const keys = Object.keys(stagedDefense);
+    setStagedDefense({});
+    for (const k of keys) room.send('defendUnstage', { attackerKey: k });
+  };
+
+  const commitStagedDefense = () => {
+    if (attackCards.length === 0) return;
+    // Build defender array in the exact order of activeAttackCards.
+    const defenders: SharedCard[] = [];
+    for (const atk of attackCards) {
+      const def = stagedDefense[attackerKey(atk)];
+      if (!def) return; // not all attackers covered
+      defenders.push(def);
+    }
+    playCardSound();
+    Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+    room.send('defend', { cards: defenders });
+    clearStagedDefense();
+    setSelectedCards([]);
+  };
+
+  // Listen for face-down ghost broadcasts from the active defender.
+  useEffect(() => {
+    if (!room) return;
+    const offGhost = room.onMessage(
+      'defenseGhost',
+      (data: { defenderId: string; attackerKey: string; action: 'add' | 'remove' }) => {
+        setGhostStaging((prev) => {
+          const next = { ...prev };
+          const set = new Set(next[data.defenderId] ?? []);
+          if (data.action === 'add') set.add(data.attackerKey);
+          else set.delete(data.attackerKey);
+          if (set.size === 0) delete next[data.defenderId];
+          else next[data.defenderId] = set;
+          return next;
+        });
+      },
+    );
+    const offClear = room.onMessage('defenseGhostClear', (data: { defenderId: string | null }) => {
+      setGhostStaging((prev) => {
+        if (data.defenderId === null) return {};
+        if (!(data.defenderId in prev)) return prev;
+        const next = { ...prev };
+        delete next[data.defenderId];
+        return next;
+      });
+    });
+    const offDragging = room.onMessage('defenderDragging', () => {
+      setIsDraggingActive(true);
+    });
+    const offDragEnd = room.onMessage('defenderDragEnd', () => {
+      setIsDraggingActive(false);
+    });
+    return () => {
+      offGhost?.();
+      offClear?.();
+      offDragging?.();
+      offDragEnd?.();
+    };
+  }, [room]);
+
+  // Ghost staging only reflects the current defender. Drop stale entries whenever the
+  // turn or active attack composition changes.
+  useEffect(() => {
+    setGhostStaging({});
+    setIsDraggingActive(false);
+  }, [gameState.currentTurn, attackCards.length]);
+
+  // Aggregated set of attacker keys currently showing a face-down ghost from any other player.
+  // When the defender has a card lifted (isDraggingActive) but hasn't staged it yet,
+  // show a ghost on every pending attacker slot so observers know something is happening.
+  const ghostedAttackerKeys = (() => {
+    const s = new Set<string>();
+    for (const set of Object.values(ghostStaging)) for (const k of set) s.add(k);
+    if (isDraggingActive && !isMyTurn && attackCards.length > 0) {
+      for (const c of attackCards) s.add(attackerKey(c));
+    }
+    return s;
+  })();
+
+  // If the active attack changes (round resolved, picked up, etc.), drop stale staging.
+  useEffect(() => {
+    if (attackCards.length === 0) {
+      if (Object.keys(stagedDefense).length > 0) clearStagedDefense();
+      return;
+    }
+    const liveKeys = new Set(attackCards.map(attackerKey));
+    setStagedDefense((prev) => {
+      let changed = false;
+      const next: Record<string, SharedCard> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (liveKeys.has(k)) next[k] = v;
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attackCards.map(attackerKey).join('|')]);
+
+  const playSingleCard = (card: SharedCard) => {
+    // Only valid during own turn; pick attack vs defend by table state.
+    const action = attackCards.length === 0 ? 'attack' : 'defend';
+    playCardSound();
+    Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+    room.send(action, { cards: [card] });
+    // Clear selection so the manual-select flow isn't left in a stale state.
+    setSelectedCards([]);
   };
 
   const isDevMode =
@@ -750,36 +934,45 @@ export const GameBoard: React.FC = () => {
 
       {/* ── Oval Table Area ── */}
       <div className="flex-1 relative min-h-0">
-        {/* Oval felt surface */}
-        <div className="absolute inset-3 md:inset-8 rounded-[50%] bg-[radial-gradient(ellipse_at_center,#1a5c2e,#0a3618)] border-2 border-yellow-900/30 shadow-[inset_0_0_60px_rgba(0,0,0,0.5)]">
-          {/* Center: Deck + Trump + Table Cards */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex flex-wrap items-center justify-center gap-1 md:gap-3 p-2 max-w-[80%]">
-              {/* Deck + Trump compact */}
-              {gameState.phase === 'playing' && gameState.huzurCard && (
-                <div className="flex items-center gap-1 mr-1 md:mr-3">
-                  <div className="relative w-8 h-12 md:w-10 md:h-14">
-                    {(gameState.deck?.length || 0) > 0 ? (
-                      <>
-                        <div className="absolute inset-0 bg-red-900 rounded border border-white/20 shadow-md flex items-center justify-center">
-                          <span className="text-white font-black text-[10px] md:text-xs">
-                            {gameState.deck?.length}
-                          </span>
-                        </div>
-                        <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 bg-red-950 rounded border border-white/10 -z-10" />
-                      </>
-                    ) : (
-                      <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
-                    )}
-                  </div>
-                  <UICard
-                    card={gameState.huzurCard}
-                    compact
-                    className="border-yellow-500 shadow-[0_0_8px_rgba(250,204,21,0.4)]"
-                  />
-                </div>
-              )}
+        {/* Oval felt surface — also the drop zone for drag-to-play */}
+        <div
+          ref={dropZoneRef}
+          className={`absolute inset-3 md:inset-8 rounded-[50%] bg-[radial-gradient(ellipse_at_center,#1a5c2e,#0a3618)] border-2 shadow-[inset_0_0_60px_rgba(0,0,0,0.5)] transition-colors duration-150 ${
+            draggingCardKey
+              ? isOverDropZone
+                ? 'border-yellow-300 shadow-[inset_0_0_80px_rgba(250,204,21,0.45)]'
+                : 'border-yellow-500/60'
+              : 'border-yellow-900/30'
+          }`}
+        >
+          {/* Deck + Trump — pinned to the oval's left edge so played cards never collide with it */}
+          {gameState.phase === 'playing' && gameState.huzurCard && (
+            <div className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 pointer-events-none">
+              <div className="relative w-8 h-12 md:w-10 md:h-14">
+                {(gameState.deck?.length || 0) > 0 ? (
+                  <>
+                    <div className="absolute inset-0 bg-red-900 rounded border border-white/20 shadow-md flex items-center justify-center">
+                      <span className="text-white font-black text-[10px] md:text-xs">
+                        {gameState.deck?.length}
+                      </span>
+                    </div>
+                    <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 bg-red-950 rounded border border-white/10 -z-10" />
+                  </>
+                ) : (
+                  <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
+                )}
+              </div>
+              <UICard
+                card={gameState.huzurCard}
+                compact
+                className="border-yellow-500 shadow-[0_0_8px_rgba(250,204,21,0.4)]"
+              />
+            </div>
+          )}
 
+          {/* Center: Table Cards (played pairs) — kept clear of the deck/trump cluster */}
+          <div className="absolute inset-0 flex items-center justify-center px-24 md:px-32 pointer-events-none">
+            <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 p-2 max-w-full pointer-events-auto">
               {/* Table stack — pair-aware: shows atk→def pairing explicitly so mass attack
                   defenses are obvious. Hidden while the discard overlay is active. */}
               <AnimatePresence>
@@ -825,6 +1018,21 @@ export const GameBoard: React.FC = () => {
                     return renderItems.map((p, i) => {
                       const rotate =
                         (i % 2 === 0 ? -3 : 3) + (i - (renderItems.length - 1) / 2) * 4;
+                      const atkKey = attackerKey(p.atk);
+                      // isPendingAttacker: card still needs a defender (visible to everyone)
+                      const isPendingAttacker =
+                        !p.def && attackCards.some((c) => attackerKey(c) === atkKey);
+                      // Only the current defender gets interactive drop zones
+                      const isDropTarget = isPendingAttacker && isMyTurn;
+                      const staged = isDropTarget ? stagedDefense[atkKey] : undefined;
+                      const isHovered =
+                        isDropTarget && hoveredAttackerKey === atkKey && !!draggingCardKey;
+                      const showGhost =
+                        isPendingAttacker &&
+                        !staged &&
+                        !isMyTurn &&
+                        ghostedAttackerKeys.has(atkKey);
+
                       return (
                         <motion.div
                           key={`pair-${p.pairKey}`}
@@ -835,23 +1043,156 @@ export const GameBoard: React.FC = () => {
                           style={{ zIndex: i }}
                           className="relative flex-shrink-0"
                         >
-                          {/* Attacker — underlying card */}
-                          <UICard card={p.atk} compact />
-                          {/* Defender — overlaps the attacker, offset bottom-right, with subtle tilt */}
-                          {p.def && (
-                            <motion.div
-                              initial={{ opacity: 0, x: -6, y: -6, rotate: -8 }}
-                              animate={{ opacity: 1, x: 0, y: 0, rotate: 8 }}
-                              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-                              className="absolute left-3 top-3 ring-1 ring-green-400/50 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
+                          {isPendingAttacker ? (
+                            /* ── Per-card drop zone: slot above, attacker below ── */
+                            <div
+                              ref={(el) => {
+                                if (isDropTarget) attackerDropRefs.current.set(atkKey, el);
+                                else attackerDropRefs.current.delete(atkKey);
+                              }}
+                              className={`flex flex-col items-center gap-0.5 rounded-lg p-0.5 transition-all duration-150 ${
+                                isHovered
+                                  ? 'bg-yellow-400/10 shadow-[0_0_20px_rgba(250,204,21,0.5)]'
+                                  : ''
+                              }`}
                             >
-                              <UICard card={p.def} compact />
-                            </motion.div>
+                              {/* Defender slot — shows staged card, ghost, or empty placeholder */}
+                              <div
+                                className={`w-12 h-[72px] rounded-md border-2 flex items-center justify-center transition-all duration-150 relative overflow-hidden ${
+                                  staged
+                                    ? 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.55)]'
+                                    : isHovered
+                                      ? 'border-yellow-300 bg-yellow-300/20'
+                                      : 'border-dashed border-white/25 bg-white/5'
+                                }`}
+                              >
+                                {staged ? (
+                                  /* Staged card is draggable — lets the defender move it
+                                     directly from one attacker slot to another. */
+                                  <motion.div
+                                    key={`staged-${atkKey}-${staged.suit}-${staged.rank}`}
+                                    initial={{ opacity: 0, scale: 0.6 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                                    className="absolute inset-0 cursor-grab active:cursor-grabbing"
+                                    style={{ touchAction: 'none' }}
+                                    drag={isDropTarget}
+                                    dragSnapToOrigin
+                                    dragElastic={0.4}
+                                    dragMomentum={false}
+                                    whileDrag={{ scale: 1.15, zIndex: 200 }}
+                                    onTap={() => {
+                                      if (isDropTarget) unstageDefender(atkKey);
+                                    }}
+                                    onDragStart={() => {
+                                      setDraggingCardKey(`slot-${atkKey}`);
+                                      Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+                                      room.send('defenderDragging');
+                                    }}
+                                    onDrag={(_, info) => {
+                                      setHoveredAttackerKey(
+                                        pointOverAttacker(info.point.x, info.point.y),
+                                      );
+                                    }}
+                                    onDragEnd={(_, info) => {
+                                      const target = pointOverAttacker(info.point.x, info.point.y);
+                                      setDraggingCardKey(null);
+                                      setHoveredAttackerKey(null);
+                                      room.send('defenderDragEnd');
+                                      if (target && target !== atkKey) {
+                                        stageDefender(target, staged);
+                                      }
+                                    }}
+                                  >
+                                    <div className="pointer-events-none">
+                                      <UICard card={staged} compact />
+                                    </div>
+                                  </motion.div>
+                                ) : showGhost ? (
+                                  <motion.div
+                                    key={`ghost-${atkKey}`}
+                                    initial={{ opacity: 0, scale: 0.6 }}
+                                    animate={{ opacity: 0.95, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.5 }}
+                                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                                    className="absolute inset-0 rounded-md ring-1 ring-white/20"
+                                    style={{
+                                      background:
+                                        'repeating-linear-gradient(45deg,#7f1d1d 0 6px,#991b1b 6px 12px)',
+                                    }}
+                                  >
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <span className="text-white/80 text-lg">★</span>
+                                    </div>
+                                  </motion.div>
+                                ) : (
+                                  <span
+                                    className={`text-2xl font-thin select-none transition-colors ${
+                                      isHovered ? 'text-yellow-300' : 'text-white/20'
+                                    }`}
+                                  >
+                                    +
+                                  </span>
+                                )}
+                              </div>
+                              {/* Attacker card — the card that must be beaten */}
+                              <UICard card={p.atk} compact />
+                            </div>
+                          ) : (
+                            /* ── Resolved pair: attacker with defender overlaid ── */
+                            <div className="relative">
+                              <UICard card={p.atk} compact />
+                              {p.def && (
+                                <motion.div
+                                  initial={{ opacity: 0, x: -6, y: -6, rotate: -8 }}
+                                  animate={{ opacity: 1, x: 0, y: 0, rotate: 8 }}
+                                  transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                                  className="absolute left-3 top-3 ring-1 ring-green-400/50 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
+                                >
+                                  <UICard card={p.def} compact />
+                                </motion.div>
+                              )}
+                            </div>
                           )}
                         </motion.div>
                       );
                     });
                   })()}
+              </AnimatePresence>
+
+              {/* Defense reveal — 1.5s window after round ends, before discard animation */}
+              <AnimatePresence>
+                {defenseRevealPairs && !discardedCards && (
+                  <motion.div
+                    key="defense-reveal"
+                    initial={{ opacity: 0, scale: 0.88 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  >
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
+                      {(defenseRevealPairs as RevealPair[]).map((pair, i) => (
+                        <div key={i} className="relative flex-shrink-0">
+                          <UICard card={pair.atk as unknown as SharedCard} compact />
+                          {/* Defender card flips in — rotateY -90→0 simulates flipping face-up */}
+                          <motion.div
+                            initial={{ rotateY: -90 }}
+                            animate={{ rotateY: 0 }}
+                            transition={{
+                              duration: 0.42,
+                              ease: [0.25, 0.46, 0.45, 0.94],
+                              delay: i * 0.1,
+                            }}
+                            style={{ transformPerspective: 900, rotate: 8 }}
+                            className="absolute left-3 top-3 ring-1 ring-green-400/60 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                          >
+                            <UICard card={pair.def as unknown as SharedCard} compact />
+                          </motion.div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
               </AnimatePresence>
 
               {/* Discard animation — shown briefly after a successful defense round */}
@@ -1035,13 +1376,40 @@ export const GameBoard: React.FC = () => {
           )}
           {isMyTurn && attackCards.length > 0 && (
             <>
-              <button
-                onClick={handleDefend}
-                disabled={selectedCards.length === 0}
-                className="px-4 py-1.5 md:px-6 md:py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
-              >
-                🛡 Defend ({selectedCards.length})
-              </button>
+              {(() => {
+                const stagedCount = Object.keys(stagedDefense).length;
+                const needCount = attackCards.length;
+                const allStaged = stagedCount > 0 && stagedCount === needCount;
+                return (
+                  <>
+                    {stagedCount > 0 ? (
+                      <>
+                        <button
+                          onClick={commitStagedDefense}
+                          disabled={!allStaged}
+                          className="px-4 py-1.5 md:px-6 md:py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
+                        >
+                          ✓ Confirm Defense ({stagedCount}/{needCount})
+                        </button>
+                        <button
+                          onClick={clearStagedDefense}
+                          className="px-4 py-1.5 md:px-6 md:py-2 bg-gray-700 hover:bg-gray-600 rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
+                        >
+                          Clear
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={handleDefend}
+                        disabled={selectedCards.length === 0}
+                        className="px-4 py-1.5 md:px-6 md:py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
+                      >
+                        🛡 Defend ({selectedCards.length})
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
               <button
                 onClick={handlePickUp}
                 className="px-4 py-1.5 md:px-6 md:py-2 bg-yellow-600 hover:bg-yellow-500 rounded-full text-yellow-900 font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
@@ -1078,12 +1446,14 @@ export const GameBoard: React.FC = () => {
       {/* ── Player Hand ── */}
       {!viewAsSpectator && (
         <div
-          className={`shrink-0 bg-black/30 border-t border-white/10 overflow-hidden transition-all duration-300 ${
-            isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'
-          }`}
+          className={`shrink-0 bg-black/30 border-t border-white/10 transition-all duration-300 ${
+            draggingCardKey ? 'overflow-visible' : 'overflow-hidden'
+          } ${isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'}`}
         >
           <div
-            className="flex flex-row overflow-x-auto md:overflow-x-visible items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar"
+            className={`flex flex-row items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar ${
+              draggingCardKey ? 'overflow-visible' : 'overflow-x-auto md:overflow-x-visible'
+            }`}
             style={{ minHeight: isMyTurn ? '80px' : '64px' }}
           >
             <div className="flex flex-row w-max md:w-auto md:max-w-full md:justify-center gap-1 md:gap-0 px-1 md:px-0">
@@ -1095,14 +1465,19 @@ export const GameBoard: React.FC = () => {
                   const animationDelayMs = i * 150;
                   const overlapAmount =
                     isDesktop && myHand.length > 7 ? Math.min(80, (myHand.length - 7) * 4) : 0;
+                  const cardKey = `${card.suit}-${card.rank}`;
+                  const isDraggingThis = draggingCardKey === cardKey;
+                  const isStaged = stagedCardKeys.has(cardKey);
+                  // Allow drag only on the player's own turn — otherwise a drop would just bounce back.
+                  const canDrag = isMyTurn && !isStaged;
 
                   return (
                     <motion.div
-                      key={`${card.suit}-${card.rank}`}
-                      layoutId={`card-${card.suit}-${card.rank}`}
+                      key={cardKey}
+                      layoutId={isDraggingThis ? undefined : `card-${card.suit}-${card.rank}`}
                       initial={{ opacity: 0, y: 60, scale: 0.5 }}
                       animate={{
-                        opacity: 1,
+                        opacity: isStaged ? 0.25 : 1,
                         y: isSelected ? -12 : 0,
                         scale: isMyTurn ? 1.05 : 1,
                       }}
@@ -1116,18 +1491,78 @@ export const GameBoard: React.FC = () => {
                       }}
                       style={{
                         marginLeft: i > 0 && isDesktop ? `-${overlapAmount}px` : undefined,
-                        zIndex: isSelected ? 100 : i,
+                        zIndex: isDraggingThis ? 200 : isSelected ? 100 : i,
+                        touchAction: canDrag ? 'none' : undefined,
                       }}
-                      className={`cursor-pointer rounded-lg flex-shrink-0 relative touch-manipulation ${
+                      drag={canDrag}
+                      dragSnapToOrigin
+                      dragElastic={0.4}
+                      dragMomentum={false}
+                      whileDrag={{ scale: 1.2, zIndex: 200 }}
+                      onTap={() => handleCardClick(card)}
+                      onDragStart={() => {
+                        setDraggingCardKey(cardKey);
+                        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+                        if (isAnyDefense) room.send('defenderDragging');
+                      }}
+                      onDrag={(_, info) => {
+                        // Prefer landing on a specific attacker (mass defense pairing).
+                        const overAttacker = isAnyDefense
+                          ? pointOverAttacker(info.point.x, info.point.y)
+                          : null;
+                        setHoveredAttackerKey(overAttacker);
+                        setIsOverDropZone(
+                          !overAttacker && pointIsInDropZone(info.point.x, info.point.y),
+                        );
+                      }}
+                      onDragEnd={(_, info) => {
+                        const overAttacker = isAnyDefense
+                          ? pointOverAttacker(info.point.x, info.point.y)
+                          : null;
+                        const droppedOnTable =
+                          !overAttacker && pointIsInDropZone(info.point.x, info.point.y);
+                        setDraggingCardKey(null);
+                        setHoveredAttackerKey(null);
+                        setIsOverDropZone(false);
+                        room.send('defenderDragEnd');
+                        if (overAttacker) {
+                          // Defense pairing: stage this card on the chosen attacker.
+                          if (isMassDefense) {
+                            stageDefender(overAttacker, card);
+                          } else {
+                            // Single-attack defense: drop on attacker = play immediately.
+                            playSingleCard(card);
+                          }
+                        } else if (droppedOnTable) {
+                          // Attack OR single-card defense fallback.
+                          if (isMassDefense) {
+                            // Don't auto-commit during mass defense — require explicit Confirm.
+                            // Treat as a stage-on-first-uncovered-attacker convenience.
+                            const firstUncovered = attackCards.find(
+                              (c) => !stagedDefense[attackerKey(c)],
+                            );
+                            if (firstUncovered) stageDefender(attackerKey(firstUncovered), card);
+                          } else {
+                            playSingleCard(card);
+                          }
+                        }
+                      }}
+                      className={`rounded-lg flex-shrink-0 relative ${
+                        canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                      } ${
                         isSelected
                           ? 'shadow-[0_8px_16px_rgba(250,204,21,0.5)] ring-2 ring-yellow-400'
-                          : isDesktop
+                          : isDesktop && !isDraggingThis
                             ? 'hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] hover:-translate-y-3 hover:z-[90]'
                             : ''
                       }`}
                     >
                       <DealSoundTrigger delayMs={animationDelayMs} playSound={playDealSound} />
-                      <UICard card={card} isPlayable={true} onClick={handleCardClick} />
+                      {/* Inner UICard pointer-events are disabled so the parent motion.div
+                          captures pointerdown for drag and tap. */}
+                      <div className="pointer-events-none">
+                        <UICard card={card} isPlayable={true} />
+                      </div>
                     </motion.div>
                   );
                 })}
