@@ -9,6 +9,9 @@ import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import { evaluateBadges, BADGES } from '../utils/Badges';
 import mongoose from 'mongoose';
 import { botEngine, BotDifficulty } from '../ai/BotEngine';
+import { onnxBotEngine } from '../ai/OnnxBot';
+
+type ExtendedBotDifficulty = BotDifficulty | 'onnx';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -26,7 +29,7 @@ export class DurakRoom extends Room<GameState> {
   maxClients = 100; // Enforced manually in onJoin; spectators bypass the Colyseus cap
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
-  private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
+  private botIds = new Map<string, ExtendedBotDifficulty>(); // sessionId → difficulty
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
   private spectators = new Set<string>(); // sessionIds of read-only spectators
   private discordInstanceId: string | null = null;
@@ -101,7 +104,9 @@ export class DurakRoom extends Room<GameState> {
       if (message.action === 'spawn_dummies') {
         const count = message.count || this.state.maxPlayers - this.state.players.size;
         const isDummy = message.difficulty === 'dummy';
-        const difficulty: BotDifficulty = message.difficulty === 'hard' ? 'hard' : 'easy';
+        const difficulty: ExtendedBotDifficulty =
+          message.difficulty === 'hard' ? 'hard' :
+          message.difficulty === 'onnx' ? 'onnx' : 'easy';
 
         let spawned = 0;
         for (let i = 0; i < count; i++) {
@@ -673,7 +678,7 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private scheduleBotTurn(playerId: string) {
-    const difficulty = this.botIds.get(playerId);
+    const difficulty: ExtendedBotDifficulty | undefined = this.botIds.get(playerId);
     if (!difficulty) return;
 
     const delay = 800 + Math.random() * 1200; // 0.8–2s human-like pause
@@ -693,7 +698,9 @@ export class DurakRoom extends Room<GameState> {
         'bot firing',
       );
 
-      const move = await botEngine.think(this.state, playerId, difficulty);
+      const move = difficulty === 'onnx'
+        ? await onnxBotEngine.think(this.state, playerId)
+        : await botEngine.think(this.state, playerId, difficulty as BotDifficulty);
       logger.info(
         {
           botId: playerId.slice(0, 8),
