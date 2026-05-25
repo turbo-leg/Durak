@@ -374,6 +374,50 @@ app.post('/api/daily-login', async (req, res) => {
   }
 });
 
+// ── Cosmetic Equip ────────────────────────────────────────────────────────────
+
+app.post('/api/profile/equip', async (req, res) => {
+  try {
+    const { discordId, userId, itemId, slot } = req.body as {
+      discordId?: string;
+      userId?: string;
+      itemId: string;
+      slot: 'card_back' | 'avatar_frame';
+    };
+    if (!discordId && !userId) {
+      res.status(400).json({ error: 'discordId or userId required' });
+      return;
+    }
+    if (!itemId || typeof itemId !== 'string') {
+      res.status(400).json({ error: 'itemId required' });
+      return;
+    }
+    if (slot !== 'card_back' && slot !== 'avatar_frame') {
+      res.status(400).json({ error: 'slot must be card_back or avatar_frame' });
+      return;
+    }
+    const filter = discordId ? { discordId } : { userId };
+    const profile = await PlayerProfile.findOne(filter);
+    if (!profile) {
+      res.status(404).json({ error: 'Profile not found' });
+      return;
+    }
+    if (!profile.ownedItems.includes(itemId)) {
+      res.status(403).json({ error: 'Item not owned' });
+      return;
+    }
+    const field = slot === 'card_back' ? 'equippedCardBack' : 'equippedAvatarFrame';
+    await profile.updateOne({ [field]: itemId });
+    const equipped = {
+      card_back: slot === 'card_back' ? itemId : (profile.equippedCardBack ?? ''),
+      avatar_frame: slot === 'avatar_frame' ? itemId : (profile.equippedAvatarFrame ?? ''),
+    };
+    res.json({ ok: true, equipped });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Health ───────────────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {

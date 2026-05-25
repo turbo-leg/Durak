@@ -9,6 +9,7 @@ import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 import { TierChangeOverlay } from './TierChangeOverlay';
+import { EmoteWheel } from './EmoteWheel';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -58,6 +59,7 @@ export const GameBoard: React.FC = () => {
     newTier: Tier;
     direction: 'up' | 'down';
   } | null>(null);
+  const [emoteToast, setEmoteToast] = useState<{ username: string; emoteId: string } | null>(null);
 
   // Update timer smoothly using requestAnimationFrame
   useEffect(() => {
@@ -141,6 +143,15 @@ export const GameBoard: React.FC = () => {
       }
     };
     room.onMessage('tierChanged', handler);
+  }, [room]);
+
+  useEffect(() => {
+    if (!room) return;
+    const handler = (data: { sessionId: string; username: string; emoteId: string }) => {
+      setEmoteToast({ username: data.username, emoteId: data.emoteId });
+      setTimeout(() => setEmoteToast(null), 2000);
+    };
+    room.onMessage('emote', handler);
   }, [room]);
 
   if (!room || !gameState) {
@@ -1640,6 +1651,20 @@ export const GameBoard: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Emote Toast ── */}
+      {emoteToast && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-black/80 text-white text-sm px-4 py-2 rounded-full shadow-lg z-50 pointer-events-none">
+          {emoteToast.username}: {emoteToast.emoteId}
+        </div>
+      )}
+
+      {/* ── Emote Wheel ── */}
+      {!viewAsSpectator && gameState.phase === 'playing' && (
+        <div className="absolute bottom-4 right-4 z-50">
+          <EmoteWheel room={room} />
+        </div>
+      )}
 
       {/* ── Game Over Overlay ── */}
       {gameState.phase === 'finished' && (

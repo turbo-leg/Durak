@@ -30,6 +30,7 @@ export class DurakRoom extends Room<GameState> {
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
   private spectators = new Set<string>(); // sessionIds of read-only spectators
+  private emoteCooldowns = new Map<string, number>();
   private discordInstanceId: string | null = null;
 
   onCreate(options: any) {
@@ -281,6 +282,24 @@ export class DurakRoom extends Room<GameState> {
       if (player) {
         player.isReady = message.isReady;
       }
+    });
+
+    // Emote system — rate limited to 1 per 3 seconds per player
+    this.onMessage('emote', (client, message: { emoteId: string }) => {
+      if (this.spectators.has(client.sessionId)) return;
+      const now = Date.now();
+      const lastEmote = this.emoteCooldowns.get(client.sessionId) ?? 0;
+      if (now - lastEmote < 3000) return; // 3-second cooldown
+      this.emoteCooldowns.set(client.sessionId, now);
+      const player = this.state.players.get(client.sessionId);
+      const ALLOWED_EMOTES = ['😂', '🤝', '🔥', '👏', '😤', '🎉'];
+      const emoteId = String(message.emoteId);
+      if (!ALLOWED_EMOTES.includes(emoteId)) return;
+      this.broadcast('emote', {
+        sessionId: client.sessionId,
+        username: player?.username ?? '',
+        emoteId,
+      });
     });
   }
 
