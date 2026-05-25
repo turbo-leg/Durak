@@ -1,7 +1,9 @@
 import { useGame } from './contexts/GameContext';
 import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { GameBoard } from './components/GameBoard';
 import { Lobby } from './components/Lobby';
+import { MobileLoginScreen } from './components/MobileLoginScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
 import { useAuth } from './contexts/AuthContext';
@@ -164,8 +166,10 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
 function App() {
   const [auth, setAuth] = useState<DiscordAuthInfo | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
+    // Discord embedded SDK setup — only when running as a Discord Activity
     if (isEmbedded) {
       setupDiscordSdk()
         .then((discordAuth) => {
@@ -177,6 +181,15 @@ function App() {
         });
     }
   }, []);
+
+  // On native mobile: show full-screen login until the user authenticates
+  if (Capacitor.isNativePlatform() && !authLoading && !user) {
+    return (
+      <ErrorBoundary>
+        <MobileLoginScreen />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>

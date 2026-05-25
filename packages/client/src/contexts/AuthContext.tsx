@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { storage } from '../utils/storage';
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
 const STORAGE_KEY = 'durak_auth';
@@ -22,6 +24,8 @@ interface AuthContextState {
   error: string | null;
   loginWithDiscord: () => void;
   loginWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string, username: string) => Promise<void>;
+  /** @deprecated Use registerWithEmail instead */
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => void;
   handleOAuthCallback: (code: string) => Promise<void>;
@@ -33,6 +37,7 @@ const AuthContext = createContext<AuthContextState>({
   error: null,
   loginWithDiscord: () => {},
   loginWithEmail: async () => {},
+  registerWithEmail: async () => {},
   register: async () => {},
   logout: () => {},
   handleOAuthCallback: async () => {},
@@ -47,7 +52,10 @@ function buildAvatarUrl(id: string, hash: string | null): string {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // On web, seed initial state synchronously from localStorage.
+  // On native, start null and hydrate asynchronously in the effect below.
   const [user, setUser] = useState<AuthUser | null>(() => {
+    if (Capacitor.isNativePlatform()) return null;
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -58,14 +66,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     return null;
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(Capacitor.isNativePlatform());
   const [error, setError] = useState<string | null>(null);
 
-  const persist = (u: AuthUser | null) => {
-    if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-    else localStorage.removeItem(STORAGE_KEY);
+  // Hydrate auth state from async storage on native platforms
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    storage
+      .get(STORAGE_KEY)
+      .then((saved) => {
+        if (saved) {
+          try {
+            setUser(JSON.parse(saved) as AuthUser);
+          } catch {
+            void storage.remove(STORAGE_KEY);
+          }
+        }
+      })
+      .catch((e: unknown) => {
+        console.error('Failed to load auth from storage:', e);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  const persist = useCallback((u: AuthUser | null) => {
+    const save = u ? storage.set(STORAGE_KEY, JSON.stringify(u)) : storage.remove(STORAGE_KEY);
+    save.catch((e: unknown) => console.error('Failed to persist auth:', e));
     setUser(u);
-  };
+  }, []);
 
   const loginWithDiscord = useCallback(() => {
     const params = new URLSearchParams({
@@ -77,107 +107,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.location.href = `https://discord.com/api/oauth2/authorize?${params}`;
   }, []);
 
-  const handleOAuthCallback = useCallback(async (code: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const tokenRes = await fetch('/api/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
-      });
-      const tokenData = await tokenRes.json();
-      if (!tokenRes.ok) {
-        const msg = tokenData?.error_description || tokenData?.error || 'Token exchange failed';
-        throw new Error(msg);
+  const handleOAuthCallback = useCallback(
+    async (code: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const tokenRes = await fetch('/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
+        });
+        const tokenData = await tokenRes.json();
+        if (!tokenRes.ok) {
+          const msg = tokenData?.error_description || tokenData?.error || 'Token exchange failed';
+          throw new Error(msg);
+        }
+        const { access_token } = tokenData;
+
+        const meRes = await fetch('https://discord.com/api/users/@me', {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        if (!meRes.ok) throw new Error('Failed to fetch Discord user');
+        const me = await meRes.json();
+
+        persist({
+          id: me.id,
+          method: 'discord',
+          username: me.username,
+          globalName: me.global_name ?? null,
+          avatarUrl: buildAvatarUrl(me.id, me.avatar),
+          token: access_token,
+        });
+
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Discord login failed');
+      } finally {
+        setIsLoading(false);
       }
-      const { access_token } = tokenData;
+    },
+    [persist],
+  );
 
-      const meRes = await fetch('https://discord.com/api/users/@me', {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-      if (!meRes.ok) throw new Error('Failed to fetch Discord user');
-      const me = await meRes.json();
+  const loginWithEmail = useCallback(
+    async (email: string, password: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
 
-      persist({
-        id: me.id,
-        method: 'discord',
-        username: me.username,
-        globalName: me.global_name ?? null,
-        avatarUrl: buildAvatarUrl(me.id, me.avatar),
-        token: access_token,
-      });
+        persist({
+          id: data.user.id,
+          method: 'email',
+          username: data.user.username,
+          globalName: null,
+          avatarUrl: data.user.avatarUrl || '',
+          email: data.user.email,
+          token: data.token,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Login failed');
+        throw e;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [persist],
+  );
 
-      window.history.replaceState({}, '', window.location.pathname);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Discord login failed');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const registerWithEmail = useCallback(
+    async (email: string, password: string, username: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, username }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Registration failed');
 
-  const loginWithEmail = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
-
-      persist({
-        id: data.user.id,
-        method: 'email',
-        username: data.user.username,
-        globalName: null,
-        avatarUrl: data.user.avatarUrl || '',
-        email: data.user.email,
-        token: data.token,
-      });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Login failed');
-      throw e;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const register = useCallback(async (email: string, password: string, username: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, username }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Registration failed');
-
-      persist({
-        id: data.user.id,
-        method: 'email',
-        username: data.user.username,
-        globalName: null,
-        avatarUrl: data.user.avatarUrl || '',
-        email: data.user.email,
-        token: data.token,
-      });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Registration failed');
-      throw e;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+        persist({
+          id: data.user.id,
+          method: 'email',
+          username: data.user.username,
+          globalName: null,
+          avatarUrl: data.user.avatarUrl || '',
+          email: data.user.email,
+          token: data.token,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Registration failed');
+        throw e;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [persist],
+  );
 
   const logout = useCallback(() => {
     persist(null);
     setError(null);
-  }, []);
+  }, [persist]);
 
   return (
     <AuthContext.Provider
@@ -187,7 +226,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         loginWithDiscord,
         loginWithEmail,
-        register,
+        registerWithEmail,
+        register: registerWithEmail,
         logout,
         handleOAuthCallback,
       }}
