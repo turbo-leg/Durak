@@ -24,6 +24,8 @@ import { getTierInfo } from '@durak/shared';
 import { CoinTransaction } from './src/models/CoinTransaction';
 import { isSameUTCDay, COIN_REWARDS, awardCoins } from './src/utils/coins';
 import { iapRouter } from './src/routes/iap';
+import { friendsRouter } from './src/routes/friends';
+import { teamsRouter } from './src/routes/teams';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -273,6 +275,33 @@ app.get('/api/auth/me', async (req, res) => {
 
 // ── Profile & history API ────────────────────────────────────────────────────
 
+// GET /api/profile/search?q=username — fuzzy username search for friend/team invites
+app.get('/api/profile/search', async (req, res) => {
+  const q = String(req.query.q ?? '').trim();
+  if (!q || q.length < 2) {
+    res.status(400).json({ error: 'q must be at least 2 characters' });
+    return;
+  }
+  try {
+    const results = await PlayerProfile.find({
+      username: { $regex: q, $options: 'i' },
+    })
+      .limit(10)
+      .select('_id username avatarUrl eloClassic')
+      .lean();
+    res.json(
+      results.map((p) => ({
+        profileId: p._id.toString(),
+        username: p.username,
+        avatarUrl: p.avatarUrl,
+        eloClassic: p.eloClassic,
+      })),
+    );
+  } catch (e: unknown) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Server error' });
+  }
+});
+
 // Accepts ?by=discord (default) or ?by=user
 app.get('/api/profile/:id', async (req, res) => {
   try {
@@ -452,6 +481,8 @@ gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
 
 app.use('/api/shop', shopRouter);
 app.use('/api/iap', iapRouter);
+app.use('/api/friends', friendsRouter);
+app.use('/api/teams', teamsRouter);
 app.use('/colyseus', monitor());
 
 const clientDistPath = path.resolve(__dirname, '../client/dist');
