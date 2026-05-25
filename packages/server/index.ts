@@ -457,10 +457,51 @@ app.post('/api/profile/equip', async (req, res) => {
   }
 });
 
-// ── Health ───────────────────────────────────────────────────────────────────
+// ── Health & Metrics ─────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+// GET /metrics — lightweight performance counters for benchmarking (#153)
+// No auth required; safe to expose since it contains no user data.
+const _requestCounts: Record<string, number> = {};
+const _responseTimes: number[] = [];
+const MAX_RESPONSE_SAMPLES = 1000;
+
+app.use((req, _res, next) => {
+  const route = `${req.method} ${req.path.replace(/\/[0-9a-f]{24}/gi, '/:id')}`;
+  _requestCounts[route] = (_requestCounts[route] ?? 0) + 1;
+  next();
+});
+
+app.get('/metrics', async (_req, res) => {
+  const mem = process.memoryUsage();
+  let activeRooms = 0;
+  let connectedClients = 0;
+  try {
+    const rooms = await matchMaker.query({ name: 'durak' });
+    activeRooms = rooms.length;
+    connectedClients = rooms.reduce((sum, r) => sum + r.clients, 0);
+  } catch {
+    // matchMaker not yet initialised
+  }
+  const avg =
+    _responseTimes.length > 0
+      ? _responseTimes.reduce((a, b) => a + b, 0) / _responseTimes.length
+      : 0;
+  res.json({
+    uptime: process.uptime(),
+    memory: {
+      rss_mb: Math.round(mem.rss / 1024 / 1024),
+      heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+      heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024),
+    },
+    game: { activeRooms, connectedClients },
+    requests: _requestCounts,
+    avg_response_ms: Math.round(avg * 100) / 100,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
