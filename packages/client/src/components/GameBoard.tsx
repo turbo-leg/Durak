@@ -122,6 +122,88 @@ export const GameBoard: React.FC = () => {
     }
   }, [gameState?.phase, gameState?.loser, room?.sessionId, playVictorySound, playDefeatSound]);
 
+  // ── Drag-and-drop state (declared before early return to satisfy rules-of-hooks) ──
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const [draggingCardKey, setDraggingCardKey] = useState<string | null>(null);
+  const [isOverDropZone, setIsOverDropZone] = useState(false);
+  const attackerDropRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [stagedDefense, setStagedDefense] = useState<Record<string, SharedCard>>({});
+  const [hoveredAttackerKey, setHoveredAttackerKey] = useState<string | null>(null);
+  const [ghostStaging, setGhostStaging] = useState<Record<string, Set<string>>>({});
+  const [isDraggingActive, setIsDraggingActive] = useState(false);
+
+  // Listen for face-down ghost broadcasts from the active defender.
+  useEffect(() => {
+    if (!room) return;
+    const offGhost = room.onMessage(
+      'defenseGhost',
+      (data: { defenderId: string; attackerKey: string; action: 'add' | 'remove' }) => {
+        setGhostStaging((prev) => {
+          const next = { ...prev };
+          const set = new Set(next[data.defenderId] ?? []);
+          if (data.action === 'add') set.add(data.attackerKey);
+          else set.delete(data.attackerKey);
+          if (set.size === 0) delete next[data.defenderId];
+          else next[data.defenderId] = set;
+          return next;
+        });
+      },
+    );
+    const offClear = room.onMessage('defenseGhostClear', (data: { defenderId: string | null }) => {
+      setGhostStaging((prev) => {
+        if (data.defenderId === null) return {};
+        if (!(data.defenderId in prev)) return prev;
+        const next = { ...prev };
+        delete next[data.defenderId];
+        return next;
+      });
+    });
+    const offDragging = room.onMessage('defenderDragging', () => {
+      setIsDraggingActive(true);
+    });
+    const offDragEnd = room.onMessage('defenderDragEnd', () => {
+      setIsDraggingActive(false);
+    });
+    return () => {
+      offGhost?.();
+      offClear?.();
+      offDragging?.();
+      offDragEnd?.();
+    };
+  }, [room]);
+
+  // Ghost staging only reflects the current defender. Drop stale entries whenever turn/attack changes.
+  useEffect(() => {
+    setGhostStaging({});
+    setIsDraggingActive(false);
+  }, [gameState?.currentTurn, gameState?.activeAttackCards?.length]);
+
+  // If the active attack changes, drop stale staging.
+  useEffect(() => {
+    const currentAttackCards = Array.from(gameState?.activeAttackCards || []).filter(
+      (c): c is SharedCard => c !== undefined,
+    );
+    if (currentAttackCards.length === 0) {
+      setStagedDefense({});
+      return;
+    }
+    const liveKeys = new Set(currentAttackCards.map((c) => `${c.suit}:${c.rank}`));
+    setStagedDefense((prev) => {
+      let changed = false;
+      const next: Record<string, SharedCard> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (liveKeys.has(k)) next[k] = v;
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    Array.from(gameState?.activeAttackCards || [])
+      .map((c) => `${c.suit}:${c.rank}`)
+      .join('|'),
+  ]);
+
   if (!room || !gameState) {
     return null;
   }
@@ -212,22 +294,6 @@ export const GameBoard: React.FC = () => {
     room.send('swapHuzur');
   };
 
-  // ── Drag-and-drop: drop a single card onto the table to play it ──
-  const dropZoneRef = useRef<HTMLDivElement>(null);
-  const [draggingCardKey, setDraggingCardKey] = useState<string | null>(null);
-  const [isOverDropZone, setIsOverDropZone] = useState(false);
-
-  // ── Mass-defense staging: build attacker→defender pairs by dragging onto
-  // each attacker card individually, then commit the whole defense. ──
-  const attackerDropRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
-  const [stagedDefense, setStagedDefense] = useState<Record<string, SharedCard>>({});
-  const [hoveredAttackerKey, setHoveredAttackerKey] = useState<string | null>(null);
-  // Face-down ghosts emitted by the *other* defender currently mid-drag.
-  const [ghostStaging, setGhostStaging] = useState<Record<string, Set<string>>>({});
-  // ghostStaging[defenderId] = set of attacker keys
-  // True while the other player has a card lifted from their hand but not yet staged.
-  const [isDraggingActive, setIsDraggingActive] = useState(false);
-
   const attackerKey = (c: SharedCard) => `${c.suit}:${c.rank}`;
 
   const isMassDefense = attackCards.length >= 2 && isMyTurn;
@@ -307,53 +373,6 @@ export const GameBoard: React.FC = () => {
     setSelectedCards([]);
   };
 
-  // Listen for face-down ghost broadcasts from the active defender.
-  useEffect(() => {
-    if (!room) return;
-    const offGhost = room.onMessage(
-      'defenseGhost',
-      (data: { defenderId: string; attackerKey: string; action: 'add' | 'remove' }) => {
-        setGhostStaging((prev) => {
-          const next = { ...prev };
-          const set = new Set(next[data.defenderId] ?? []);
-          if (data.action === 'add') set.add(data.attackerKey);
-          else set.delete(data.attackerKey);
-          if (set.size === 0) delete next[data.defenderId];
-          else next[data.defenderId] = set;
-          return next;
-        });
-      },
-    );
-    const offClear = room.onMessage('defenseGhostClear', (data: { defenderId: string | null }) => {
-      setGhostStaging((prev) => {
-        if (data.defenderId === null) return {};
-        if (!(data.defenderId in prev)) return prev;
-        const next = { ...prev };
-        delete next[data.defenderId];
-        return next;
-      });
-    });
-    const offDragging = room.onMessage('defenderDragging', () => {
-      setIsDraggingActive(true);
-    });
-    const offDragEnd = room.onMessage('defenderDragEnd', () => {
-      setIsDraggingActive(false);
-    });
-    return () => {
-      offGhost?.();
-      offClear?.();
-      offDragging?.();
-      offDragEnd?.();
-    };
-  }, [room]);
-
-  // Ghost staging only reflects the current defender. Drop stale entries whenever the
-  // turn or active attack composition changes.
-  useEffect(() => {
-    setGhostStaging({});
-    setIsDraggingActive(false);
-  }, [gameState.currentTurn, attackCards.length]);
-
   // Aggregated set of attacker keys currently showing a face-down ghost from any other player.
   // When the defender has a card lifted (isDraggingActive) but hasn't staged it yet,
   // show a ghost on every pending attacker slot so observers know something is happening.
@@ -365,25 +384,6 @@ export const GameBoard: React.FC = () => {
     }
     return s;
   })();
-
-  // If the active attack changes (round resolved, picked up, etc.), drop stale staging.
-  useEffect(() => {
-    if (attackCards.length === 0) {
-      if (Object.keys(stagedDefense).length > 0) clearStagedDefense();
-      return;
-    }
-    const liveKeys = new Set(attackCards.map(attackerKey));
-    setStagedDefense((prev) => {
-      let changed = false;
-      const next: Record<string, SharedCard> = {};
-      for (const [k, v] of Object.entries(prev)) {
-        if (liveKeys.has(k)) next[k] = v;
-        else changed = true;
-      }
-      return changed ? next : prev;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attackCards.map(attackerKey).join('|')]);
 
   const playSingleCard = (card: SharedCard) => {
     // Only valid during own turn; pick attack vs defend by table state.
