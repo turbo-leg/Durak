@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
+import type { BotOptions } from '../contexts/GameContext';
 import type { RoomAvailable } from 'colyseus.js';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 import { LoginPanel } from './LoginPanel';
@@ -29,11 +30,16 @@ export const Lobby: React.FC<LobbyProps> = ({
   username = '',
   avatarUrl = '',
 }) => {
-  const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
+  const { createGame, joinGame, spectateGame, findPublicGames, playVsBot, error } = useGame();
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
   const [joinCode, setJoinCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Bot panel state
+  const [showBotPanel, setShowBotPanel] = useState(false);
+  const [botDifficulty, setBotDifficulty] = useState<BotOptions['difficulty']>('easy');
+  const [botHandSize, setBotHandSize] = useState(5);
 
   // Form options
   const [maxPlayers, setMaxPlayers] = useState(6);
@@ -72,6 +78,13 @@ export const Lobby: React.FC<LobbyProps> = ({
     if (!joinCode.trim()) return;
     setIsLoading(true);
     await joinGame(joinCode.trim(), discordId, userId);
+    setIsLoading(false);
+  };
+
+  const handleStartBot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    await playVsBot(discordId, userId, { difficulty: botDifficulty, handSize: botHandSize });
     setIsLoading(false);
   };
 
@@ -202,6 +215,57 @@ export const Lobby: React.FC<LobbyProps> = ({
             avatarUrl={avatarUrl}
           />
         )}
+
+        {/* Play vs Bot */}
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+          <button
+            onClick={() => setShowBotPanel((v) => !v)}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow transition"
+          >
+            🤖 Play vs Bot
+          </button>
+
+          {showBotPanel && (
+            <form
+              onSubmit={handleStartBot}
+              className="mt-4 space-y-3 animate-[fadeIn_0.2s_ease-in]"
+              style={{ animation: 'fadeIn 0.2s ease-in' }}
+            >
+              <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1">Difficulty</label>
+                  <select
+                    value={botDifficulty}
+                    onChange={(e) => setBotDifficulty(e.target.value as BotOptions['difficulty'])}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-600 mb-1">Hand Size</label>
+                  <select
+                    value={botHandSize}
+                    onChange={(e) => setBotHandSize(parseInt(e.target.value))}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value={5}>5 Cards</option>
+                    <option value={6}>6 Cards</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow disabled:opacity-50 transition text-sm"
+              >
+                {isLoading ? 'Starting…' : 'Start Game'}
+              </button>
+            </form>
+          )}
+        </div>
 
         {/* Join by Code */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">

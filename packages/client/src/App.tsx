@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { GameBoard } from './components/GameBoard';
 import { Lobby } from './components/Lobby';
 import { MobileLoginScreen } from './components/MobileLoginScreen';
+import { PublicLobby } from './components/PublicLobby';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
 import { useAuth } from './contexts/AuthContext';
@@ -126,6 +127,8 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
                 Connecting to Discord
               </div>
             </div>
+          ) : Capacitor.isNativePlatform() ? (
+            <PublicLobby />
           ) : (
             <Lobby
               discordId={activeDiscordId}
