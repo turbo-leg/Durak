@@ -16,6 +16,10 @@ export interface IPlayerProfile extends mongoose.Document {
   eloClassic: number;
   eloTeams: number;
   badges: string[];
+  coins: number;
+  ownedItems: string[];
+  lastDailyLogin: Date | null;
+  lastGameDate: Date | null;
   updatedAt: Date;
 }
 
@@ -36,6 +40,10 @@ const PlayerProfileSchema = new mongoose.Schema(
     eloClassic: { type: Number, default: 1000 },
     eloTeams: { type: Number, default: 1000 },
     badges: { type: [String], default: [] },
+    coins: { type: Number, default: 0 },
+    ownedItems: { type: [String], default: [] },
+    lastDailyLogin: { type: Date, default: null },
+    lastGameDate: { type: Date, default: null },
   },
   { timestamps: true },
 );
