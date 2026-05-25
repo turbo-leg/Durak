@@ -26,6 +26,7 @@ import { isSameUTCDay, COIN_REWARDS, awardCoins } from './src/utils/coins';
 import { iapRouter } from './src/routes/iap';
 import { friendsRouter } from './src/routes/friends';
 import { teamsRouter } from './src/routes/teams';
+import { notificationsRouter } from './src/routes/notifications';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -483,6 +484,7 @@ app.use('/api/shop', shopRouter);
 app.use('/api/iap', iapRouter);
 app.use('/api/friends', friendsRouter);
 app.use('/api/teams', teamsRouter);
+app.use('/api/notifications', notificationsRouter);
 app.use('/colyseus', monitor());
 
 const clientDistPath = path.resolve(__dirname, '../client/dist');

@@ -231,6 +231,7 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
                           <button
                             onClick={() => handleEquip(item)}
                             disabled={isEquipping}
+                            aria-label={`Equip ${item.name}`}
                             className={`text-xs px-3 py-1 rounded font-semibold transition w-full ${
                               isEquipping
                                 ? 'bg-indigo-700 text-indigo-400 cursor-wait'
@@ -245,6 +246,7 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
                       <button
                         onClick={() => handleBuy(item)}
                         disabled={isBuying || !canAfford}
+                        aria-label={`Buy ${item.name} for ${item.price} coins`}
                         className={`text-xs px-3 py-1 rounded font-semibold transition ${
                           isBuying
                             ? 'bg-indigo-700 text-indigo-400 cursor-wait'

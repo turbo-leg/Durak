@@ -81,37 +81,69 @@ export const MobileLoginScreen: React.FC = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-3"
+            aria-label={mode === 'login' ? 'Sign in form' : 'Sign up form'}
+          >
             {mode === 'register' && (
+              <div>
+                <label htmlFor="login-username" className="sr-only">
+                  Username
+                </label>
+                <input
+                  id="login-username"
+                  type="text"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  aria-required="true"
+                  aria-describedby={displayError ? 'login-error' : undefined}
+                  className="w-full bg-purple-800/60 border border-purple-600 text-white placeholder-purple-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+                  maxLength={32}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+              </div>
+            )}
+            <div>
+              <label htmlFor="login-email" className="sr-only">
+                Email
+              </label>
               <input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="login-email"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-required="true"
+                aria-describedby={displayError ? 'login-error' : undefined}
                 className="w-full bg-purple-800/60 border border-purple-600 text-white placeholder-purple-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
-                maxLength={32}
                 autoCapitalize="none"
                 autoCorrect="off"
               />
-            )}
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-purple-800/60 border border-purple-600 text-white placeholder-purple-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-purple-800/60 border border-purple-600 text-white placeholder-purple-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
-            />
+            </div>
+            <div>
+              <label htmlFor="login-password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="login-password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-required="true"
+                aria-describedby={displayError ? 'login-error' : undefined}
+                className="w-full bg-purple-800/60 border border-purple-600 text-white placeholder-purple-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
+              />
+            </div>
 
-            {displayError && <p className="text-red-400 text-xs px-1">{displayError}</p>}
+            {displayError && (
+              <p id="login-error" role="alert" className="text-red-400 text-xs px-1">
+                {displayError}
+              </p>
+            )}
 
             <button
               type="submit"
