@@ -200,6 +200,7 @@ export const GameBoard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     Array.from(gameState?.activeAttackCards || [])
+      .filter((c): c is SharedCard => c !== undefined)
       .map((c) => `${c.suit}:${c.rank}`)
       .join('|'),
   ]);
