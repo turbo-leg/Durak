@@ -4,6 +4,10 @@ const config: CapacitorConfig = {
   appId: 'com.durak.online',
   appName: 'Durak Online',
   webDir: 'dist',
+  assets: {
+    iconPath: 'resources/icon.png',
+    splashPath: 'resources/splash.png',
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
