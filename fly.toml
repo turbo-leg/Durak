@@ -7,6 +7,13 @@ primary_region = "iad"
 [build]
   dockerfile = "packages/server/Dockerfile"
 
+  # Pass the Discord Application ID as a build-time arg (not baked into the image).
+  # Set via: fly secrets set VITE_DISCORD_CLIENT_ID=<your-app-id>
+  # then:    fly deploy --build-arg VITE_DISCORD_CLIENT_ID=$(fly secrets list | grep DISCORD | ...)
+  # Or add to [build.args] below after running: fly deploy --build-secret VITE_DISCORD_CLIENT_ID
+  [build.args]
+    VITE_DISCORD_CLIENT_ID = ""
+
 [env]
   PORT = "2567"
   NODE_ENV = "production"
