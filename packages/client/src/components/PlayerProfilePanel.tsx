@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BADGES } from '@durak/shared';
+import { ShopScreen } from './ShopScreen';
 
 interface ProfileStats {
   gamesPlayed: number;
@@ -53,7 +54,7 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
   const [history, setHistory] = useState<MatchRecord[]>([]);
   const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'stats' | 'history' | 'leaderboard'>('stats');
+  const [tab, setTab] = useState<'stats' | 'history' | 'leaderboard' | 'shop'>('stats');
   const [leaderMode, setLeaderMode] = useState<'classic' | 'teams'>('classic');
 
   const id = discordId ?? userId ?? '';
@@ -134,11 +135,11 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
-        {(['stats', 'history', 'leaderboard'] as const).map((t) => (
+        {(['stats', 'history', 'leaderboard', 'shop'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            aria-label={t === 'leaderboard' ? 'Leaderboard' : undefined}
+            aria-label={t === 'leaderboard' ? 'Leaderboard' : t === 'shop' ? 'Shop' : undefined}
             className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
               tab === t
                 ? 'bg-indigo-600 text-white'
@@ -149,6 +150,11 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
               <>
                 <span aria-hidden="true">🏆</span>
                 <span className="sr-only">Leaderboard</span>
+              </>
+            ) : t === 'shop' ? (
+              <>
+                <span aria-hidden="true">🛒</span>
+                <span className="sr-only">Shop</span>
               </>
             ) : (
               t
@@ -189,13 +195,15 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
         )
       ) : tab === 'history' ? (
         <HistoryList history={history} playerId={id} />
-      ) : (
+      ) : tab === 'leaderboard' ? (
         <LeaderboardList
           leaders={leaders}
           mode={leaderMode}
           onModeChange={setLeaderMode}
           myProfileId={profile?._id}
         />
+      ) : (
+        <ShopScreen discordId={discordId} userId={userId} />
       )}
     </div>
   );

@@ -18,6 +18,11 @@ import mongoose from 'mongoose';
 import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
+import { shopRouter } from './src/routes/shop';
+import { getTierInfo } from '@durak/shared';
+import { CoinTransaction } from './src/models/CoinTransaction';
+import { isSameUTCDay, COIN_REWARDS, awardCoins } from './src/utils/coins';
+import { iapRouter } from './src/routes/iap';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -268,7 +273,11 @@ app.get('/api/profile/:id', async (req, res) => {
       res.status(404).json({ error: 'Profile not found' });
       return;
     }
-    res.json(profile);
+    res.json({
+      ...profile,
+      tierClassic: getTierInfo(profile.eloClassic),
+      tierTeams: getTierInfo(profile.eloTeams),
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -284,7 +293,13 @@ app.get('/api/leaderboard', async (req, res) => {
       .limit(limit)
       .select('username avatarUrl eloClassic eloTeams stats.gamesPlayed')
       .lean();
-    res.json(leaders);
+    res.json(
+      leaders.map((p) => ({
+        ...p,
+        tierClassic: getTierInfo(p.eloClassic),
+        tierTeams: getTierInfo(p.eloTeams),
+      })),
+    );
   } catch (e: unknown) {
     res.status(500).json({ error: e instanceof Error ? e.message : 'Server error' });
   }
@@ -300,6 +315,60 @@ app.get('/api/history/:id', async (req, res) => {
       .select('-actionLog')
       .lean();
     res.json(logs);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Coins ─────────────────────────────────────────────────────────────────────
+
+app.get('/api/profile/:id/coins', async (req, res) => {
+  try {
+    const by = req.query.by === 'user' ? 'userId' : 'discordId';
+    const profile = await PlayerProfile.findOne({ [by]: req.params.id })
+      .select('coins')
+      .lean();
+    if (!profile) {
+      res.status(404).json({ error: 'Profile not found' });
+      return;
+    }
+    const transactions = await CoinTransaction.find({ playerId: profile._id })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+    res.json({ balance: profile.coins ?? 0, transactions });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/daily-login', async (req, res) => {
+  try {
+    const { discordId, userId } = req.body as { discordId?: string; userId?: string };
+    if (!discordId && !userId) {
+      res.status(400).json({ error: 'discordId or userId required' });
+      return;
+    }
+    const filter = discordId ? { discordId } : { userId };
+    const profile = await PlayerProfile.findOne(filter);
+    if (!profile) {
+      res.status(404).json({ error: 'Profile not found' });
+      return;
+    }
+    const now = new Date();
+    if (isSameUTCDay(profile.lastDailyLogin, now)) {
+      res.json({ awarded: false, balance: profile.coins ?? 0 });
+      return;
+    }
+    await Promise.all([
+      awardCoins(profile._id as any, COIN_REWARDS.DAILY_LOGIN, 'daily_login'),
+      profile.updateOne({ lastDailyLogin: now }),
+    ]);
+    res.json({
+      awarded: true,
+      amount: COIN_REWARDS.DAILY_LOGIN,
+      balance: (profile.coins ?? 0) + COIN_REWARDS.DAILY_LOGIN,
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -328,6 +397,8 @@ const gameServer = new Server({
 
 gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
 
+app.use('/api/shop', shopRouter);
+app.use('/api/iap', iapRouter);
 app.use('/colyseus', monitor());
 
 const clientDistPath = path.resolve(__dirname, '../client/dist');

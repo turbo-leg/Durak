@@ -12,6 +12,7 @@ export class Player extends Schema {
   @type('boolean') hasPickedUp: boolean = false;
   @type('number') team: number = 0; // 0 or 1 for 3v3
   @type('boolean') isReady: boolean = false;
+  @type('string') tier: string = ''; // populated from profile on join
   @type(['string']) lastDrawLog = new ArraySchema<string>();
 
   constructor(id: string = '') {
