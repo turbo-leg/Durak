@@ -3,3 +3,19 @@ dist/
 .env
 .DS_Store
 GEMINI.md
+
+# Per-package env files
+packages/server/.env
+packages/server/.env.local
+packages/client/.env
+packages/client/.env.local
+
+# Server build output
+packages/server/dist/
+
+# ML model binaries
+packages/server/ml/*.onnx
+packages/server/ml/*.onnx.data
+
+# Vector database
+ruvector.db
