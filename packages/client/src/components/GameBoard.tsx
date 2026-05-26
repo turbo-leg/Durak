@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame, type RevealPair } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
-import { Card as SharedCard, Player } from '@durak/shared';
+import { Card as SharedCard, Player, type Tier } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
 import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
+import { TierChangeOverlay } from './TierChangeOverlay';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -52,6 +53,11 @@ export const GameBoard: React.FC = () => {
   const isDesktop = useIsDesktop();
   const warningPlayedRef = React.useRef(false);
   const gameResultKeyRef = React.useRef<string | null>(null);
+  const [tierChange, setTierChange] = useState<{
+    oldTier: Tier;
+    newTier: Tier;
+    direction: 'up' | 'down';
+  } | null>(null);
 
   // Update timer smoothly using requestAnimationFrame
   useEffect(() => {
@@ -121,6 +127,21 @@ export const GameBoard: React.FC = () => {
       playVictorySound();
     }
   }, [gameState?.phase, gameState?.loser, room?.sessionId, playVictorySound, playDefeatSound]);
+
+  useEffect(() => {
+    if (!room) return;
+    const handler = (data: {
+      sessionId: string;
+      oldTier: Tier;
+      newTier: Tier;
+      direction: 'up' | 'down';
+    }) => {
+      if (data.sessionId === room.sessionId) {
+        setTierChange({ oldTier: data.oldTier, newTier: data.newTier, direction: data.direction });
+      }
+    };
+    room.onMessage('tierChanged', handler);
+  }, [room]);
 
   if (!room || !gameState) {
     return null;
@@ -820,6 +841,14 @@ export const GameBoard: React.FC = () => {
           players={gameState.players as unknown as Map<string, Player>}
           seatOrder={Array.from(gameState.seatOrder).filter((id): id is string => id != null)}
           onDone={clearSuhuhResult}
+        />
+      )}
+      {tierChange && (
+        <TierChangeOverlay
+          oldTier={tierChange.oldTier}
+          newTier={tierChange.newTier}
+          direction={tierChange.direction}
+          onDismiss={() => setTierChange(null)}
         />
       )}
       {/* ── Info Bar ── */}

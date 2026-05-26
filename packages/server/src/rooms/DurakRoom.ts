@@ -1,5 +1,5 @@
 import { Room, Client } from 'colyseus';
-import { GameState, DurakEngine, Card, Player } from '@durak/shared';
+import { GameState, DurakEngine, Card, Player, getTier } from '@durak/shared';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 
@@ -7,6 +7,7 @@ import { GameLog } from '../models/GameLog';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import { evaluateBadges, BADGES } from '../utils/Badges';
+import { awardCoins, isSameUTCDay, COIN_REWARDS } from '../utils/coins';
 import mongoose from 'mongoose';
 import { botEngine, BotDifficulty } from '../ai/BotEngine';
 
@@ -326,6 +327,22 @@ export class DurakRoom extends Room<GameState> {
     if (options.discordId)
       player.discordId = String(options.discordId).trim().slice(0, MAX_SHORT_STRING_LEN);
     if (options.userId) player.userId = String(options.userId).trim().slice(0, 64);
+
+    // Populate tier non-blocking — syncs to all clients once resolved
+    if (options.discordId || options.userId) {
+      const filter = options.discordId
+        ? { discordId: player.discordId }
+        : { userId: player.userId };
+      PlayerProfile.findOne(filter)
+        .select('eloClassic')
+        .lean()
+        .then((prof) => {
+          if (prof && this.state.players.has(client.sessionId)) {
+            player.tier = getTier(prof.eloClassic);
+          }
+        })
+        .catch(() => {});
+    }
 
     // First player is host
     if (this.state.players.size === 0) {
@@ -1315,6 +1332,20 @@ export class DurakRoom extends Room<GameState> {
       });
       const updatedProfiles = await Promise.all(profileOps);
 
+      // Notify players of tier changes
+      const tierOrder = ['bronze', 'silver', 'gold', 'platinum', 'diamond'];
+      authedPlayers.forEach((p, i) => {
+        const delta = eloDeltas.get(p.id) ?? 0;
+        const oldElo = Math.max(100, currentProfiles[i]?.[eloField] ?? 1000);
+        const newElo = Math.max(100, oldElo + delta);
+        const oldTier = getTier(oldElo);
+        const newTier = getTier(newElo);
+        if (oldTier !== newTier) {
+          const direction = tierOrder.indexOf(newTier) > tierOrder.indexOf(oldTier) ? 'up' : 'down';
+          this.broadcast('tierChanged', { sessionId: p.id, oldTier, newTier, direction });
+        }
+      });
+
       // Award any newly earned badges
       const badgeResults: { playerName: string; newBadges: string[] }[] = [];
       const badgeOps = authedPlayers.map((p, i) => {
@@ -1333,6 +1364,33 @@ export class DurakRoom extends Room<GameState> {
       for (const { playerName, newBadges } of badgeResults) {
         this.notifyBadgeUnlocks(playerName, newBadges);
       }
+
+      // Award coins for game outcome
+      const now = new Date();
+      const coinOps = authedPlayers.map(async (p, i) => {
+        const profile = updatedProfiles[i];
+        if (!profile) return;
+        const isWinner = winnerSessions.includes(p.id);
+        const gameId = log._id as mongoose.Types.ObjectId;
+        const meta = { gameId: gameId.toString(), roomId: this.roomId };
+        const baseReward = isWinner ? COIN_REWARDS.WIN : COIN_REWARDS.LOSE_CONSOLATION;
+        await awardCoins(
+          profile._id as mongoose.Types.ObjectId,
+          baseReward,
+          isWinner ? 'win_bonus' : 'lose_consolation',
+          meta,
+        );
+        if (!isSameUTCDay(profile.lastGameDate, now)) {
+          await awardCoins(
+            profile._id as mongoose.Types.ObjectId,
+            COIN_REWARDS.FIRST_GAME_OF_DAY,
+            'first_game_of_day',
+            meta,
+          );
+        }
+        await profile.updateOne({ lastGameDate: now });
+      });
+      await Promise.all(coinOps);
     } catch (e) {
       Sentry.captureException(e);
       logger.error({ err: e }, 'Failed to save GameLog to MongoDB');
