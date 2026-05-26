@@ -1333,6 +1333,16 @@ export class DurakRoom extends Room<GameState> {
       for (const { playerName, newBadges } of badgeResults) {
         this.notifyBadgeUnlocks(playerName, newBadges);
       }
+
+      // Award coins: winner = +10, durak = +3, others = +5
+      const coinOps = authedPlayers.map((p) => {
+        const isWinner = winnerSessions.includes(p.id);
+        const isDurak = this.state.loser === p.id;
+        const award = isWinner ? 10 : isDurak ? 3 : 5;
+        const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
+        return PlayerProfile.findOneAndUpdate(filter, { $inc: { coins: award } });
+      });
+      await Promise.all(coinOps);
     } catch (e) {
       Sentry.captureException(e);
       logger.error({ err: e }, 'Failed to save GameLog to MongoDB');

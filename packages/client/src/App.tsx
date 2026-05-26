@@ -2,15 +2,20 @@ import { useGame } from './contexts/GameContext';
 import { useEffect, useState } from 'react';
 import { GameBoard } from './components/GameBoard';
 import { Lobby } from './components/Lobby';
+import { ShopPage } from './components/ShopPage';
+import { ProfilePage } from './components/ProfilePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
 import { useAuth } from './contexts/AuthContext';
 import './App.css';
 
+type NavTab = 'home' | 'shop' | 'profile';
+
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { room, isConnected, isReconnecting, error, leaveGame, autoJoinDiscordRoom, gameState } =
     useGame();
   const { user: browserAuth, handleOAuthCallback } = useAuth();
+  const [navTab, setNavTab] = useState<NavTab>('home');
 
   // Handle Discord OAuth callback (?code=... or ?error=...) for browser login
   useEffect(() => {
@@ -58,105 +63,92 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   // When in waiting phase, GameBoard renders a full-screen lobby — hide all App chrome
   const isWaitingPhase = isConnected && gameState?.phase === 'waiting';
 
-  if (isWaitingPhase) {
-    return <GameBoard />;
+  // While in a live game, show GameBoard full-screen without the nav shell
+  if (isWaitingPhase || isConnected) {
+    return (
+      <div className="relative">
+        <GameBoard />
+        {isConnected && room && (
+          <button
+            onClick={leaveGame}
+            className="fixed top-4 right-4 z-50 bg-red-900/80 hover:bg-red-800 text-red-100 px-3 py-1 rounded text-sm transition shadow-lg"
+          >
+            Leave
+          </button>
+        )}
+      </div>
+    );
   }
 
+  // Non-game shell: bottom nav + page content
   return (
-    <div className="min-h-screen bg-green-950 text-white flex flex-col p-4 md:p-8 relative safe-p">
-      <header className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
-          ♦ Durak <span className="text-yellow-400">Online</span> ♦
-        </h1>
-        {isConnected && room && (
-          <div className="flex space-x-4 items-center">
-            <div className="bg-black/50 px-4 py-2 rounded-full text-xs font-mono shadow-inner border border-white/10 flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,1)]"></div>
-              <span>
-                Room: <span className="text-yellow-300 font-bold">{room.id}</span>
-              </span>
-            </div>
-            <button
-              onClick={leaveGame}
-              className="bg-red-900/50 hover:bg-red-800 text-red-100 px-3 py-1 rounded text-sm transition"
-            >
-              Leave Game
-            </button>
-          </div>
-        )}
-      </header>
-
-      <main className="flex-1 flex flex-col items-center justify-center p-2 pt-0 w-full overflow-x-hidden relative z-10">
-        {error && !isConnected && (
-          <div className="w-full text-center text-red-400 font-bold mb-4 bg-red-900/30 p-2 rounded">
-            Error: {error}
-          </div>
-        )}
-
+    <div className="min-h-screen bg-indigo-950 text-white flex flex-col">
+      {/* Page content */}
+      <div className="flex-1 overflow-y-auto">
         {isReconnecting ? (
-          <div
-            className="flex flex-col items-center justify-center h-64 space-y-4"
-            role="status"
-            aria-live="polite"
-            aria-label="Reconnecting to game..."
-          >
-            <div
-              className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"
-              aria-hidden="true"
-            ></div>
+          <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+            <div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin" />
             <div className="text-yellow-400 font-bold animate-pulse uppercase tracking-widest text-sm">
               Reconnecting…
             </div>
           </div>
-        ) : !isConnected ? (
-          isEmbedded ? (
-            <div
-              className="flex flex-col items-center justify-center h-64 space-y-4"
-              role="status"
-              aria-live="polite"
-              aria-label="Connecting to Discord..."
-            >
-              <div
-                className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"
-                aria-hidden="true"
-              ></div>
-              <div className="text-green-400 font-bold animate-pulse uppercase tracking-widest text-sm">
-                Connecting to Discord
-              </div>
+        ) : navTab === 'shop' ? (
+          <ShopPage />
+        ) : navTab === 'profile' ? (
+          <ProfilePage />
+        ) : isEmbedded ? (
+          <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+            <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+            <div className="text-green-400 font-bold animate-pulse uppercase tracking-widest text-sm">
+              Connecting to Discord
             </div>
-          ) : (
-            <Lobby
-              discordId={activeDiscordId}
-              userId={activeUserId}
-              username={activeUsername}
-              avatarUrl={activeAvatarUrl}
-            />
-          )
+          </div>
         ) : (
-          <GameBoard />
+          <div className="min-h-screen bg-green-950 flex flex-col">
+            <header className="flex justify-between items-center px-4 pt-6 pb-4 border-b border-green-800">
+              <h1 className="text-2xl font-extrabold tracking-tight text-white drop-shadow-md">
+                ♦ Durak <span className="text-yellow-400">Online</span> ♦
+              </h1>
+              {error && !isConnected && (
+                <span className="text-red-400 text-xs font-bold">{error}</span>
+              )}
+            </header>
+            <main className="flex-1 flex flex-col items-center justify-center p-4 w-full overflow-x-hidden">
+              <Lobby
+                discordId={activeDiscordId}
+                userId={activeUserId}
+                username={activeUsername}
+                avatarUrl={activeAvatarUrl}
+              />
+            </main>
+          </div>
         )}
-      </main>
+      </div>
 
-      <footer className="mt-4 text-center text-green-700 text-xs">
-        © {new Date().getFullYear()} Durak Online — Multiplayer Framework Built with Colyseus.js ·{' '}
-        <a
-          href="https://github.com/turbo-leg/Durak/blob/main/PRIVACY.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-green-400"
-        >
-          Privacy
-        </a>{' '}
-        ·{' '}
-        <a
-          href="https://github.com/turbo-leg/Durak/blob/main/TERMS.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-green-400"
-        >
-          Terms
-        </a>
-      </footer>
+      {/* Bottom nav bar — hidden while in a game */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-indigo-950/95 backdrop-blur border-t border-indigo-800 flex safe-pb">
+        {(
+          [
+            { key: 'home', label: 'Play', icon: '♠' },
+            { key: 'shop', label: 'Shop', icon: '🛒' },
+            { key: 'profile', label: 'Profile', icon: '👤' },
+          ] as { key: NavTab; label: string; icon: string }[]
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setNavTab(tab.key)}
+            className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 py-3 text-xs font-semibold transition ${
+              navTab === tab.key ? 'text-white' : 'text-indigo-500 hover:text-indigo-300'
+            }`}
+          >
+            <span className="text-xl leading-none">{tab.icon}</span>
+            <span>{tab.label}</span>
+            {navTab === tab.key && (
+              <span className="absolute top-0 inset-x-4 h-0.5 bg-indigo-400 rounded-full" />
+            )}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
