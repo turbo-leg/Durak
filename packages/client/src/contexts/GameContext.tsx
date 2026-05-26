@@ -16,6 +16,11 @@ export type DiscardedCard = { suit: string; rank: number; isJoker: boolean };
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'waiting_opponent';
 
+export type RevealPair = {
+  atk: { suit: string; rank: number; isJoker: boolean };
+  def: { suit: string; rank: number; isJoker: boolean };
+};
+
 const RECONNECT_TOKEN_KEY = 'durak_reconnection_token';
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAYS = [500, 2000, 4000]; // ms per attempt
@@ -37,6 +42,7 @@ interface GameContextState {
   clearSuhuhResult: () => void;
   discardedCards: DiscardedCard[] | null;
   clearDiscardedCards: () => void;
+  defenseRevealPairs: RevealPair[] | null;
   createGame: (options: Record<string, unknown>) => Promise<void>;
   joinGame: (roomId: string, discordId?: string, userId?: string) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
@@ -70,6 +76,7 @@ const GameContext = createContext<GameContextState>({
   clearSuhuhResult: () => {},
   discardedCards: null,
   clearDiscardedCards: () => {},
+  defenseRevealPairs: null,
   createGame: async () => {},
   joinGame: async () => {},
   spectateGame: async () => {},
@@ -117,6 +124,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [defenseSnapshot, setDefenseSnapshot] = useState<DefenseSnapshot>(null);
   const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
   const [discardedCards, setDiscardedCards] = useState<DiscardedCard[] | null>(null);
+  const [defenseRevealPairs, setDefenseRevealPairs] = useState<RevealPair[] | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
@@ -190,7 +198,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Issue #80: capture explicit defense snapshot for 5s UI visibility.
     roomInstance.onMessage('defensePlayed', (data: DefenseSnapshot) => {
       setDefenseSnapshot(data);
-      // Clear after 10 seconds (client-side display contract)
+      if (data) {
+        // Build reveal pairs so GameBoard can show them during the pre-discard window.
+        setDefenseRevealPairs(data.attacking.map((atk, i) => ({ atk, def: data.defending[i]! })));
+      }
       if (data?.at) {
         window.setTimeout(() => {
           setDefenseSnapshot((prev) => (prev?.at === data.at ? null : prev));
@@ -200,6 +211,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     roomInstance.onMessage('clearDefenseSnapshot', () => {
       setDefenseSnapshot(null);
+      setDefenseRevealPairs(null);
     });
 
     roomInstance.onMessage(
@@ -222,8 +234,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     roomInstance.onMessage('roundDiscarded', (data: { cards: DiscardedCard[] }) => {
       if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
-      setDiscardedCards(data.cards);
-      discardTimerRef.current = setTimeout(() => setDiscardedCards(null), 2500);
+      // Hold defenseRevealPairs visible for 1.5s so all players see the defense, then animate discard.
+      discardTimerRef.current = setTimeout(() => {
+        setDefenseRevealPairs(null);
+        setDiscardedCards(data.cards);
+        discardTimerRef.current = setTimeout(() => setDiscardedCards(null), 2500);
+      }, 1500);
     });
 
     roomInstance.onMessage('suhuhResult', (data: { draws: SuhuhDraw[]; winnerId: string }) => {
@@ -404,6 +420,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearSuhuhResult,
         discardedCards,
         clearDiscardedCards,
+        defenseRevealPairs,
         createGame,
         joinGame,
         spectateGame,

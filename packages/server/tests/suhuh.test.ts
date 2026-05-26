@@ -63,14 +63,23 @@ describe('Suhuh first-turn draw (#123)', () => {
       expect(firstId).toBe('p2'); // p2 draws joker
     });
 
-    it('drawn cards are added to each player hand', () => {
+    it('drawn cards are NOT added to player hands (suhuh uses a separate draw)', () => {
       setupPlayers(['p1', 'p2']);
       pushDeckTop(new Card('clubs', 8), new Card('clubs', 10));
 
       (room as any).resolveSuhuh();
 
-      expect(room.state.players.get('p1')!.hand.length).toBe(1);
-      expect(room.state.players.get('p2')!.hand.length).toBe(1);
+      expect(room.state.players.get('p1')!.hand.length).toBe(0);
+      expect(room.state.players.get('p2')!.hand.length).toBe(0);
+    });
+
+    it('drawn cards are returned to the deck so deck size is preserved', () => {
+      setupPlayers(['p1', 'p2']);
+      pushDeckTop(new Card('clubs', 8), new Card('clubs', 10));
+
+      expect(room.state.deck.length).toBe(2);
+      (room as any).resolveSuhuh();
+      expect(room.state.deck.length).toBe(2);
     });
 
     it('logs suhuh draws to the action log', () => {
