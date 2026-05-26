@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1024" height="1024"
+     viewBox="0 0 1024 1024">
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#1e1b4b" rx="122.88" ry="122.88"/>
+
+  <!-- Spade symbol, scaled to ~60% of the canvas and centred -->
+  <!-- viewBox of the path above is 0 0 100 100; we place it in a 614x614 box offset by 205,185 -->
+  <g transform="translate(205, 185) scale(6.14)">
+    <path d="M50 5 C50 5 10 30 10 55 C10 72 25 82 38 78 C33 88 28 92 20 95 L80 95 C72 92 67 88 62 78 C75 82 90 72 90 55 C90 30 50 5 50 5 Z" fill="#ffffff"/>
+  </g>
+
+  <!-- "DURAK" wordmark below the spade -->
+  <text
+    x="512"
+    y="944"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="90"
+    font-weight="bold"
+    fill="#ffffff"
+    text-anchor="middle"
+    letter-spacing="12"
+    opacity="0.92">DURAK</text>
+</svg>
