@@ -25,6 +25,11 @@ const RECONNECT_TOKEN_KEY = 'durak_reconnection_token';
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAYS = [500, 2000, 4000]; // ms per attempt
 
+export interface BotOptions {
+  difficulty?: 'easy' | 'hard';
+  handSize?: number;
+}
+
 interface GameContextState {
   client: Client | null;
   room: Room<GameState> | null;
@@ -47,6 +52,7 @@ interface GameContextState {
   joinGame: (roomId: string, discordId?: string, userId?: string) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
+  playVsBot: (discordId?: string, userId?: string, opts?: BotOptions) => Promise<void>;
   leaveGame: () => void;
   autoJoinDiscordRoom: (
     instanceId: string,
@@ -81,6 +87,7 @@ const GameContext = createContext<GameContextState>({
   joinGame: async () => {},
   spectateGame: async () => {},
   findPublicGames: async () => [],
+  playVsBot: async () => {},
   leaveGame: () => {},
   autoJoinDiscordRoom: async () => {},
   updateLobbySettings: () => {},
@@ -347,6 +354,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await client.getAvailableRooms('durak');
   };
 
+  const playVsBot = async (discordId?: string, userId?: string, opts?: BotOptions) => {
+    try {
+      const handSize = opts?.handSize ?? 5;
+      const difficulty = opts?.difficulty ?? 'easy';
+      const roomInstance = await client.create<GameState>('durak', {
+        maxPlayers: 2,
+        isPrivate: true,
+        mode: 'classic',
+        handSize,
+        ...(discordId ? { discordId } : {}),
+        ...(userId ? { userId } : {}),
+      });
+      handleRoomEvents(roomInstance);
+      // Spawn bot once the room is ready
+      roomInstance.send('dev_action', { action: 'spawn_dummies', difficulty });
+    } catch (e: unknown) {
+      console.error('Error starting bot game:', e);
+      setError(e instanceof Error ? e.message : 'Failed to start bot game');
+    }
+  };
+
   const autoJoinDiscordRoom = async (
     discordInstanceId: string,
     username: string,
@@ -425,6 +453,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         joinGame,
         spectateGame,
         findPublicGames,
+        playVsBot,
         leaveGame,
         autoJoinDiscordRoom,
         updateLobbySettings,
