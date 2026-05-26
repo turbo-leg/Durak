@@ -308,17 +308,24 @@ app.get('/api/history/:id', async (req, res) => {
 
 // ── Shop API ─────────────────────────────────────────────────────────────────
 
+// Helper: resolve caller's userId from Bearer JWT. Returns null if token is invalid/missing.
+function userIdFromToken(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { userId: string };
+    return payload.userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Helper: resolve caller's PlayerProfile from Bearer JWT
 async function profileFromToken(
   authHeader: string | undefined,
 ): Promise<InstanceType<typeof PlayerProfile> | null> {
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  try {
-    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { userId: string };
-    return PlayerProfile.findOne({ userId: payload.userId });
-  } catch {
-    return null;
-  }
+  const userId = userIdFromToken(authHeader);
+  if (!userId) return null;
+  return PlayerProfile.findOne({ userId });
 }
 
 app.get('/api/shop/items', (_req, res) => {
@@ -326,17 +333,19 @@ app.get('/api/shop/items', (_req, res) => {
 });
 
 app.get('/api/shop/me', async (req, res) => {
-  const profile = await profileFromToken(req.headers.authorization);
-  if (!profile) {
+  const userId = userIdFromToken(req.headers.authorization);
+  if (!userId) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
+  const profile = await PlayerProfile.findOne({ userId });
+  // Return zeros for users who haven't finished a game yet (no profile created)
   res.json({
-    coins: profile.coins ?? 0,
-    inventory: profile.inventory ?? [],
-    equippedCardBack: profile.equippedCardBack ?? '',
-    equippedTableSkin: profile.equippedTableSkin ?? '',
-    equippedEmotes: profile.equippedEmotes ?? [],
+    coins: profile?.coins ?? 0,
+    inventory: profile?.inventory ?? [],
+    equippedCardBack: profile?.equippedCardBack ?? '',
+    equippedTableSkin: profile?.equippedTableSkin ?? '',
+    equippedEmotes: profile?.equippedEmotes ?? [],
   });
 });
 

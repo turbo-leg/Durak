@@ -80,6 +80,37 @@ const RARITY: Record<
   },
 };
 
+// ── Global CSS injected once ──────────────────────────────────────────────
+
+const SHOP_CSS = `
+  @keyframes shopCardIn {
+    from { opacity: 0; transform: translateY(28px) scale(0.93); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+  @keyframes shopShimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+  @keyframes shopGlowPulse {
+    0%,100% { opacity: 1; }
+    50%     { opacity: 0.55; }
+  }
+  @keyframes shopBounce {
+    0%  { transform: scale(1); }
+    40% { transform: scale(0.93); }
+    70% { transform: scale(1.04); }
+    100%{ transform: scale(1); }
+  }
+  .shop-card { transition: transform 0.14s ease, box-shadow 0.14s ease; }
+  .shop-card:active { transform: scale(0.96) !important; }
+  .shop-card:hover  { transform: scale(1.025); }
+  .shop-btn:active  { transform: scale(0.96) !important; filter: brightness(0.9); }
+`;
+
+function ShopStyles() {
+  return <style dangerouslySetInnerHTML={{ __html: SHOP_CSS }} />;
+}
+
 // ── Item art ──────────────────────────────────────────────────────────────
 
 function CardArt({ color, rarity }: { color: string; rarity: Rarity }) {
@@ -295,6 +326,7 @@ function ShopCard({
   owned,
   equipped,
   busy,
+  index,
   onBuy,
   onEquip,
   onClick,
@@ -303,6 +335,7 @@ function ShopCard({
   owned: boolean;
   equipped: boolean;
   busy: boolean;
+  index: number;
   onBuy: () => void;
   onEquip: () => void;
   onClick: () => void;
@@ -310,9 +343,29 @@ function ShopCard({
   const rarity = rarityFor(item.price);
   const r = RARITY[rarity];
   const free = item.price === 0;
+  const isLegendary = rarity === 'legendary';
+  const isEpic = rarity === 'epic';
+
+  // Shimmer top bar for epic/legendary
+  const topBarStyle: React.CSSProperties = isLegendary
+    ? {
+        height: 5,
+        background: 'linear-gradient(90deg, #92400e, #fbbf24, #fff7, #fbbf24, #92400e)',
+        backgroundSize: '200% auto',
+        animation: 'shopShimmer 2s linear infinite',
+      }
+    : isEpic
+      ? {
+          height: 5,
+          background: 'linear-gradient(90deg, #4c1d95, #c084fc, #fff4, #c084fc, #4c1d95)',
+          backgroundSize: '200% auto',
+          animation: 'shopShimmer 2.5s linear infinite',
+        }
+      : { height: 5, background: r.topBar };
 
   return (
     <div
+      className="shop-card"
       onClick={onClick}
       style={{
         borderRadius: 16,
@@ -323,12 +376,13 @@ function ShopCard({
           : `0 6px 20px rgba(0,0,0,0.5)`,
         cursor: 'pointer',
         position: 'relative',
-        transition: 'transform 0.1s',
         userSelect: 'none',
+        animation: `shopCardIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both`,
+        animationDelay: `${index * 55}ms`,
       }}
     >
       {/* Rarity top bar */}
-      <div style={{ height: 5, background: r.topBar }} />
+      <div style={topBarStyle} />
 
       {/* Art area */}
       <div
@@ -366,6 +420,7 @@ function ShopCard({
               padding: '2px 7px',
               borderRadius: 999,
               boxShadow: `0 2px 8px ${r.glow}`,
+              animation: 'shopGlowPulse 1.8s ease-in-out infinite',
             }}
           >
             ✓ ON
@@ -444,6 +499,7 @@ function ShopCard({
           </div>
         ) : owned || free ? (
           <button
+            className="shop-btn"
             onClick={(e) => {
               e.stopPropagation();
               onEquip();
@@ -465,12 +521,14 @@ function ShopCard({
               letterSpacing: 0.5,
               cursor: busy ? 'not-allowed' : 'pointer',
               boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+              transition: 'filter 0.1s',
             }}
           >
             {busy ? '…' : free ? '+ EQUIP FREE' : 'EQUIP'}
           </button>
         ) : (
           <button
+            className="shop-btn"
             onClick={(e) => {
               e.stopPropagation();
               onBuy();
@@ -496,6 +554,7 @@ function ShopCard({
               alignItems: 'center',
               justifyContent: 'center',
               gap: 5,
+              transition: 'filter 0.1s',
             }}
           >
             {busy ? (
@@ -955,6 +1014,7 @@ export const ShopPage: React.FC = () => {
 
   return (
     <div style={{ background: '#0a0a18', minHeight: '100vh', color: 'white', paddingBottom: 100 }}>
+      <ShopStyles />
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div
         style={{
@@ -1017,7 +1077,7 @@ export const ShopPage: React.FC = () => {
           >
             <span style={{ fontSize: 18 }}>🪙</span>
             <span style={{ fontWeight: 900, fontSize: 18, color: '#fcd34d', letterSpacing: -0.5 }}>
-              {shopState ? shopState.coins.toLocaleString() : '—'}
+              {(shopState?.coins ?? (user ? 0 : null))?.toLocaleString() ?? '—'}
             </span>
           </div>
         </div>
@@ -1100,9 +1160,10 @@ export const ShopPage: React.FC = () => {
                 padding: '0 12px',
               }}
             >
-              {group.items.map((item) => (
+              {group.items.map((item, i) => (
                 <ShopCard
                   key={item.id}
+                  index={i}
                   item={item}
                   owned={item.price === 0 || isOwned(item.id)}
                   equipped={isEquipped(item)}
@@ -1125,9 +1186,10 @@ export const ShopPage: React.FC = () => {
             padding: '16px 12px 0',
           }}
         >
-          {filtered.map((item) => (
+          {filtered.map((item, i) => (
             <ShopCard
               key={item.id}
+              index={i}
               item={item}
               owned={item.price === 0 || isOwned(item.id)}
               equipped={isEquipped(item)}
