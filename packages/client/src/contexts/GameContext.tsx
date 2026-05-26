@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useRef 
 import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
+import { storage } from '../utils/storage';
 
 type DefenseSnapshot = {
   at: number;
@@ -158,7 +159,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const attemptReconnect = async () => {
-    const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
+    const token = await storage.get(RECONNECT_TOKEN_KEY);
     if (!token) return false;
 
     setIsReconnecting(true);
@@ -177,7 +178,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // All attempts exhausted
-    sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+    await storage.remove(RECONNECT_TOKEN_KEY);
     setIsReconnecting(false);
     setConnectionStatus('connected');
     return false;
@@ -186,7 +187,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
     // Persist token so the client can reconnect after a network drop or page refresh
     if (roomInstance.reconnectionToken) {
-      sessionStorage.setItem(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
+      void storage.set(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
     }
 
     roomInstance.onStateChange(() => setTick((t) => t + 1));
@@ -272,7 +273,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : `🎉 Game Over! ${data.loser} is the Durak.`,
         );
       // Game is over — no reconnection needed after this point
-      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      void storage.remove(RECONNECT_TOKEN_KEY);
     });
     roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
       setGameMessage(
@@ -308,7 +309,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (reconnected) return;
       }
 
-      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      await storage.remove(RECONNECT_TOKEN_KEY);
     });
     setRoom(roomInstance);
     setIsConnected(true);
@@ -397,7 +398,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const leaveGame = () => {
     if (room) {
-      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      void storage.remove(RECONNECT_TOKEN_KEY);
       setIsSpectator(false);
       room.leave();
     }
@@ -417,9 +418,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // On mount: if there's a saved reconnection token (e.g. after a page refresh), restore session
   useEffect(() => {
-    if (sessionStorage.getItem(RECONNECT_TOKEN_KEY)) {
-      attemptReconnect();
-    }
+    void storage.get(RECONNECT_TOKEN_KEY).then((token) => {
+      if (token) attemptReconnect();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
