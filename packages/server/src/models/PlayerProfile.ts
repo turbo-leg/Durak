@@ -18,6 +18,8 @@ export interface IPlayerProfile extends mongoose.Document {
   badges: string[];
   coins: number;
   ownedItems: string[];
+  equippedCardBack: string;
+  equippedAvatarFrame: string;
   lastDailyLogin: Date | null;
   lastGameDate: Date | null;
   updatedAt: Date;
@@ -42,6 +44,8 @@ const PlayerProfileSchema = new mongoose.Schema(
     badges: { type: [String], default: [] },
     coins: { type: Number, default: 0 },
     ownedItems: { type: [String], default: [] },
+    equippedCardBack: { type: String, default: '' },
+    equippedAvatarFrame: { type: String, default: '' },
     lastDailyLogin: { type: Date, default: null },
     lastGameDate: { type: Date, default: null },
   },

@@ -25,10 +25,13 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
   const [items, setItems] = useState<ShopItem[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
   const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [equippedCardBack, setEquippedCardBack] = useState<string>('');
+  const [equippedAvatarFrame, setEquippedAvatarFrame] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseMsg, setPurchaseMsg] = useState<string | null>(null);
+  const [equipping, setEquipping] = useState<string | null>(null);
 
   const id = discordId ?? userId ?? '';
   const byParam = userId && !discordId ? 'by=user' : '';
@@ -42,7 +45,14 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
     Promise.all([
       fetch(`${API}/shop/items`).then((r) => (r.ok ? (r.json() as Promise<ShopItem[]>) : [])),
       fetch(`${API}/profile/${id}${byParam ? `?${byParam}` : ''}`).then((r) =>
-        r.ok ? (r.json() as Promise<{ coins: number; ownedItems?: string[] }>) : null,
+        r.ok
+          ? (r.json() as Promise<{
+              coins: number;
+              ownedItems?: string[];
+              equippedCardBack?: string;
+              equippedAvatarFrame?: string;
+            }>)
+          : null,
       ),
     ])
       .then(([shopItems, profile]) => {
@@ -50,6 +60,8 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
         setItems(Array.isArray(shopItems) ? shopItems : []);
         setBalance(profile?.coins ?? null);
         setOwnedItems(profile?.ownedItems ?? []);
+        setEquippedCardBack(profile?.equippedCardBack ?? '');
+        setEquippedAvatarFrame(profile?.equippedAvatarFrame ?? '');
       })
       .catch(() => {
         if (!cancelled) setError('Failed to load shop. Please try again.');
@@ -96,6 +108,39 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
         setPurchaseMsg('Network error. Please try again.');
       } finally {
         setPurchasing(null);
+      }
+    },
+    [id, discordId, userId],
+  );
+
+  const handleEquip = useCallback(
+    async (item: ShopItem) => {
+      if (!id || (item.type !== 'card_back' && item.type !== 'avatar_frame')) return;
+      setEquipping(item.id);
+      try {
+        const body: Record<string, string> = { itemId: item.id, slot: item.type };
+        if (discordId) body.discordId = discordId;
+        else if (userId) body.userId = userId;
+
+        const res = await fetch(`${API}/profile/equip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          equipped?: { card_back: string; avatar_frame: string };
+          error?: string;
+        };
+
+        if (res.ok && data.ok && data.equipped) {
+          setEquippedCardBack(data.equipped.card_back);
+          setEquippedAvatarFrame(data.equipped.avatar_frame);
+        }
+      } catch {
+        // silently ignore equip errors
+      } finally {
+        setEquipping(null);
       }
     },
     [id, discordId, userId],
@@ -153,7 +198,12 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
               {group.map((item) => {
                 const owned = ownedItems.includes(item.id);
                 const isBuying = purchasing === item.id;
+                const isEquipping = equipping === item.id;
                 const canAfford = balance !== null && balance >= item.price;
+                const isEquippable = item.type === 'card_back' || item.type === 'avatar_frame';
+                const isEquipped =
+                  (item.type === 'card_back' && equippedCardBack === item.id) ||
+                  (item.type === 'avatar_frame' && equippedAvatarFrame === item.id);
                 return (
                   <div
                     key={item.id}
@@ -168,9 +218,29 @@ export const ShopScreen: React.FC<Props> = ({ discordId, userId }) => {
                       <span>{item.price}</span>
                     </div>
                     {owned ? (
-                      <span className="text-xs bg-green-800/70 text-green-300 rounded-full px-2 py-0.5 font-semibold">
-                        Owned
-                      </span>
+                      <div className="flex flex-col items-center gap-1 w-full">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs bg-green-800/70 text-green-300 rounded-full px-2 py-0.5 font-semibold">
+                            Owned
+                          </span>
+                          {isEquipped && (
+                            <span className="text-green-400 text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        {isEquippable && !isEquipped && (
+                          <button
+                            onClick={() => handleEquip(item)}
+                            disabled={isEquipping}
+                            className={`text-xs px-3 py-1 rounded font-semibold transition w-full ${
+                              isEquipping
+                                ? 'bg-indigo-700 text-indigo-400 cursor-wait'
+                                : 'bg-purple-700 hover:bg-purple-600 text-white'
+                            }`}
+                          >
+                            {isEquipping ? '…' : 'Equip'}
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <button
                         onClick={() => handleBuy(item)}
