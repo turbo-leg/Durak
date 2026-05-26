@@ -15,7 +15,9 @@ RUN npm ci
 COPY . .
 
 # Build frontend assets that server will serve from packages/client/dist
-ENV VITE_DISCORD_CLIENT_ID=1493531312206647406
+# Pass via: docker build --build-arg VITE_DISCORD_CLIENT_ID=<id> .
+ARG VITE_DISCORD_CLIENT_ID
+ENV VITE_DISCORD_CLIENT_ID=$VITE_DISCORD_CLIENT_ID
 RUN npm run build:client
 
 ENV NODE_ENV=production

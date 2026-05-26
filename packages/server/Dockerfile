@@ -11,6 +11,10 @@ RUN npm ci
 
 # Copy source and build everything
 COPY . .
+# Pass via: fly deploy --build-arg VITE_DISCORD_CLIENT_ID=<id>
+# or in fly.toml [build.args] section
+ARG VITE_DISCORD_CLIENT_ID
+ENV VITE_DISCORD_CLIENT_ID=$VITE_DISCORD_CLIENT_ID
 RUN npm run build:client
 RUN cd packages/server && npx tsc --noEmit false --outDir dist
 

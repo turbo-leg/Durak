@@ -4,6 +4,7 @@ import { RedisDriver } from '@colyseus/redis-driver';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import helmet from 'helmet';
 import { monitor } from '@colyseus/monitor';
 import path from 'path';
 import fs from 'fs';
@@ -105,15 +106,23 @@ if (process.env.MONGO_URI) {
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(cors());
-app.use(express.json());
 
-// Issue #69: Allow Discord to embed this application in an iframe
+// Issue #188: security headers — helmet baseline, then override for Discord embedding
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // overridden below to allow Discord iframe
+    crossOriginEmbedderPolicy: false, // Discord Activity requires this off
+  }),
+);
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', 'frame-ancestors *');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'ALLOWALL'); // allow Discord iframe
   next();
 });
+
+app.use(cors());
+app.use(express.json());
 
 // ── Discord token exchange (Embedded App SDK) ────────────────────────────────
 
