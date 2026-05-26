@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 type ItemType = 'cardBack' | 'tableSkin' | 'emote';
-type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 interface ShopItem {
   id: string;
@@ -25,90 +25,182 @@ const API = '/api';
 
 const rarityFor = (price: number): Rarity => {
   if (price === 0) return 'common';
-  if (price <= 200) return 'uncommon';
-  if (price <= 500) return 'rare';
-  if (price <= 800) return 'epic';
+  if (price <= 300) return 'rare';
+  if (price <= 700) return 'epic';
   return 'legendary';
 };
 
-const RARITY = {
+const RARITY: Record<
+  Rarity,
+  {
+    cardGradient: string;
+    border: string;
+    topBar: string;
+    glow: string;
+    label: string;
+    stars: number;
+    starColor: string;
+  }
+> = {
   common: {
+    cardGradient: 'linear-gradient(175deg, #4b5563 0%, #1f2937 55%, #111827 100%)',
     border: '#6b7280',
-    glow: 'rgba(107,114,128,0.5)',
-    bg: '#1f2937',
+    topBar: 'linear-gradient(90deg, #374151, #6b7280, #374151)',
+    glow: 'rgba(107,114,128,0.45)',
     label: 'COMMON',
-    labelColor: '#9ca3af',
-  },
-  uncommon: {
-    border: '#22c55e',
-    glow: 'rgba(34,197,94,0.45)',
-    bg: '#052e16',
-    label: 'UNCOMMON',
-    labelColor: '#4ade80',
+    stars: 1,
+    starColor: '#9ca3af',
   },
   rare: {
+    cardGradient: 'linear-gradient(175deg, #2563eb 0%, #1e3a8a 55%, #0f1f57 100%)',
     border: '#3b82f6',
-    glow: 'rgba(59,130,246,0.5)',
-    bg: '#0c1a3a',
+    topBar: 'linear-gradient(90deg, #1e3a8a, #60a5fa, #1e3a8a)',
+    glow: 'rgba(59,130,246,0.55)',
     label: 'RARE',
-    labelColor: '#60a5fa',
+    stars: 2,
+    starColor: '#93c5fd',
   },
   epic: {
+    cardGradient: 'linear-gradient(175deg, #7c3aed 0%, #4c1d95 55%, #2e1065 100%)',
     border: '#a855f7',
-    glow: 'rgba(168,85,247,0.55)',
-    bg: '#1e0533',
+    topBar: 'linear-gradient(90deg, #4c1d95, #c084fc, #4c1d95)',
+    glow: 'rgba(168,85,247,0.6)',
     label: 'EPIC',
-    labelColor: '#c084fc',
+    stars: 3,
+    starColor: '#d8b4fe',
   },
   legendary: {
+    cardGradient: 'linear-gradient(175deg, #d97706 0%, #92400e 55%, #451a03 100%)',
     border: '#f59e0b',
-    glow: 'rgba(245,158,11,0.6)',
-    bg: '#3a1a00',
+    topBar: 'linear-gradient(90deg, #92400e, #fbbf24, #92400e)',
+    glow: 'rgba(245,158,11,0.7)',
     label: 'LEGENDARY',
-    labelColor: '#fbbf24',
+    stars: 3,
+    starColor: '#fcd34d',
   },
-} satisfies Record<
-  Rarity,
-  { border: string; glow: string; bg: string; label: string; labelColor: string }
->;
+};
 
-// ── Item previews ──────────────────────────────────────────────────────────
+// ── Item art ──────────────────────────────────────────────────────────────
 
-function CardBackPreview({ color, rarity }: { color: string; rarity: Rarity }) {
+function CardArt({ color, rarity }: { color: string; rarity: Rarity }) {
   const r = RARITY[rarity];
   return (
-    <div className="flex items-center justify-center w-full h-full">
+    <div style={{ position: 'relative', width: 68, height: 92 }}>
+      {/* outer card shape */}
       <div
         style={{
-          width: 72,
-          height: 100,
-          background: `radial-gradient(ellipse at 30% 30%, color-mix(in srgb, ${color} 70%, white), ${color})`,
-          borderRadius: 10,
-          border: `2px solid ${r.border}`,
-          boxShadow: `0 0 16px ${r.glow}, 0 6px 20px rgba(0,0,0,0.6)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: '100%',
+          height: '100%',
+          borderRadius: 9,
+          background: `radial-gradient(ellipse at 35% 28%, color-mix(in srgb, ${color} 55%, white 45%), ${color} 80%)`,
+          border: `2px solid rgba(255,255,255,0.25)`,
+          boxShadow: `0 8px 24px rgba(0,0,0,0.7), 0 0 18px ${r.glow}`,
           position: 'relative',
           overflow: 'hidden',
         }}
       >
-        {/* inner border */}
+        {/* shine overlay */}
         <div
           style={{
             position: 'absolute',
-            inset: 5,
-            border: `1.5px solid rgba(255,255,255,0.2)`,
-            borderRadius: 5,
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '42%',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)',
+            borderRadius: '9px 9px 0 0',
+          }}
+        />
+        {/* inner frame */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 6,
+            border: '1.5px solid rgba(255,255,255,0.18)',
+            borderRadius: 4,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 24,
-            color: 'rgba(255,255,255,0.5)',
+            flexDirection: 'column',
+            gap: 2,
           }}
         >
-          ♦
+          <div style={{ fontSize: 22, color: 'rgba(255,255,255,0.55)', lineHeight: 1 }}>♦</div>
+          <div
+            style={{
+              fontSize: 8,
+              letterSpacing: 2,
+              color: 'rgba(255,255,255,0.3)',
+              fontWeight: 800,
+            }}
+          >
+            DURAK
+          </div>
         </div>
+      </div>
+      {/* corner pips */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 3,
+          left: 5,
+          fontSize: 8,
+          color: 'rgba(255,255,255,0.5)',
+          fontWeight: 900,
+        }}
+      >
+        ♦
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 3,
+          right: 5,
+          fontSize: 8,
+          color: 'rgba(255,255,255,0.5)',
+          fontWeight: 900,
+          transform: 'rotate(180deg)',
+        }}
+      >
+        ♦
+      </div>
+    </div>
+  );
+}
+
+function TableArt({ color, rarity }: { color: string; rarity: Rarity }) {
+  const r = RARITY[rarity];
+  return (
+    <div style={{ position: 'relative', width: 108, height: 72 }}>
+      {/* drop shadow */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -6,
+          left: 10,
+          right: 10,
+          height: 14,
+          background: 'rgba(0,0,0,0.5)',
+          borderRadius: '50%',
+          filter: 'blur(8px)',
+        }}
+      />
+      {/* table surface */}
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '50%',
+          background: `radial-gradient(ellipse at 32% 30%, color-mix(in srgb, ${color} 50%, white 50%), ${color} 65%, color-mix(in srgb, ${color} 80%, black) 100%)`,
+          border: `3px solid ${r.border}`,
+          boxShadow: `0 0 20px ${r.glow}, inset 0 0 20px rgba(0,0,0,0.4)`,
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         {/* shine */}
         <div
           style={{
@@ -117,8 +209,17 @@ function CardBackPreview({ color, rarity }: { color: string; rarity: Rarity }) {
             left: 0,
             right: 0,
             height: '45%',
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%)',
-            borderRadius: '10px 10px 0 0',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%)',
+            borderRadius: '50% 50% 0 0 / 30% 30% 0 0',
+          }}
+        />
+        {/* inner ring */}
+        <div
+          style={{
+            width: '55%',
+            height: '55%',
+            borderRadius: '50%',
+            border: '1.5px solid rgba(255,255,255,0.12)',
           }}
         />
       </div>
@@ -126,92 +227,607 @@ function CardBackPreview({ color, rarity }: { color: string; rarity: Rarity }) {
   );
 }
 
-function TablePreview({ color, rarity }: { color: string; rarity: Rarity }) {
+function EmoteArt({ emoji, rarity }: { emoji: string; rarity: Rarity }) {
   const r = RARITY[rarity];
   return (
-    <div className="flex items-center justify-center w-full h-full">
-      <div style={{ position: 'relative', width: 110, height: 70 }}>
-        {/* shadow */}
+    <div
+      style={{
+        width: 90,
+        height: 90,
+        borderRadius: '50%',
+        background: `radial-gradient(circle at 38% 32%, rgba(255,255,255,0.08), rgba(0,0,0,0.4))`,
+        border: `2.5px solid ${r.border}`,
+        boxShadow: `0 0 24px ${r.glow}, 0 8px 24px rgba(0,0,0,0.6)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 46,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '45%',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%)',
+          borderRadius: '50% 50% 0 0 / 30% 30% 0 0',
+        }}
+      />
+      {emoji}
+    </div>
+  );
+}
+
+function ItemArt({ item, rarity }: { item: ShopItem; rarity: Rarity }) {
+  const isEmoji = !/^#/.test(item.preview);
+  if (isEmoji) return <EmoteArt emoji={item.preview} rarity={rarity} />;
+  if (item.type === 'cardBack') return <CardArt color={item.preview} rarity={rarity} />;
+  return <TableArt color={item.preview} rarity={rarity} />;
+}
+
+function Stars({ count, color }: { count: number; color: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 2 }}>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            fontSize: 10,
+            color: i < count ? color : 'rgba(255,255,255,0.15)',
+            textShadow: i < count ? `0 0 6px ${color}` : 'none',
+          }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ── Shop card ─────────────────────────────────────────────────────────────
+
+function ShopCard({
+  item,
+  owned,
+  equipped,
+  busy,
+  onBuy,
+  onEquip,
+  onClick,
+}: {
+  item: ShopItem;
+  owned: boolean;
+  equipped: boolean;
+  busy: boolean;
+  onBuy: () => void;
+  onEquip: () => void;
+  onClick: () => void;
+}) {
+  const rarity = rarityFor(item.price);
+  const r = RARITY[rarity];
+  const free = item.price === 0;
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        borderRadius: 16,
+        overflow: 'hidden',
+        border: `2px solid ${equipped ? r.border : 'rgba(255,255,255,0.08)'}`,
+        boxShadow: equipped
+          ? `0 0 22px ${r.glow}, 0 6px 20px rgba(0,0,0,0.6)`
+          : `0 6px 20px rgba(0,0,0,0.5)`,
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'transform 0.1s',
+        userSelect: 'none',
+      }}
+    >
+      {/* Rarity top bar */}
+      <div style={{ height: 5, background: r.topBar }} />
+
+      {/* Art area */}
+      <div
+        style={{
+          background: r.cardGradient,
+          height: 148,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+        }}
+      >
+        {/* ambient glow behind art */}
         <div
           style={{
             position: 'absolute',
-            bottom: -4,
-            left: 4,
-            right: 4,
-            height: 16,
-            background: 'rgba(0,0,0,0.4)',
-            borderRadius: '50%',
-            filter: 'blur(6px)',
+            inset: 0,
+            background: `radial-gradient(ellipse at 50% 60%, ${r.glow.replace('0.', '0.08,')} 0%, transparent 70%)`,
           }}
         />
-        {/* table surface */}
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            background: `radial-gradient(ellipse at 35% 35%, color-mix(in srgb, ${color} 60%, white 40%), ${color} 70%)`,
-            borderRadius: '50%',
-            border: `3px solid ${r.border}`,
-            boxShadow: `0 0 14px ${r.glow}, inset 0 0 24px rgba(0,0,0,0.35)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {/* felt lines */}
+        <ItemArt item={item} rarity={rarity} />
+
+        {/* EQUIPPED badge */}
+        {equipped && (
           <div
             style={{
-              width: '60%',
-              height: '60%',
-              borderRadius: '50%',
-              border: '1.5px solid rgba(255,255,255,0.1)',
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              background: r.border,
+              color: '#000',
+              fontSize: 8,
+              fontWeight: 900,
+              letterSpacing: 0.8,
+              padding: '2px 7px',
+              borderRadius: 999,
+              boxShadow: `0 2px 8px ${r.glow}`,
+            }}
+          >
+            ✓ ON
+          </div>
+        )}
+
+        {/* NEW badge for legendaries */}
+        {rarity === 'legendary' && !owned && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+              color: '#fff',
+              fontSize: 8,
+              fontWeight: 900,
+              letterSpacing: 0.5,
+              padding: '2px 7px',
+              borderRadius: 999,
+            }}
+          >
+            HOT
+          </div>
+        )}
+      </div>
+
+      {/* Info + action area */}
+      <div
+        style={{
+          background: 'linear-gradient(180deg, #0f0f1e 0%, #080812 100%)',
+          padding: '10px 10px 12px',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        {/* Name + stars row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 800,
+              color: '#f1f5f9',
+              lineHeight: 1.2,
+              flex: 1,
+              paddingRight: 4,
+            }}
+          >
+            {item.name}
+          </div>
+          <Stars count={r.stars} color={r.starColor} />
+        </div>
+
+        {/* CTA button */}
+        {equipped ? (
+          <div
+            style={{
+              background: `linear-gradient(180deg, ${r.border}22 0%, ${r.border}11 100%)`,
+              border: `1.5px solid ${r.border}55`,
+              borderRadius: 10,
+              padding: '8px 0',
+              textAlign: 'center',
+              fontSize: 12,
+              fontWeight: 800,
+              color: r.border,
+              letterSpacing: 0.5,
+            }}
+          >
+            ✓ EQUIPPED
+          </div>
+        ) : owned || free ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEquip();
+            }}
+            disabled={busy}
+            style={{
+              width: '100%',
+              background: busy
+                ? 'rgba(255,255,255,0.06)'
+                : 'linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%)',
+              border: 'none',
+              borderTop: '2px solid rgba(167,139,250,0.5)',
+              borderBottom: '3px solid #2e1065',
+              borderRadius: 10,
+              padding: '8px 0',
+              fontSize: 12,
+              fontWeight: 900,
+              color: '#ede9fe',
+              letterSpacing: 0.5,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+            }}
+          >
+            {busy ? '…' : free ? '+ EQUIP FREE' : 'EQUIP'}
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onBuy();
+            }}
+            disabled={busy}
+            style={{
+              width: '100%',
+              background: busy
+                ? 'rgba(255,255,255,0.06)'
+                : 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)',
+              border: 'none',
+              borderTop: '2px solid #fcd34d',
+              borderBottom: '3px solid #92400e',
+              borderRadius: 10,
+              padding: '8px 0',
+              fontSize: 13,
+              fontWeight: 900,
+              color: '#1c0a00',
+              letterSpacing: 0.3,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 14px rgba(245,158,11,0.45)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+            }}
+          >
+            {busy ? (
+              '…'
+            ) : (
+              <>
+                <span style={{ fontSize: 14 }}>🪙</span>
+                <span>{item.price.toLocaleString()}</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Section header ────────────────────────────────────────────────────────
+
+function SectionHeader({ label, icon }: { label: string; icon: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 12px 10px' }}>
+      <div
+        style={{
+          flex: 1,
+          height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.12))',
+        }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 11,
+          fontWeight: 900,
+          letterSpacing: 1.5,
+          color: 'rgba(255,255,255,0.5)',
+        }}
+      >
+        <span>{icon}</span>
+        <span>{label}</span>
+      </div>
+      <div
+        style={{
+          flex: 1,
+          height: 1,
+          background: 'linear-gradient(90deg, rgba(255,255,255,0.12), transparent)',
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Detail bottom sheet ───────────────────────────────────────────────────
+
+function DetailSheet({
+  item,
+  owned,
+  equipped,
+  busy,
+  coins,
+  token,
+  onBuy,
+  onEquip,
+  onClose,
+}: {
+  item: ShopItem;
+  owned: boolean;
+  equipped: boolean;
+  busy: boolean;
+  coins: number;
+  token?: string;
+  onBuy: () => void;
+  onEquip: () => void;
+  onClose: () => void;
+}) {
+  const rarity = rarityFor(item.price);
+  const r = RARITY[rarity];
+  const free = item.price === 0;
+  const canAfford = coins >= item.price;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        background: 'rgba(0,0,0,0.82)',
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 520,
+          background: 'linear-gradient(180deg, #15102e 0%, #0a0a18 100%)',
+          border: `2px solid ${r.border}`,
+          borderBottom: 'none',
+          borderRadius: '24px 24px 0 0',
+          padding: '0 0 36px',
+          boxShadow: `0 -12px 50px ${r.glow}, 0 -4px 20px rgba(0,0,0,0.8)`,
+          overflow: 'hidden',
+        }}
+      >
+        {/* top rarity bar */}
+        <div style={{ height: 6, background: r.topBar }} />
+
+        {/* drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+          <div
+            style={{
+              width: 40,
+              height: 4,
+              background: 'rgba(255,255,255,0.18)',
+              borderRadius: 999,
             }}
           />
+        </div>
+
+        {/* content */}
+        <div style={{ padding: '16px 24px 0' }}>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 20 }}>
+            {/* Art */}
+            <div
+              style={{
+                width: 110,
+                height: 110,
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: r.cardGradient,
+                borderRadius: 16,
+                border: `2px solid ${r.border}44`,
+                boxShadow: `0 0 20px ${r.glow}`,
+              }}
+            >
+              <ItemArt item={item} rarity={rarity} />
+            </div>
+
+            {/* Text */}
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 900,
+                  letterSpacing: 1.5,
+                  color: r.starColor,
+                  marginBottom: 4,
+                }}
+              >
+                {r.label}
+              </div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 900,
+                  color: '#fff',
+                  lineHeight: 1.15,
+                  marginBottom: 6,
+                }}
+              >
+                {item.name}
+              </div>
+              <Stars count={r.stars} color={r.starColor} />
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'rgba(255,255,255,0.4)',
+                  marginTop: 8,
+                  lineHeight: 1.4,
+                }}
+              >
+                {item.description}
+              </div>
+            </div>
+          </div>
+
+          {/* Coin cost row */}
+          {!free && !owned && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 12,
+                padding: '10px 16px',
+                marginBottom: 14,
+              }}
+            >
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 700 }}>
+                Your coins
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 16 }}>🪙</span>
+                <span
+                  style={{
+                    fontWeight: 900,
+                    fontSize: 16,
+                    color: canAfford ? '#fcd34d' : '#f87171',
+                  }}
+                >
+                  {coins.toLocaleString()}
+                </span>
+                {!canAfford && (
+                  <span style={{ fontSize: 11, color: '#f87171', fontWeight: 700 }}>
+                    (need {(item.price - coins).toLocaleString()} more)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* CTA */}
+          {equipped ? (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 14,
+                background: `${r.border}18`,
+                border: `1.5px solid ${r.border}44`,
+                textAlign: 'center',
+                color: r.border,
+                fontWeight: 900,
+                fontSize: 15,
+                letterSpacing: 0.5,
+              }}
+            >
+              ✓ CURRENTLY EQUIPPED
+            </div>
+          ) : owned || free ? (
+            <button
+              disabled={busy}
+              onClick={onEquip}
+              style={{
+                width: '100%',
+                padding: '16px',
+                background: busy
+                  ? 'rgba(255,255,255,0.06)'
+                  : 'linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%)',
+                border: 'none',
+                borderTop: '2px solid rgba(167,139,250,0.6)',
+                borderBottom: '4px solid #2e1065',
+                borderRadius: 14,
+                fontSize: 16,
+                fontWeight: 900,
+                color: '#ede9fe',
+                letterSpacing: 0.5,
+                cursor: busy ? 'not-allowed' : 'pointer',
+                boxShadow: '0 6px 20px rgba(124,58,237,0.5)',
+              }}
+            >
+              {busy ? 'Equipping…' : 'EQUIP NOW'}
+            </button>
+          ) : !token ? (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                textAlign: 'center',
+                color: 'rgba(255,255,255,0.4)',
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              Sign in to purchase
+            </div>
+          ) : (
+            <button
+              disabled={busy || !canAfford}
+              onClick={onBuy}
+              style={{
+                width: '100%',
+                padding: '16px',
+                background:
+                  busy || !canAfford
+                    ? 'rgba(255,255,255,0.06)'
+                    : 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none',
+                borderTop: canAfford ? '2px solid #fcd34d' : '2px solid rgba(255,255,255,0.1)',
+                borderBottom: canAfford ? '4px solid #78350f' : '4px solid rgba(0,0,0,0.3)',
+                borderRadius: 14,
+                fontSize: 16,
+                fontWeight: 900,
+                color: busy || !canAfford ? 'rgba(255,255,255,0.3)' : '#1c0a00',
+                cursor: busy || !canAfford ? 'not-allowed' : 'pointer',
+                boxShadow: canAfford ? '0 6px 22px rgba(245,158,11,0.5)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {busy ? (
+                'Buying…'
+              ) : (
+                <>
+                  <span style={{ fontSize: 20 }}>🪙</span>
+                  <span>{item.price.toLocaleString()}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function EmotePreview({ emoji, rarity }: { emoji: string; rarity: Rarity }) {
-  const r = RARITY[rarity];
-  return (
-    <div className="flex items-center justify-center w-full h-full">
-      <div
-        style={{
-          width: 88,
-          height: 88,
-          background: `radial-gradient(circle at 40% 35%, ${r.bg}, #0d0d1a 80%)`,
-          borderRadius: '50%',
-          border: `2px solid ${r.border}`,
-          boxShadow: `0 0 20px ${r.glow}, 0 6px 20px rgba(0,0,0,0.5)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 40,
-        }}
-      >
-        {emoji}
-      </div>
-    </div>
-  );
-}
+// ── Main ──────────────────────────────────────────────────────────────────
 
-function ItemPreview({ item, rarity }: { item: ShopItem; rarity: Rarity }) {
-  const isEmoji = !/^#/.test(item.preview);
-  if (isEmoji) return <EmotePreview emoji={item.preview} rarity={rarity} />;
-  if (item.type === 'cardBack') return <CardBackPreview color={item.preview} rarity={rarity} />;
-  return <TablePreview color={item.preview} rarity={rarity} />;
-}
-
-// ── Main component ─────────────────────────────────────────────────────────
-
-const TABS = [
-  { key: 'all' as const, label: 'All', icon: '🏪' },
-  { key: 'cardBack' as const, label: 'Card Backs', icon: '🃏' },
-  { key: 'tableSkin' as const, label: 'Tables', icon: '🎯' },
-  { key: 'emote' as const, label: 'Emotes', icon: '😄' },
+const SECTION_TABS = [
+  { key: 'all' as const, label: 'ALL', icon: '🏪' },
+  { key: 'cardBack' as const, label: 'CARD BACKS', icon: '🃏' },
+  { key: 'tableSkin' as const, label: 'TABLES', icon: '🎯' },
+  { key: 'emote' as const, label: 'EMOTES', icon: '😄' },
 ];
+
+const SECTION_INFO: Record<ItemType, { label: string; icon: string }> = {
+  cardBack: { label: 'CARD BACKS', icon: '🃏' },
+  tableSkin: { label: 'TABLE SKINS', icon: '🎯' },
+  emote: { label: 'EMOTES', icon: '😄' },
+};
 
 export const ShopPage: React.FC = () => {
   const { user } = useAuth();
@@ -245,134 +861,170 @@ export const ShopPage: React.FC = () => {
     void fetchAll();
   }, [fetchAll]);
 
-  const buy = async (itemId: string) => {
-    if (!token) {
-      showToast('Sign in to buy items', false);
-      return;
-    }
-    setBusy(itemId);
-    try {
-      const res = await fetch(`${API}/shop/buy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ itemId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error ?? 'Purchase failed', false);
-      } else {
-        setShopState((prev) =>
-          prev ? { ...prev, coins: data.coins, inventory: data.inventory } : prev,
-        );
-        showToast('Purchased! ✓', true);
+  const buy = useCallback(
+    async (itemId: string) => {
+      if (!token) {
+        showToast('Sign in to buy', false);
+        return;
       }
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const equip = async (itemId: string) => {
-    if (!token) {
-      showToast('Sign in to equip items', false);
-      return;
-    }
-    setBusy(itemId);
-    try {
-      const res = await fetch(`${API}/shop/equip`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ itemId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error ?? 'Equip failed', false);
-      } else {
-        setShopState((prev) =>
-          prev
-            ? {
-                ...prev,
-                equippedCardBack: data.equippedCardBack,
-                equippedTableSkin: data.equippedTableSkin,
-                equippedEmotes: data.equippedEmotes,
-              }
-            : prev,
-        );
-        showToast('Equipped! ✓', true);
-        setSelected(null);
+      setBusy(itemId);
+      try {
+        const res = await fetch(`${API}/shop/buy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ itemId }),
+        });
+        const data = await res.json();
+        if (!res.ok) showToast(data.error ?? 'Purchase failed', false);
+        else {
+          setShopState((prev) =>
+            prev ? { ...prev, coins: data.coins, inventory: data.inventory } : prev,
+          );
+          showToast('Purchased! ✓', true);
+          setSelected(null);
+        }
+      } finally {
+        setBusy(null);
       }
-    } finally {
-      setBusy(null);
-    }
-  };
+    },
+    [token, showToast],
+  );
 
-  const isOwned = (id: string) => (shopState?.inventory ?? []).includes(id);
-  const isEquipped = (item: ShopItem) => {
-    if (item.type === 'cardBack') return shopState?.equippedCardBack === item.id;
-    if (item.type === 'tableSkin') return shopState?.equippedTableSkin === item.id;
-    if (item.type === 'emote') return (shopState?.equippedEmotes ?? []).includes(item.id);
-    return false;
-  };
+  const equip = useCallback(
+    async (itemId: string) => {
+      if (!token) {
+        showToast('Sign in to equip', false);
+        return;
+      }
+      setBusy(itemId);
+      try {
+        const res = await fetch(`${API}/shop/equip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ itemId }),
+        });
+        const data = await res.json();
+        if (!res.ok) showToast(data.error ?? 'Equip failed', false);
+        else {
+          setShopState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  equippedCardBack: data.equippedCardBack,
+                  equippedTableSkin: data.equippedTableSkin,
+                  equippedEmotes: data.equippedEmotes,
+                }
+              : prev,
+          );
+          showToast('Equipped! ✓', true);
+          setSelected(null);
+        }
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, showToast],
+  );
+
+  const isOwned = useCallback(
+    (id: string) => (shopState?.inventory ?? []).includes(id),
+    [shopState],
+  );
+  const isEquipped = useCallback(
+    (item: ShopItem) => {
+      if (item.type === 'cardBack') return shopState?.equippedCardBack === item.id;
+      if (item.type === 'tableSkin') return shopState?.equippedTableSkin === item.id;
+      if (item.type === 'emote') return (shopState?.equippedEmotes ?? []).includes(item.id);
+      return false;
+    },
+    [shopState],
+  );
 
   const filtered = tab === 'all' ? items : items.filter((i) => i.type === tab);
 
+  // Group by type for section headers (only in 'all' mode)
+  const grouped: { type: ItemType; items: ShopItem[] }[] =
+    tab !== 'all'
+      ? []
+      : (['cardBack', 'tableSkin', 'emote'] as ItemType[])
+          .map((type) => ({
+            type,
+            items: items.filter((i) => i.type === type),
+          }))
+          .filter((g) => g.items.length > 0);
+
   return (
-    <div style={{ background: '#0d0d1a', minHeight: '100vh', color: 'white', paddingBottom: 100 }}>
-      {/* ── Header ── */}
+    <div style={{ background: '#0a0a18', minHeight: '100vh', color: 'white', paddingBottom: 100 }}>
+      {/* ── Header ─────────────────────────────────────────────────── */}
       <div
         style={{
-          background: 'linear-gradient(180deg, #1a0a3a 0%, #0d0d1a 100%)',
-          padding: '20px 16px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'linear-gradient(180deg, #12083a 0%, #0a0a18 100%)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
           position: 'sticky',
           top: 0,
           zIndex: 30,
-          backdropFilter: 'blur(12px)',
+          backdropFilter: 'blur(16px)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>
-              <span
-                style={{
-                  background: 'linear-gradient(90deg, #f59e0b, #fcd34d)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                DURAK
-              </span>
-              <span style={{ color: 'white', marginLeft: 6 }}>STORE</span>
+        {/* title row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '18px 16px 0',
+          }}
+        >
+          <div style={{ lineHeight: 1 }}>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 900,
+                letterSpacing: -0.5,
+                background: 'linear-gradient(90deg, #f59e0b 0%, #fcd34d 50%, #f59e0b 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                textShadow: 'none',
+              }}
+            >
+              ♦ SHOP
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-              Play games to earn coins
+            <div
+              style={{
+                fontSize: 10,
+                color: 'rgba(255,255,255,0.28)',
+                fontWeight: 700,
+                letterSpacing: 1,
+                marginTop: 2,
+              }}
+            >
+              WIN GAMES · EARN COINS · BUY ITEMS
             </div>
           </div>
 
-          {/* Coin balance */}
+          {/* Coin pill */}
           <div
             style={{
-              background: 'linear-gradient(135deg, #78350f, #451a03)',
-              border: '1.5px solid #f59e0b',
+              background: 'linear-gradient(135deg, #3a1a00, #1c0a00)',
+              border: '2px solid #d97706',
               borderRadius: 999,
-              padding: '6px 14px',
+              padding: '7px 16px',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 0 12px rgba(245,158,11,0.35)',
+              gap: 7,
+              boxShadow: '0 0 16px rgba(245,158,11,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
             }}
           >
-            <span style={{ fontSize: 16 }}>🪙</span>
-            <span style={{ fontWeight: 800, fontSize: 16, color: '#fcd34d' }}>
+            <span style={{ fontSize: 18 }}>🪙</span>
+            <span style={{ fontWeight: 900, fontSize: 18, color: '#fcd34d', letterSpacing: -0.5 }}>
               {shopState ? shopState.coins.toLocaleString() : '—'}
             </span>
           </div>
         </div>
 
-        {/* Category tabs */}
-        <div
-          style={{ display: 'flex', gap: 8, marginTop: 14, overflowX: 'auto', paddingBottom: 2 }}
-        >
-          {TABS.map((t) => {
+        {/* Tab strip */}
+        <div style={{ display: 'flex', gap: 6, padding: '12px 16px', overflowX: 'auto' }}>
+          {SECTION_TABS.map((t) => {
             const active = tab === t.key;
             return (
               <button
@@ -380,26 +1032,24 @@ export const ShopPage: React.FC = () => {
                 onClick={() => setTab(t.key)}
                 style={{
                   flexShrink: 0,
-                  padding: '6px 14px',
+                  padding: '7px 14px',
                   borderRadius: 999,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  border: active
-                    ? '1.5px solid rgba(139,92,246,0.8)'
-                    : '1.5px solid rgba(255,255,255,0.08)',
+                  fontSize: 11,
+                  fontWeight: 900,
+                  letterSpacing: 0.8,
+                  border: active ? '2px solid #f59e0b' : '2px solid rgba(255,255,255,0.07)',
                   background: active
-                    ? 'linear-gradient(135deg, rgba(139,92,246,0.35), rgba(109,40,217,0.35))'
-                    : 'rgba(255,255,255,0.04)',
-                  color: active ? '#e9d5ff' : 'rgba(255,255,255,0.45)',
+                    ? 'linear-gradient(135deg, #78350f, #451a03)'
+                    : 'rgba(255,255,255,0.03)',
+                  color: active ? '#fcd34d' : 'rgba(255,255,255,0.35)',
                   cursor: 'pointer',
-                  transition: 'all 0.15s',
+                  boxShadow: active ? '0 0 12px rgba(245,158,11,0.4)' : 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
-                  boxShadow: active ? '0 0 10px rgba(139,92,246,0.3)' : 'none',
                 }}
               >
-                <span>{t.icon}</span>
+                <span style={{ fontSize: 13 }}>{t.icon}</span>
                 <span>{t.label}</span>
               </button>
             );
@@ -407,369 +1057,105 @@ export const ShopPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Grid ── */}
+      {/* ── Content ────────────────────────────────────────────────── */}
       {loading ? (
         <div
           style={{
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: 300,
-            color: 'rgba(255,255,255,0.3)',
-            fontSize: 14,
+            height: 320,
+            gap: 12,
           }}
         >
-          Loading…
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              border: '3px solid rgba(245,158,11,0.2)',
+              borderTop: '3px solid #f59e0b',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
+          <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 700 }}>
+            Loading shop…
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
+      ) : tab === 'all' ? (
+        // Grouped view
+        grouped.map((group) => (
+          <div key={group.type}>
+            <SectionHeader
+              label={SECTION_INFO[group.type].label}
+              icon={SECTION_INFO[group.type].icon}
+            />
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 10,
+                padding: '0 12px',
+              }}
+            >
+              {group.items.map((item) => (
+                <ShopCard
+                  key={item.id}
+                  item={item}
+                  owned={item.price === 0 || isOwned(item.id)}
+                  equipped={isEquipped(item)}
+                  busy={busy === item.id}
+                  onBuy={() => void buy(item.id)}
+                  onEquip={() => void equip(item.id)}
+                  onClick={() => setSelected(item)}
+                />
+              ))}
+            </div>
+          </div>
+        ))
       ) : (
+        // Filtered view
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: 12,
-            padding: '16px 12px',
+            gap: 10,
+            padding: '16px 12px 0',
           }}
         >
-          {filtered.map((item) => {
-            const rarity = rarityFor(item.price);
-            const r = RARITY[rarity];
-            const owned = item.price === 0 || isOwned(item.id);
-            const equipped = isEquipped(item);
-            const isBusy = busy === item.id;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => setSelected(item)}
-                style={{
-                  background: `linear-gradient(180deg, ${r.bg} 0%, #0d0d1a 100%)`,
-                  border: `1.5px solid ${equipped ? r.border : 'rgba(255,255,255,0.07)'}`,
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  padding: 0,
-                  position: 'relative',
-                  boxShadow: equipped
-                    ? `0 0 18px ${r.glow}, 0 4px 16px rgba(0,0,0,0.5)`
-                    : '0 4px 16px rgba(0,0,0,0.4)',
-                  transition: 'transform 0.1s, box-shadow 0.1s',
-                  transform: 'translateZ(0)',
-                }}
-              >
-                {/* EQUIPPED badge */}
-                {equipped && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      zIndex: 2,
-                      background: r.border,
-                      color: '#000',
-                      fontSize: 9,
-                      fontWeight: 900,
-                      letterSpacing: 0.5,
-                      padding: '2px 7px',
-                      borderRadius: 999,
-                    }}
-                  >
-                    EQUIPPED
-                  </div>
-                )}
-
-                {/* Rarity stripe */}
-                <div
-                  style={{
-                    height: 3,
-                    background: `linear-gradient(90deg, transparent, ${r.border}, transparent)`,
-                  }}
-                />
-
-                {/* Preview area */}
-                <div
-                  style={{
-                    height: 130,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    background: `radial-gradient(ellipse at 50% 60%, ${r.glow.replace(')', ', 0.15)').replace('rgba', 'rgba')} 0%, transparent 70%)`,
-                  }}
-                >
-                  <ItemPreview item={item} rarity={rarity} />
-                </div>
-
-                {/* Info area */}
-                <div style={{ padding: '10px 12px 12px' }}>
-                  {/* Rarity label */}
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 800,
-                      letterSpacing: 1,
-                      color: r.labelColor,
-                      marginBottom: 3,
-                    }}
-                  >
-                    {r.label}
-                  </div>
-                  {/* Name */}
-                  <div
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 800,
-                      color: 'white',
-                      lineHeight: 1.2,
-                      marginBottom: 10,
-                    }}
-                  >
-                    {item.name}
-                  </div>
-
-                  {/* Action */}
-                  {equipped ? (
-                    <div
-                      style={{
-                        background: `linear-gradient(90deg, ${r.border}33, ${r.border}55)`,
-                        border: `1px solid ${r.border}66`,
-                        borderRadius: 8,
-                        padding: '7px 0',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: r.border,
-                        textAlign: 'center',
-                      }}
-                    >
-                      ✓ Equipped
-                    </div>
-                  ) : owned ? (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void equip(item.id);
-                      }}
-                      style={{
-                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                        borderRadius: 8,
-                        padding: '7px 0',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: 'white',
-                        textAlign: 'center',
-                        cursor: isBusy ? 'not-allowed' : 'pointer',
-                        opacity: isBusy ? 0.6 : 1,
-                        boxShadow: '0 2px 8px rgba(124,58,237,0.4)',
-                      }}
-                    >
-                      {isBusy ? '…' : 'Equip'}
-                    </div>
-                  ) : item.price === 0 ? (
-                    <div
-                      style={{
-                        background: 'linear-gradient(135deg, #065f46, #047857)',
-                        borderRadius: 8,
-                        padding: '7px 0',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#6ee7b7',
-                        textAlign: 'center',
-                        boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
-                      }}
-                    >
-                      FREE
-                    </div>
-                  ) : (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void buy(item.id);
-                      }}
-                      style={{
-                        background: isBusy
-                          ? 'rgba(255,255,255,0.1)'
-                          : 'linear-gradient(135deg, #b45309, #d97706)',
-                        borderRadius: 8,
-                        padding: '7px 0',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#fef3c7',
-                        textAlign: 'center',
-                        cursor: isBusy ? 'not-allowed' : 'pointer',
-                        boxShadow: isBusy ? 'none' : '0 2px 8px rgba(180,83,9,0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 5,
-                        opacity: isBusy ? 0.6 : 1,
-                      }}
-                    >
-                      {isBusy ? (
-                        '…'
-                      ) : (
-                        <>
-                          <span>🪙</span>
-                          <span>{item.price.toLocaleString()}</span>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+          {filtered.map((item) => (
+            <ShopCard
+              key={item.id}
+              item={item}
+              owned={item.price === 0 || isOwned(item.id)}
+              equipped={isEquipped(item)}
+              busy={busy === item.id}
+              onBuy={() => void buy(item.id)}
+              onEquip={() => void equip(item.id)}
+              onClick={() => setSelected(item)}
+            />
+          ))}
         </div>
       )}
 
-      {/* ── Detail modal ── */}
-      {selected &&
-        (() => {
-          const item = selected;
-          const rarity = rarityFor(item.price);
-          const r = RARITY[rarity];
-          const owned = item.price === 0 || isOwned(item.id);
-          const equipped = isEquipped(item);
-          const isBusy = busy === item.id;
-          return (
-            <div
-              onClick={() => setSelected(null)}
-              style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 50,
-                background: 'rgba(0,0,0,0.75)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                alignItems: 'flex-end',
-                justifyContent: 'center',
-              }}
-            >
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  background: `linear-gradient(180deg, ${r.bg} 0%, #0f0f1a 60%)`,
-                  border: `1.5px solid ${r.border}`,
-                  borderRadius: '20px 20px 0 0',
-                  width: '100%',
-                  maxWidth: 480,
-                  padding: '24px 20px 36px',
-                  boxShadow: `0 -8px 40px ${r.glow}`,
-                }}
-              >
-                {/* drag handle */}
-                <div
-                  style={{
-                    width: 36,
-                    height: 4,
-                    background: 'rgba(255,255,255,0.2)',
-                    borderRadius: 999,
-                    margin: '0 auto 20px',
-                  }}
-                />
+      {/* ── Detail sheet ───────────────────────────────────────────── */}
+      {selected && (
+        <DetailSheet
+          item={selected}
+          owned={selected.price === 0 || isOwned(selected.id)}
+          equipped={isEquipped(selected)}
+          busy={busy === selected.id}
+          coins={shopState?.coins ?? 0}
+          token={token}
+          onBuy={() => void buy(selected.id)}
+          onEquip={() => void equip(selected.id)}
+          onClose={() => setSelected(null)}
+        />
+      )}
 
-                <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 20 }}>
-                  <div style={{ width: 100, height: 100, flexShrink: 0 }}>
-                    <ItemPreview item={item} rarity={rarity} />
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        letterSpacing: 1,
-                        color: r.labelColor,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {r.label}
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: 'white', lineHeight: 1.1 }}>
-                      {item.name}
-                    </div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginTop: 6 }}>
-                      {item.description}
-                    </div>
-                  </div>
-                </div>
-
-                {equipped ? (
-                  <div
-                    style={{
-                      padding: '14px',
-                      border: `1px solid ${r.border}55`,
-                      borderRadius: 12,
-                      textAlign: 'center',
-                      color: r.border,
-                      fontWeight: 700,
-                      fontSize: 15,
-                      background: `${r.border}11`,
-                    }}
-                  >
-                    ✓ Currently Equipped
-                  </div>
-                ) : owned ? (
-                  <button
-                    disabled={isBusy}
-                    onClick={() => void equip(item.id)}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                      border: 'none',
-                      borderRadius: 12,
-                      fontSize: 16,
-                      fontWeight: 800,
-                      color: 'white',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 16px rgba(124,58,237,0.5)',
-                      opacity: isBusy ? 0.6 : 1,
-                    }}
-                  >
-                    {isBusy ? 'Equipping…' : 'Equip Now'}
-                  </button>
-                ) : (
-                  <button
-                    disabled={isBusy || !token}
-                    onClick={() => void buy(item.id)}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background:
-                        !token || isBusy
-                          ? 'rgba(255,255,255,0.08)'
-                          : 'linear-gradient(135deg, #b45309, #d97706)',
-                      border: 'none',
-                      borderRadius: 12,
-                      fontSize: 16,
-                      fontWeight: 800,
-                      color: '#fef3c7',
-                      cursor: !token || isBusy ? 'not-allowed' : 'pointer',
-                      boxShadow: !token || isBusy ? 'none' : '0 4px 16px rgba(180,83,9,0.5)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      opacity: !token || isBusy ? 0.5 : 1,
-                    }}
-                  >
-                    {isBusy ? (
-                      'Buying…'
-                    ) : !token ? (
-                      'Sign in to buy'
-                    ) : (
-                      <>
-                        <span style={{ fontSize: 18 }}>🪙</span>
-                        <span>{item.price.toLocaleString()}</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-      {/* ── Toast ── */}
+      {/* ── Toast ──────────────────────────────────────────────────── */}
       {toast && (
         <div
           style={{
@@ -777,16 +1163,19 @@ export const ShopPage: React.FC = () => {
             bottom: 100,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: toast.ok ? '#065f46' : '#7f1d1d',
-            border: `1px solid ${toast.ok ? '#10b981' : '#ef4444'}`,
+            background: toast.ok
+              ? 'linear-gradient(135deg, #065f46, #047857)'
+              : 'linear-gradient(135deg, #7f1d1d, #991b1b)',
+            border: `1.5px solid ${toast.ok ? '#10b981' : '#ef4444'}`,
             color: toast.ok ? '#6ee7b7' : '#fca5a5',
-            padding: '10px 20px',
+            padding: '11px 22px',
             borderRadius: 999,
             fontSize: 13,
-            fontWeight: 700,
+            fontWeight: 800,
             zIndex: 60,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            boxShadow: `0 4px 24px rgba(0,0,0,0.5)`,
             whiteSpace: 'nowrap',
+            letterSpacing: 0.3,
           }}
         >
           {toast.msg}
