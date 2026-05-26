@@ -904,9 +904,13 @@ export const GameBoard: React.FC = () => {
       </div>
 
       {/* ── Game Message Toast ── */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {gameMessage ?? ''}
+      </div>
       <AnimatePresence>
         {gameMessage && (
           <motion.div
+            role="alert"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -1585,6 +1589,16 @@ export const GameBoard: React.FC = () => {
                           } else {
                             playSingleCard(card);
                           }
+                        }
+                      }}
+                      role="button"
+                      tabIndex={isStaged ? -1 : 0}
+                      aria-label={`${card.rank} of ${card.suit}${isSelected ? ', selected' : ''}`}
+                      aria-pressed={isSelected}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleCardClick(card);
                         }
                       }}
                       className={`rounded-lg flex-shrink-0 relative ${

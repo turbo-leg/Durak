@@ -83,6 +83,38 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/teams/mine — get the caller's team (JWT required)
+router.get('/mine', requireProfile, async (req: AuthRequest, res: Response) => {
+  const profileId = req.profile!._id.toString();
+  try {
+    const team = await Team.findOne({ 'members.profileId': profileId });
+    if (!team) {
+      res.status(404).json({ error: 'Not in a team' });
+      return;
+    }
+    const memberIds = team.members.map((m) => m.profileId);
+    const profiles = await PlayerProfile.find({ _id: { $in: memberIds } }).select(
+      '_id username avatarUrl eloTeams',
+    );
+    const profileMap = new Map(profiles.map((p) => [p._id.toString(), p]));
+    const members = team.members.map((m) => ({
+      profileId: m.profileId,
+      role: m.role,
+      joinedAt: m.joinedAt,
+      ...(profileMap.get(m.profileId)
+        ? {
+            username: profileMap.get(m.profileId)!.username,
+            avatarUrl: profileMap.get(m.profileId)!.avatarUrl,
+            eloTeams: profileMap.get(m.profileId)!.eloTeams,
+          }
+        : {}),
+    }));
+    res.json({ ...team.toObject(), members });
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/teams — leaderboard (top 50 by eloTeams)
 router.get('/', async (_req: Request, res: Response) => {
   try {

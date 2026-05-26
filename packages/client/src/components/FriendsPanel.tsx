@@ -217,19 +217,45 @@ export const FriendsPanel: React.FC<Props> = ({ open, onClose }) => {
               <span className="text-white font-bold text-base">Friends</span>
               <button
                 onClick={onClose}
+                aria-label="Close Friends panel"
                 className="text-indigo-400 hover:text-white transition text-xl leading-none"
               >
                 ×
               </button>
             </div>
 
-            <div className="flex border-b border-indigo-800">
-              {tabs.map(({ key, label }) => (
+            <div
+              role="tablist"
+              aria-label="Friends navigation"
+              className="flex border-b border-indigo-800"
+            >
+              {tabs.map(({ key, label }, idx) => (
                 <button
                   key={key}
+                  role="tab"
+                  aria-selected={tab === key}
+                  aria-controls="friends-panel-content"
+                  id={`friends-tab-${key}`}
                   onClick={() => {
                     setTab(key);
                     setError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight') {
+                      e.preventDefault();
+                      const next = tabs[(idx + 1) % tabs.length];
+                      if (next) {
+                        setTab(next.key);
+                        setError(null);
+                      }
+                    } else if (e.key === 'ArrowLeft') {
+                      e.preventDefault();
+                      const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                      if (prev) {
+                        setTab(prev.key);
+                        setError(null);
+                      }
+                    }
                   }}
                   className={`flex-1 py-2 text-xs font-semibold transition ${
                     tab === key
@@ -247,7 +273,12 @@ export const FriendsPanel: React.FC<Props> = ({ open, onClose }) => {
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <div
+              id="friends-panel-content"
+              role="tabpanel"
+              aria-labelledby={`friends-tab-${tab}`}
+              className="flex-1 overflow-y-auto p-3 space-y-2"
+            >
               {error && <div className="text-red-400 text-xs text-center py-2">{error}</div>}
 
               {tab === 'friends' && (
