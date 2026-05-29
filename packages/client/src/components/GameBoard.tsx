@@ -32,7 +32,6 @@ export const GameBoard: React.FC = () => {
     clearDiscardedCards,
     defenseRevealPairs,
     eloResult,
-    clearEloResult,
     rematchState,
     gameAbortReason,
     clearGameAbortReason,
@@ -43,10 +42,12 @@ export const GameBoard: React.FC = () => {
     isSpectator,
     connectionStatus,
     disconnectedOpponent,
+    leaveGame,
   } = useGame();
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [hasVotedRematch, setHasVotedRematch] = useState(false);
   const {
     playDealSound,
     playCardSound,
@@ -128,6 +129,11 @@ export const GameBoard: React.FC = () => {
       playVictorySound();
     }
   }, [gameState?.phase, gameState?.loser, room?.sessionId, playVictorySound, playDefeatSound]);
+
+  // Reset rematch vote when a new game starts so the button reappears
+  React.useEffect(() => {
+    if (gameState?.phase === 'playing') setHasVotedRematch(false);
+  }, [gameState?.phase]);
 
   // ── Drag-and-drop state (declared before early return to satisfy rules-of-hooks) ──
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -266,10 +272,6 @@ export const GameBoard: React.FC = () => {
     } else {
       setSelectedCards([...selectedCards, card]);
     }
-  };
-
-  const handleStartGame = () => {
-    room.send('startGame');
   };
 
   const handleAttack = () => {
@@ -1274,223 +1276,7 @@ export const GameBoard: React.FC = () => {
         />
       )}
 
-      {/* ── ELO Result Overlay (ranked games only) ── */}
-      {eloResult &&
-        (() => {
-          const accent = eloResult.isDurak ? '#b13030' : eloResult.isWinner ? '#d4af37' : '#d8c89c';
-          const deltaColor = eloResult.delta >= 0 ? '#f4d774' : '#ff7a7a';
-          return (
-            <div
-              className="fixed inset-0 z-[60] flex items-center justify-center"
-              style={{ background: 'rgba(0,0,0,0.86)', backdropFilter: 'blur(10px)' }}
-              onClick={clearEloResult}
-            >
-              <div
-                className="flex flex-col items-center text-center"
-                style={{
-                  gap: 22,
-                  padding: '34px 40px',
-                  borderRadius: 22,
-                  minWidth: 300,
-                  background:
-                    'linear-gradient(180deg, rgba(10,54,36,0.96) 0%, rgba(7,38,26,0.96) 60%, rgba(4,21,14,0.98) 100%)',
-                  border: `2px solid ${accent}`,
-                  boxShadow: `0 0 80px ${accent}55, 0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)`,
-                  position: 'relative',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div
-                  aria-hidden
-                  style={{
-                    position: 'absolute',
-                    inset: 6,
-                    borderRadius: 18,
-                    border: '1px solid rgba(212,175,55,0.35)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div style={{ fontSize: 60, lineHeight: 1 }}>
-                  {eloResult.isDurak ? '💀' : eloResult.isWinner ? '👑' : '🤝'}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontFamily: "'Cinzel', Georgia, serif",
-                      fontWeight: 900,
-                      fontSize: 22,
-                      color: '#f4d774',
-                      letterSpacing: 3,
-                      textTransform: 'uppercase',
-                      textShadow: '0 2px 8px rgba(0,0,0,0.7)',
-                    }}
-                  >
-                    {eloResult.isDurak ? 'The Durak' : eloResult.isWinner ? 'Victory' : 'Game Over'}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "'Cinzel', Georgia, serif",
-                      fontSize: 10,
-                      color: '#d8c89c',
-                      marginTop: 6,
-                      letterSpacing: 3,
-                      textTransform: 'uppercase',
-                      opacity: 0.7,
-                    }}
-                  >
-                    Ranked Result
-                  </div>
-                </div>
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-                >
-                  <div
-                    style={{
-                      fontFamily: "'Cinzel', Georgia, serif",
-                      fontSize: 48,
-                      fontWeight: 900,
-                      color: deltaColor,
-                      letterSpacing: -1,
-                      textShadow: `0 0 20px ${deltaColor}55`,
-                    }}
-                  >
-                    {eloResult.delta >= 0 ? '+' : ''}
-                    {eloResult.delta}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: '#d8c89c',
-                      fontWeight: 600,
-                      letterSpacing: 2,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {eloResult.oldElo} →{' '}
-                    <span style={{ color: '#f4d774', fontFamily: "'Cinzel', Georgia, serif" }}>
-                      {eloResult.newElo}
-                    </span>{' '}
-                    ELO
-                  </div>
-                </div>
-                <button
-                  onClick={clearEloResult}
-                  style={{
-                    padding: '12px 32px',
-                    borderRadius: 999,
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontWeight: 800,
-                    fontSize: 13,
-                    letterSpacing: 2.5,
-                    textTransform: 'uppercase',
-                    background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
-                    border: '1.5px solid rgba(212,175,55,0.7)',
-                    color: '#1a1308',
-                    textShadow: '0 1px 0 rgba(255,255,255,0.3)',
-                    boxShadow: '0 8px 22px rgba(0,0,0,0.5), 0 0 22px rgba(212,175,55,0.4)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Continue
-                </button>
-              </div>
-            </div>
-          );
-        })()}
-
-      {/* ── Rematch overlay ── */}
-      {gameState.phase === 'finished' && !eloResult && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(8px)' }}
-        >
-          <div
-            className="flex flex-col items-center text-center"
-            style={{
-              gap: 18,
-              padding: '28px 36px',
-              borderRadius: 22,
-              minWidth: 300,
-              background: 'linear-gradient(180deg, rgba(10,54,36,0.95), rgba(4,21,14,0.98))',
-              border: '1.5px solid rgba(212,175,55,0.4)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)',
-              position: 'relative',
-            }}
-          >
-            <div
-              aria-hidden
-              style={{
-                position: 'absolute',
-                inset: 6,
-                borderRadius: 18,
-                border: '1px solid rgba(212,175,55,0.3)',
-                pointerEvents: 'none',
-              }}
-            />
-            <div
-              style={{
-                fontFamily: "'Cinzel', Georgia, serif",
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#f4d774',
-                letterSpacing: 3,
-                textTransform: 'uppercase',
-                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
-              }}
-            >
-              {rematchState
-                ? `${rematchState.votes} / ${rematchState.needed} call for a rematch`
-                : 'Game Over'}
-            </div>
-            {rematchState && rematchState.voters.length > 0 && (
-              <div style={{ fontSize: 11, color: '#d8c89c', opacity: 0.75, fontStyle: 'italic' }}>
-                {rematchState.voters.join(', ')} ✓
-              </div>
-            )}
-            <div className="flex gap-3">
-              <button
-                onClick={() => sendRematchVote(true)}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  fontFamily: "'Cinzel', Georgia, serif",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
-                  border: '1.5px solid rgba(212,175,55,0.7)',
-                  color: '#1a1308',
-                  textShadow: '0 1px 0 rgba(255,255,255,0.3)',
-                  boxShadow: '0 8px 22px rgba(0,0,0,0.5), 0 0 22px rgba(212,175,55,0.4)',
-                }}
-              >
-                ♛ Rematch
-              </button>
-              <button
-                onClick={() => sendRematchVote(false)}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  fontFamily: "'Cinzel', Georgia, serif",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #b13030, #5b1818)',
-                  border: '1.5px solid #8b2121',
-                  color: '#f5ead0',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.6)',
-                }}
-              >
-                Leave
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ELO result and rematch are now part of the unified game-over overlay below */}
 
       {/* ── Game aborted overlay ── */}
       {gameAbortReason && (
@@ -2618,153 +2404,312 @@ export const GameBoard: React.FC = () => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="game-over-title"
-          style={{
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(8px)',
-          }}
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
         >
           {(() => {
-            const isLoser = gameState.loser === room.sessionId;
-            const isDraw = gameState.loser === null;
+            const isLoser = !!gameState.loser && gameState.loser === room.sessionId;
+            const isDraw = !gameState.loser; // loser is '' when everyone finished simultaneously
             const isWinner = !isLoser && !isDraw;
             const accent = isLoser ? '#b13030' : isDraw ? '#3b82f6' : '#d4af37';
             const icon = isLoser ? '🥴' : isDraw ? '🤝' : '👑';
             const title = isLoser ? 'You Are the Durak' : isDraw ? 'Draw' : 'You Survived';
-            const subtitle = isLoser
-              ? 'Better luck next round.'
-              : isDraw
-                ? 'A gentleman’s tie.'
-                : `The fool is ${gameState.loser?.slice(0, 5)}…`;
+            // Determine whose loser name to show
+            const loserName =
+              gameState.players.get(gameState.loser ?? '')?.username ??
+              gameState.loser?.slice(0, 8);
+
+            const deltaColor = eloResult
+              ? eloResult.delta >= 0
+                ? '#f4d774'
+                : '#ff7a7a'
+              : '#f4d774';
+
             return (
               <div
                 className="text-center"
                 style={{
-                  width: '90%',
-                  maxWidth: 480,
-                  padding: '32px 28px 28px',
+                  width: '92%',
+                  maxWidth: 400,
                   borderRadius: 22,
                   background:
-                    'linear-gradient(180deg, rgba(10,54,36,0.95) 0%, rgba(7,38,26,0.95) 60%, rgba(4,21,14,0.98) 100%)',
+                    'linear-gradient(180deg, rgba(10,54,36,0.97) 0%, rgba(7,38,26,0.97) 60%, rgba(4,21,14,0.99) 100%)',
                   border: `2px solid ${accent}`,
-                  boxShadow: `0 0 80px ${accent}55, 0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  boxShadow: `0 0 80px ${accent}44, 0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)`,
                   position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
-                {/* Ornate gold frame */}
+                {/* Ornate inner frame */}
                 <div
                   aria-hidden
                   style={{
                     position: 'absolute',
                     inset: 6,
-                    borderRadius: 18,
-                    border: '1px solid rgba(212,175,55,0.4)',
+                    borderRadius: 17,
+                    border: '1px solid rgba(212,175,55,0.3)',
                     pointerEvents: 'none',
                   }}
                 />
+
+                {/* Result section */}
+                <div style={{ padding: '28px 28px 20px' }}>
+                  <div style={{ fontSize: 58, lineHeight: 1, marginBottom: 12 }} aria-hidden>
+                    {icon}
+                  </div>
+                  <h2
+                    id="game-over-title"
+                    style={{
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontSize: 26,
+                      fontWeight: 900,
+                      letterSpacing: 3,
+                      textTransform: 'uppercase',
+                      color: isWinner ? '#f4d774' : isLoser ? '#ff7a7a' : '#bfdbfe',
+                      textShadow: `0 2px 12px ${accent}66`,
+                      margin: '0 0 6px',
+                    }}
+                  >
+                    {title}
+                  </h2>
+                  <p
+                    style={{
+                      color: '#d8c89c',
+                      fontSize: 12,
+                      opacity: 0.8,
+                      margin: 0,
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    {isDraw
+                      ? "A gentleman's tie."
+                      : isLoser
+                        ? 'Better luck next round.'
+                        : `${loserName} is the Durak`}
+                  </p>
+                </div>
+
+                {/* ELO change (ranked games only) */}
+                {eloResult && (
+                  <div
+                    style={{
+                      margin: '0 20px',
+                      padding: '14px 20px',
+                      borderRadius: 12,
+                      background: 'rgba(0,0,0,0.35)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#d8c89c',
+                        letterSpacing: 2,
+                        textTransform: 'uppercase',
+                        opacity: 0.7,
+                      }}
+                    >
+                      Ranked ELO
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span
+                        style={{
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 13,
+                          color: '#d8c89c',
+                          opacity: 0.6,
+                        }}
+                      >
+                        {eloResult.oldElo}
+                      </span>
+                      <span style={{ color: '#d8c89c', opacity: 0.4, fontSize: 11 }}>→</span>
+                      <span
+                        style={{
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 15,
+                          fontWeight: 900,
+                          color: '#f4d774',
+                        }}
+                      >
+                        {eloResult.newElo}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 16,
+                          fontWeight: 900,
+                          color: deltaColor,
+                          textShadow: `0 0 12px ${deltaColor}66`,
+                          minWidth: 44,
+                          textAlign: 'right',
+                        }}
+                      >
+                        {eloResult.delta >= 0 ? '+' : ''}
+                        {eloResult.delta}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Divider */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: 10,
-                    marginBottom: 8,
+                    margin: '20px 28px 16px',
                   }}
                 >
                   <div
                     style={{
-                      width: 50,
+                      flex: 1,
                       height: 1,
-                      background: `linear-gradient(90deg, transparent, ${accent})`,
+                      background: `linear-gradient(90deg, transparent, rgba(212,175,55,0.3))`,
                     }}
                   />
-                  <span style={{ color: accent, fontSize: 9 }}>◆</span>
+                  <span style={{ color: 'rgba(212,175,55,0.4)', fontSize: 9 }}>◆</span>
                   <div
                     style={{
-                      width: 50,
+                      flex: 1,
                       height: 1,
-                      background: `linear-gradient(90deg, ${accent}, transparent)`,
+                      background: `linear-gradient(90deg, rgba(212,175,55,0.3), transparent)`,
                     }}
                   />
                 </div>
-                <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 16 }} aria-hidden>
-                  {icon}
-                </div>
-                <h2
-                  id="game-over-title"
-                  style={{
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 30,
-                    fontWeight: 900,
-                    letterSpacing: 4,
-                    textTransform: 'uppercase',
-                    color: isWinner ? '#f4d774' : isLoser ? '#ff7a7a' : '#bfdbfe',
-                    textShadow: `0 2px 12px ${accent}66, 0 1px 2px rgba(0,0,0,0.8)`,
-                    margin: '0 0 6px',
-                  }}
-                >
-                  {title}
-                </h2>
-                <p
-                  style={{
-                    color: '#d8c89c',
-                    fontSize: 13,
-                    opacity: 0.85,
-                    margin: '0 0 8px',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  {subtitle}
-                </p>
+
+                {/* Rematch voting status */}
+                {rematchState && (
+                  <div
+                    style={{
+                      margin: '0 20px 14px',
+                      padding: '10px 16px',
+                      borderRadius: 10,
+                      background: 'rgba(212,175,55,0.08)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#f4d774',
+                        letterSpacing: 2,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {rematchState.votes} / {rematchState.needed} want a rematch
+                    </div>
+                    {rematchState.voters.length > 0 && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: '#d8c89c',
+                          marginTop: 4,
+                          opacity: 0.7,
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {rematchState.voters.join(', ')} ✓
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action buttons */}
                 <div
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     gap: 10,
-                    margin: '18px 0',
+                    padding: '0 20px 24px',
                   }}
                 >
-                  <div
+                  {!isSpectator &&
+                    (hasVotedRematch ? (
+                      <div
+                        style={{
+                          flex: 1,
+                          padding: '13px 0',
+                          borderRadius: 14,
+                          background: 'rgba(212,175,55,0.08)',
+                          border: '1px solid rgba(212,175,55,0.2)',
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: '#f4d774',
+                          letterSpacing: 1.5,
+                          textTransform: 'uppercase',
+                          textAlign: 'center',
+                        }}
+                      >
+                        ✓ Waiting…
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setHasVotedRematch(true);
+                          sendRematchVote(true);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '13px 0',
+                          borderRadius: 14,
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontWeight: 800,
+                          fontSize: 13,
+                          letterSpacing: 2,
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          background:
+                            'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+                          border: '1.5px solid rgba(212,175,55,0.7)',
+                          color: '#1a1308',
+                          textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                          boxShadow: '0 6px 18px rgba(0,0,0,0.45), 0 0 18px rgba(212,175,55,0.35)',
+                          transition: 'transform 0.05s',
+                        }}
+                        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
+                        onMouseUp={(e) => (e.currentTarget.style.transform = '')}
+                        onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
+                      >
+                        ♛ Rematch
+                      </button>
+                    ))}
+                  <button
+                    onClick={leaveGame}
                     style={{
-                      width: 50,
-                      height: 1,
-                      background: `linear-gradient(90deg, transparent, ${accent})`,
+                      flex: isSpectator ? 1 : undefined,
+                      padding: '13px 20px',
+                      borderRadius: 14,
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      letterSpacing: 2,
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      background: 'linear-gradient(135deg, #2a2018, #1a140e)',
+                      border: '1.5px solid rgba(212,175,55,0.25)',
+                      color: '#d8c89c',
+                      transition: 'transform 0.05s, border-color 0.15s',
                     }}
-                  />
-                  <span style={{ color: accent, fontSize: 9 }}>◆</span>
-                  <div
-                    style={{
-                      width: 50,
-                      height: 1,
-                      background: `linear-gradient(90deg, ${accent}, transparent)`,
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.borderColor = 'rgba(212,175,55,0.55)')
+                    }
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(212,175,55,0.25)';
+                      e.currentTarget.style.transform = '';
                     }}
-                  />
+                    onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
+                    onMouseUp={(e) => (e.currentTarget.style.transform = '')}
+                  >
+                    Leave
+                  </button>
                 </div>
-                <button
-                  onClick={handleStartGame}
-                  style={{
-                    padding: '14px 32px',
-                    borderRadius: 999,
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontWeight: 800,
-                    fontSize: 14,
-                    letterSpacing: 2.5,
-                    textTransform: 'uppercase',
-                    color: '#1a1308',
-                    background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
-                    border: '1.5px solid rgba(212,175,55,0.7)',
-                    boxShadow:
-                      '0 12px 32px rgba(0,0,0,0.55), 0 0 26px rgba(212,175,55,0.45), inset 0 1px 0 rgba(255,255,255,0.3)',
-                    cursor: 'pointer',
-                    textShadow: '0 1px 0 rgba(255,255,255,0.3)',
-                    transition: 'transform 0.05s',
-                  }}
-                  onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.96)')}
-                  onMouseUp={(e) => (e.currentTarget.style.transform = '')}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
-                >
-                  ♛ Play Again
-                </button>
               </div>
             );
           })()}

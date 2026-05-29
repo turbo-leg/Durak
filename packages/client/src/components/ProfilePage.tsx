@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useGame } from '../contexts/GameContext';
 import { BADGES } from '@durak/shared';
 
 interface ProfileStats {
@@ -46,23 +47,25 @@ const API = '/api';
 
 export const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
+  const { latestStats } = useGame();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<MatchRecord[]>([]);
   const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
   const [tab, setTab] = useState<'stats' | 'history' | 'leaderboard'>('stats');
   const [leaderMode, setLeaderMode] = useState<'classic' | 'teams'>('classic');
   const [loading, setLoading] = useState(!!user?.id);
+  const [filterMode, setFilterMode] = useState<'all' | 'classic' | 'teams'>('all');
+  const [filterResult, setFilterResult] = useState<'all' | 'win' | 'durak' | 'loss'>('all');
 
   const id = user?.id ?? '';
   const byParam = user?.method === 'email' ? '?by=user' : '';
 
-  useEffect(() => {
+  const fetchProfile = React.useCallback(() => {
     if (!id) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     Promise.all([
       fetch(`${API}/profile/${id}${byParam}`).then((r) => (r.ok ? r.json() : null)),
-      fetch(`${API}/history/${id}?limit=20${byParam ? '&by=user' : ''}`).then((r) =>
+      fetch(`${API}/history/${id}?limit=50${byParam ? '&by=user' : ''}`).then((r) =>
         r.ok ? r.json() : [],
       ),
     ])
@@ -73,6 +76,10 @@ export const ProfilePage: React.FC = () => {
       .catch(() => setHistory([]))
       .finally(() => setLoading(false));
   }, [id, byParam]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   useEffect(() => {
     if (tab !== 'leaderboard') return;
@@ -98,8 +105,29 @@ export const ProfilePage: React.FC = () => {
     );
   }
 
-  const stats = profile?.stats;
+  // latestStats is pushed from the server after the DB write completes — always authoritative.
+  // Fall back to the HTTP-fetched profile for users who haven't played a game this session.
+  const stats = latestStats?.stats ?? profile?.stats;
+  const eloClassic = latestStats?.eloClassic ?? profile?.eloClassic ?? 1000;
+  const eloTeams = latestStats?.eloTeams ?? profile?.eloTeams ?? 1000;
+  const coins = latestStats?.coins ?? profile?.coins ?? 0;
+  const badges = latestStats?.badges ?? profile?.badges ?? [];
   const winRate = stats?.gamesPlayed ? Math.round((stats.wins / stats.gamesPlayed) * 100) : 0;
+  const durakRate = stats?.gamesPlayed
+    ? Math.round((stats.durakCount / stats.gamesPlayed) * 100)
+    : 0;
+
+  const filteredHistory = history.filter((m) => {
+    if (filterMode !== 'all' && m.mode !== filterMode) return false;
+    if (filterResult !== 'all') {
+      const won = m.winners.includes(id);
+      const wasDurak = m.durak === id;
+      if (filterResult === 'win' && !won) return false;
+      if (filterResult === 'durak' && !wasDurak) return false;
+      if (filterResult === 'loss' && (won || wasDurak)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-transparent text-white pb-24">
@@ -126,9 +154,9 @@ export const ProfilePage: React.FC = () => {
             </div>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <span className="text-[var(--gold-400)] text-sm font-bold tracking-wider">
-                ★ {profile?.eloClassic ?? 1000} ELO
+                ★ {eloClassic} ELO
               </span>
-              {profile && (
+              {(profile || latestStats) && (
                 <span className="text-[var(--gold-300)] text-sm font-bold flex items-center gap-1.5 tracking-wider">
                   <img
                     src="/assets/coin.png"
@@ -142,18 +170,28 @@ export const ProfilePage: React.FC = () => {
                       filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
                     }}
                   />
-                  <span>{(profile.coins ?? 0).toLocaleString()}</span>
+                  <span>{coins.toLocaleString()}</span>
                 </span>
               )}
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="text-xs text-[var(--gold-400)] hover:text-red-400 transition font-black uppercase tracking-widest cursor-pointer shrink-0"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Sign out
-          </button>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <button
+              onClick={logout}
+              className="text-xs text-[var(--gold-400)] hover:text-red-400 transition font-black uppercase tracking-widest cursor-pointer"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              Sign out
+            </button>
+            <button
+              onClick={fetchProfile}
+              disabled={loading}
+              className="text-[10px] text-[var(--ivory-300)] hover:text-[var(--gold-400)] transition font-bold uppercase tracking-widest cursor-pointer opacity-70 disabled:opacity-30"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              ↻ Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -188,11 +226,47 @@ export const ProfilePage: React.FC = () => {
         ) : tab === 'stats' ? (
           stats ? (
             <div className="space-y-4">
+              {/* W/L/D bar */}
+              {stats.gamesPlayed > 0 && (
+                <div className="casino-panel p-4 border-[rgba(212,175,55,0.18)]">
+                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 opacity-75">
+                    <span className="text-emerald-400">{stats.wins}W</span>
+                    <span className="text-[var(--ivory-300)]">
+                      {stats.gamesPlayed - stats.wins - stats.durakCount} Middle
+                    </span>
+                    <span className="text-red-400">{stats.durakCount}D</span>
+                  </div>
+                  <div className="flex rounded-full overflow-hidden h-2.5 gap-px bg-black/40">
+                    {stats.wins > 0 && (
+                      <div
+                        className="bg-emerald-500 transition-all"
+                        style={{ width: `${(stats.wins / stats.gamesPlayed) * 100}%` }}
+                      />
+                    )}
+                    {stats.gamesPlayed - stats.wins - stats.durakCount > 0 && (
+                      <div
+                        className="bg-[var(--gold-700)] transition-all"
+                        style={{
+                          width: `${((stats.gamesPlayed - stats.wins - stats.durakCount) / stats.gamesPlayed) * 100}%`,
+                        }}
+                      />
+                    )}
+                    {stats.durakCount > 0 && (
+                      <div
+                        className="bg-red-600 transition-all"
+                        style={{ width: `${(stats.durakCount / stats.gamesPlayed) * 100}%` }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <StatCard label="Games" value={stats.gamesPlayed} />
                 <StatCard label="Win Rate" value={`${winRate}%`} highlight={winRate >= 50} />
                 <StatCard label="Wins" value={stats.wins} highlight />
-                <StatCard label="Durak" value={stats.durakCount} dim />
+                <StatCard label="Durak Rate" value={`${durakRate}%`} dim={durakRate > 30} />
+                <StatCard label="Durak Count" value={stats.durakCount} dim />
+                <StatCard label="Losses" value={stats.losses} dim />
                 <StatCard
                   label="Win Streak"
                   value={stats.winStreak}
@@ -206,7 +280,7 @@ export const ProfilePage: React.FC = () => {
                     className="text-[var(--gold-400)] font-black text-2xl font-display"
                     style={{ fontFamily: 'var(--font-display)' }}
                   >
-                    ★ {profile?.eloClassic ?? 1000}
+                    ★ {eloClassic}
                   </div>
                   <div className="text-[var(--ivory-300)] text-[10px] font-bold uppercase tracking-widest mt-1 opacity-75">
                     Classic ELO
@@ -217,14 +291,14 @@ export const ProfilePage: React.FC = () => {
                     className="text-[var(--gold-400)] font-black text-2xl font-display"
                     style={{ fontFamily: 'var(--font-display)' }}
                   >
-                    ★ {profile?.eloTeams ?? 1000}
+                    ★ {eloTeams}
                   </div>
                   <div className="text-[var(--ivory-300)] text-[10px] font-bold uppercase tracking-widest mt-1 opacity-75">
                     Teams ELO
                   </div>
                 </div>
               </div>
-              <BadgesSection earned={profile?.badges ?? []} />
+              <BadgesSection earned={badges} />
             </div>
           ) : (
             <div className="text-[var(--ivory-300)] text-sm text-center py-12 italic opacity-60">
@@ -232,7 +306,53 @@ export const ProfilePage: React.FC = () => {
             </div>
           )
         ) : tab === 'history' ? (
-          <HistoryList history={history} byUser={user.method === 'email'} />
+          <div className="space-y-3">
+            {/* Filter bar */}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-1.5 flex-wrap">
+                {(['all', 'classic', 'teams'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setFilterMode(m)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition cursor-pointer ${
+                      filterMode === m
+                        ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] border-[rgba(212,175,55,0.7)]'
+                        : 'bg-transparent text-[var(--ivory-300)] border-[rgba(212,175,55,0.2)] hover:border-[rgba(212,175,55,0.5)]'
+                    }`}
+                    style={{ fontFamily: 'var(--font-display)' }}
+                  >
+                    {m === 'all' ? 'All Modes' : m}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {(['all', 'win', 'durak', 'loss'] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setFilterResult(r)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition cursor-pointer ${
+                      filterResult === r
+                        ? r === 'win'
+                          ? 'bg-emerald-600 text-white border-emerald-500'
+                          : r === 'durak'
+                            ? 'bg-red-700 text-white border-red-600'
+                            : r === 'loss'
+                              ? 'bg-[rgba(212,175,55,0.15)] text-[var(--gold-300)] border-[rgba(212,175,55,0.5)]'
+                              : 'bg-[var(--gradient-gold)] text-[var(--ink-900)] border-[rgba(212,175,55,0.7)]'
+                        : 'bg-transparent text-[var(--ivory-300)] border-[rgba(212,175,55,0.2)] hover:border-[rgba(212,175,55,0.5)]'
+                    }`}
+                    style={{ fontFamily: 'var(--font-display)' }}
+                  >
+                    {r === 'all' ? 'All Results' : r}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[var(--ivory-300)] text-[10px] opacity-60 font-semibold tracking-wider">
+                {filteredHistory.length} of {history.length} games
+              </div>
+            </div>
+            <HistoryList history={filteredHistory} playerId={id} />
+          </div>
         ) : (
           <LeaderboardSection
             leaders={leaders}
@@ -295,8 +415,8 @@ const BadgesSection: React.FC<{ earned: string[] }> = ({ earned }) => {
 
 const HistoryList: React.FC<{
   history: MatchRecord[];
-  byUser: boolean;
-}> = ({ history, byUser }) => {
+  playerId: string;
+}> = ({ history, playerId }) => {
   if (history.length === 0) {
     return (
       <div className="text-[var(--ivory-300)] text-sm text-center py-12 italic opacity-60">
@@ -307,9 +427,8 @@ const HistoryList: React.FC<{
   return (
     <div className="space-y-2">
       {history.map((m) => {
-        const myIds = byUser ? m.userIds : m.discordIds;
-        const won = m.winners.some((w) => myIds.includes(w));
-        const wasDurak = myIds.includes(m.durak ?? '');
+        const won = m.winners.includes(playerId);
+        const wasDurak = m.durak === playerId;
         const result = won ? 'Win' : wasDurak ? 'Durak' : 'Loss';
         const color = won
           ? 'text-emerald-400'

@@ -432,7 +432,17 @@ function SinglePlayerSheet() {
 
 // ── Custom Lobby sheet ────────────────────────────────────────────────────────
 
-function CustomLobbySheet({ discordId, userId }: { discordId?: string; userId?: string }) {
+function CustomLobbySheet({
+  discordId,
+  userId,
+  username,
+  avatarUrl,
+}: {
+  discordId?: string;
+  userId?: string;
+  username?: string;
+  avatarUrl?: string;
+}) {
   const { createGame, joinGame, spectateGame, findPublicGames } = useGame();
   const [tab, setTab] = useState<'create' | 'join' | 'browse'>('create');
   const [isLoading, setIsLoading] = useState(false);
@@ -572,7 +582,17 @@ function CustomLobbySheet({ discordId, userId }: { discordId?: string; userId?: 
             loading={isLoading}
             onClick={async () => {
               setIsLoading(true);
-              await createGame({ maxPlayers, isPrivate: true, mode, teamSelection, handSize });
+              await createGame({
+                maxPlayers,
+                isPrivate: true,
+                mode,
+                teamSelection,
+                handSize,
+                ...(discordId ? { discordId } : {}),
+                ...(userId ? { userId } : {}),
+                ...(username ? { username } : {}),
+                ...(avatarUrl ? { avatarUrl } : {}),
+              });
               setIsLoading(false);
             }}
           >
@@ -608,7 +628,7 @@ function CustomLobbySheet({ discordId, userId }: { discordId?: string; userId?: 
             onClick={async () => {
               if (!joinCode.trim()) return;
               setIsLoading(true);
-              await joinGame(joinCode.trim(), discordId, userId);
+              await joinGame(joinCode.trim(), discordId, userId, username, avatarUrl);
               setIsLoading(false);
             }}
           >
@@ -702,7 +722,7 @@ function CustomLobbySheet({ discordId, userId }: { discordId?: string; userId?: 
                       size="sm"
                       variant={full ? 'ghost' : 'gold'}
                       disabled={isLoading || full}
-                      onClick={() => joinGame(r.roomId, discordId, userId)}
+                      onClick={() => joinGame(r.roomId, discordId, userId, username, avatarUrl)}
                     >
                       Join
                     </GoldButton>
@@ -822,7 +842,13 @@ const ModeCard: React.FC<{
 
 // ── Main HomePage ─────────────────────────────────────────────────────────────
 
-export const HomePage: React.FC<HomePageProps> = ({ discordId, userId, error }) => {
+export const HomePage: React.FC<HomePageProps> = ({
+  discordId,
+  userId,
+  username,
+  avatarUrl,
+  error,
+}) => {
   const { joinOrCreateGame, leaveGame } = useGame();
   const [phase, setPhase] = useState<'intro' | 'home'>('intro');
   const [homeState, setHomeState] = useState<HomeState>('home');
@@ -862,7 +888,16 @@ export const HomePage: React.FC<HomePageProps> = ({ discordId, userId, error }) 
       return;
     }
 
-    await joinOrCreateGame({ ...opts, isPrivate: false, teamSelection: 'random', eloTier });
+    await joinOrCreateGame({
+      ...opts,
+      isPrivate: false,
+      teamSelection: 'random',
+      eloTier,
+      ...(discordId ? { discordId } : {}),
+      ...(userId ? { userId } : {}),
+      ...(username ? { username } : {}),
+      ...(avatarUrl ? { avatarUrl } : {}),
+    });
 
     // If the user cancelled while joinOrCreate was in flight, immediately leave.
     if (cancelRef.current) {
@@ -1161,7 +1196,12 @@ export const HomePage: React.FC<HomePageProps> = ({ discordId, userId, error }) 
             }
             onClose={() => setSheet(null)}
           >
-            <CustomLobbySheet discordId={discordId} userId={userId} />
+            <CustomLobbySheet
+              discordId={discordId}
+              userId={userId}
+              username={username}
+              avatarUrl={avatarUrl}
+            />
           </Sheet>
         )}
         {sheet === 'solo' && (
