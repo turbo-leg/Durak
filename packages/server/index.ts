@@ -155,6 +155,29 @@ app.post('/api/token', async (req, res) => {
   }
 });
 
+// Issue a server-signed JWT for Discord users so they can use authenticated API endpoints
+app.post('/api/auth/discord/session', async (req, res) => {
+  try {
+    const { access_token } = req.body;
+    if (!access_token) {
+      res.status(400).json({ error: 'Missing access_token' });
+      return;
+    }
+    const meRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    if (!meRes.ok) {
+      res.status(401).json({ error: 'Invalid Discord token' });
+      return;
+    }
+    const me = await meRes.json();
+    const token = jwt.sign({ discordId: me.id }, _JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Email / password auth ────────────────────────────────────────────────────
 
 app.post('/api/auth/register', async (req, res) => {
@@ -312,20 +335,40 @@ app.get('/api/history/:id', async (req, res) => {
 function userIdFromToken(authHeader: string | undefined): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
   try {
-    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { userId: string };
+    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { userId?: string };
     return payload.userId ?? null;
   } catch {
     return null;
   }
 }
 
-// Helper: resolve caller's PlayerProfile from Bearer JWT
+// Helper: resolve caller's discordId from Bearer JWT. Returns null if not a Discord session token.
+function discordIdFromToken(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { discordId?: string };
+    return payload.discordId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper: resolve caller's PlayerProfile from Bearer JWT (handles both email and Discord users).
+// Creates a profile on first access for Discord users who haven't finished a game yet.
 async function profileFromToken(
   authHeader: string | undefined,
 ): Promise<InstanceType<typeof PlayerProfile> | null> {
   const userId = userIdFromToken(authHeader);
-  if (!userId) return null;
-  return PlayerProfile.findOne({ userId });
+  if (userId) return PlayerProfile.findOne({ userId });
+  const discordId = discordIdFromToken(authHeader);
+  if (discordId) {
+    return PlayerProfile.findOneAndUpdate(
+      { discordId },
+      { $setOnInsert: { discordId } },
+      { upsert: true, new: true },
+    );
+  }
+  return null;
 }
 
 app.get('/api/shop/items', (_req, res) => {
@@ -333,13 +376,15 @@ app.get('/api/shop/items', (_req, res) => {
 });
 
 app.get('/api/shop/me', async (req, res) => {
-  const userId = userIdFromToken(req.headers.authorization);
-  if (!userId) {
+  const profile = await profileFromToken(req.headers.authorization);
+  if (
+    profile === null &&
+    !userIdFromToken(req.headers.authorization) &&
+    !discordIdFromToken(req.headers.authorization)
+  ) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  const profile = await PlayerProfile.findOne({ userId });
-  // Return zeros for users who haven't finished a game yet (no profile created)
   res.json({
     coins: profile?.coins ?? 0,
     inventory: profile?.inventory ?? [],
@@ -436,7 +481,9 @@ const gameServer = new Server({
     : {}),
 });
 
-gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
+gameServer
+  .define('durak', DurakRoom)
+  .filterBy(['discordInstanceId', 'mode', 'maxPlayers', 'handSize']);
 
 app.use('/colyseus', monitor());
 

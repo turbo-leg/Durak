@@ -79,7 +79,7 @@ describe('Card component', () => {
 
       render(<UICard card={card} isPlayable onClick={handler} />);
 
-      const cardEl = screen.getAllByText('Q')[0]!.closest('div[class]')!;
+      const cardEl = screen.getAllByText('Q')[0]!.closest('button')!;
       await user.click(cardEl);
 
       expect(handler).toHaveBeenCalledWith(card);
@@ -92,7 +92,7 @@ describe('Card component', () => {
 
       render(<UICard card={card} isPlayable={false} onClick={handler} />);
 
-      const cardEl = screen.getAllByText('J')[0]!.closest('div[class]')!;
+      const cardEl = screen.getAllByText('J')[0]!.closest('button')!;
       await user.click(cardEl);
 
       expect(handler).not.toHaveBeenCalled();

@@ -21,8 +21,9 @@ describe('DurakRoom Disconnect Handling', () => {
     (room as any).checkGameOver = vi.fn();
     (room as any).startTurnTimer = vi.fn();
 
-    // Setup a 2-player in-progress game
+    // Setup a 2-player in-progress private game
     room.state.phase = 'playing';
+    room.state.isPrivate = true;
     room.state.seatOrder.push('p1', 'p2');
     room.state.currentTurn = 'p1';
     room.state.hostId = 'p1';

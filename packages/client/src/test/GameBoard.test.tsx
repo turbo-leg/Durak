@@ -143,8 +143,15 @@ function mockGameContext(overrides: Partial<ReturnType<typeof GameContextModule.
     discardedCards: null,
     clearDiscardedCards: vi.fn(),
     defenseRevealPairs: null,
+    eloResult: null,
+    clearEloResult: vi.fn(),
+    rematchState: null,
+    gameAbortReason: null,
+    clearGameAbortReason: vi.fn(),
+    sendRematchVote: vi.fn(),
     isSpectator: false,
     createGame: vi.fn().mockResolvedValue(undefined),
+    joinOrCreateGame: vi.fn().mockResolvedValue(undefined),
     joinGame: vi.fn().mockResolvedValue(undefined),
     spectateGame: vi.fn().mockResolvedValue(undefined),
     findPublicGames: vi.fn().mockResolvedValue([]),
@@ -191,7 +198,7 @@ describe('GameBoard component', () => {
       players.set('host1', makePlayer('host1', { username: 'Alice', isReady: false }));
       players.set('p2', makePlayer('p2', { username: 'Bob', isReady: true }));
 
-      const gs = makeGameState({ phase: 'waiting', players });
+      const gs = makeGameState({ phase: 'waiting', players, isPrivate: true });
       const room = makeRoom(sessionId);
       return { gs, room };
     }
@@ -226,7 +233,7 @@ describe('GameBoard component', () => {
     });
 
     it('shows "YOU" badge next to the current player', () => {
-      const { gs, room } = buildWaitingContext('host1');
+      const { gs, room } = buildWaitingContext('p2');
       mockGameContext({ room: room as never, gameState: gs });
       render(<GameBoard />);
       expect(screen.getByText('YOU')).toBeInTheDocument();
@@ -301,7 +308,7 @@ describe('GameBoard component', () => {
       const players = new MapSchema<Player>();
       players.set('host1', makePlayer('host1', { username: 'Alice', isReady: true }));
       players.set('p2', makePlayer('p2', { username: 'Bob', isReady: true }));
-      const gs = makeGameState({ phase: 'waiting', players });
+      const gs = makeGameState({ phase: 'waiting', players, isPrivate: true });
       const room = makeRoom('host1');
       const startLobbyGame = vi.fn();
 
