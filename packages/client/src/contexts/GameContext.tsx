@@ -52,13 +52,33 @@ interface GameContextState {
     isDurak: boolean;
   } | null;
   clearEloResult: () => void;
+  latestStats: {
+    eloClassic: number;
+    eloTeams: number;
+    stats: {
+      gamesPlayed: number;
+      wins: number;
+      losses: number;
+      durakCount: number;
+      winStreak: number;
+      durakFreeStreak: number;
+    };
+    coins: number;
+    badges: string[];
+  } | null;
   rematchState: { votes: number; needed: number; voters: string[] } | null;
   gameAbortReason: string | null;
   clearGameAbortReason: () => void;
   sendRematchVote: (accept: boolean) => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
   joinOrCreateGame: (options: Record<string, unknown>) => Promise<void>;
-  joinGame: (roomId: string, discordId?: string, userId?: string) => Promise<void>;
+  joinGame: (
+    roomId: string,
+    discordId?: string,
+    userId?: string,
+    username?: string,
+    avatarUrl?: string,
+  ) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
   leaveGame: () => void;
@@ -93,6 +113,7 @@ const GameContext = createContext<GameContextState>({
   defenseRevealPairs: null,
   eloResult: null,
   clearEloResult: () => {},
+  latestStats: null,
   rematchState: null,
   gameAbortReason: null,
   clearGameAbortReason: () => {},
@@ -152,6 +173,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     newElo: number;
     isWinner: boolean;
     isDurak: boolean;
+  } | null>(null);
+  const [latestStats, setLatestStats] = useState<{
+    eloClassic: number;
+    eloTeams: number;
+    stats: {
+      gamesPlayed: number;
+      wins: number;
+      losses: number;
+      durakCount: number;
+      winStreak: number;
+      durakFreeStreak: number;
+    };
+    coins: number;
+    badges: string[];
   } | null>(null);
   const [rematchState, setRematchState] = useState<{
     votes: number;
@@ -316,6 +351,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
     );
     roomInstance.onMessage(
+      'statsUpdated',
+      (data: {
+        eloClassic: number;
+        eloTeams: number;
+        stats: {
+          gamesPlayed: number;
+          wins: number;
+          losses: number;
+          durakCount: number;
+          winStreak: number;
+          durakFreeStreak: number;
+        };
+        coins: number;
+        badges: string[];
+      }) => {
+        setLatestStats(data);
+      },
+    );
+    roomInstance.onMessage(
       'rematchVoted',
       (data: { sessionId: string; username: string; votes: number; needed: number }) => {
         setRematchState((prev) => ({
@@ -402,11 +456,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const joinGame = async (roomId: string, discordId?: string, userId?: string) => {
+  const joinGame = async (
+    roomId: string,
+    discordId?: string,
+    userId?: string,
+    username?: string,
+    avatarUrl?: string,
+  ) => {
     try {
       const opts: Record<string, string> = {};
       if (discordId) opts.discordId = discordId;
       if (userId) opts.userId = userId;
+      if (username) opts.username = username;
+      if (avatarUrl) opts.avatarUrl = avatarUrl;
       const roomInstance = await client.joinById<GameState>(roomId, opts);
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
@@ -512,6 +574,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         defenseRevealPairs,
         eloResult,
         clearEloResult,
+        latestStats,
         rematchState,
         gameAbortReason,
         clearGameAbortReason,

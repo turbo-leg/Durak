@@ -1341,14 +1341,25 @@ export class DurakRoom extends Room<GameState> {
       const userIds = players.map((p) => p?.userId ?? '');
       const winnerSessions = Array.from(this.state.winners);
 
+      // Convert session IDs to the player's stable identifier (discordId > userId > sessionId)
+      // so that GameLog.winners and GameLog.durak can be matched against the querying player's ID.
+      const effectiveId = (sessionId: string): string => {
+        const idx = sessionIds.indexOf(sessionId);
+        if (idx === -1) return sessionId;
+        return discordIds[idx] || userIds[idx] || sessionId;
+      };
+
+      const winnerIds = winnerSessions.filter((s): s is string => !!s).map(effectiveId);
+      const durakId = this.state.loser ? effectiveId(this.state.loser) : null;
+
       const log = new GameLog({
         roomId: this.roomId,
         mode: this.state.mode,
         players: sessionIds,
         discordIds,
         userIds,
-        winners: winnerSessions,
-        durak: this.state.loser,
+        winners: winnerIds,
+        durak: durakId,
         huzurSetting: this.state.huzurSuit,
         actionLog: Array.from(this.state.actionLog),
       });
@@ -1382,6 +1393,22 @@ export class DurakRoom extends Room<GameState> {
 
       // ELO deltas are only applied for ranked (non-private) games
       const eloDeltas = isRanked ? calculateEloDeltas(eloInputs) : new Map<string, number>();
+
+      // Send eloResult BEFORE the DB write so players receive it even if they leave quickly.
+      if (isRanked) {
+        for (const p of authedPlayers) {
+          const delta = eloDeltas.get(p.id) ?? 0;
+          const prof = currentProfiles[authedPlayers.indexOf(p)];
+          const oldElo = prof?.[eloField] ?? 1000;
+          const newElo = Math.max(100, oldElo + delta);
+          const isWinner = winnerSessions.includes(p.id);
+          const isDurak = this.state.loser === p.id;
+          const client = this.clients.find((c) => c.sessionId === p.id);
+          if (client) {
+            client.send('eloResult', { delta, oldElo, newElo, isWinner, isDurak });
+          }
+        }
+      }
 
       const profileOps = authedPlayers.map((p) => {
         const isWinner = winnerSessions.includes(p.id);
@@ -1426,20 +1453,19 @@ export class DurakRoom extends Room<GameState> {
       });
       const updatedProfiles = await Promise.all(profileOps);
 
-      // Send each player their personal ELO result for ranked games
-      if (isRanked) {
-        for (const p of authedPlayers) {
-          const delta = eloDeltas.get(p.id) ?? 0;
-          const prof = currentProfiles[authedPlayers.indexOf(p)];
-          const oldElo = prof?.[eloField] ?? 1000;
-          const newElo = Math.max(100, oldElo + delta);
-          const isWinner = winnerSessions.includes(p.id);
-          const isDurak = this.state.loser === p.id;
-          // Find the client by sessionId (p.id is the sessionId)
-          const client = this.clients.find((c) => c.sessionId === p.id);
-          if (client) {
-            client.send('eloResult', { delta, oldElo, newElo, isWinner, isDurak });
-          }
+      // Push final stats to each player so the profile page never shows stale data
+      for (const [i, p] of authedPlayers.entries()) {
+        const updated = updatedProfiles[i];
+        if (!updated) continue;
+        const client = this.clients.find((c) => c.sessionId === p.id);
+        if (client) {
+          client.send('statsUpdated', {
+            eloClassic: updated.eloClassic ?? 1000,
+            eloTeams: updated.eloTeams ?? 1000,
+            stats: updated.stats,
+            coins: updated.coins ?? 0,
+            badges: updated.badges ?? [],
+          });
         }
       }
 

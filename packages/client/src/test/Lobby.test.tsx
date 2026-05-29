@@ -24,6 +24,7 @@ function mockGameContext(overrides: Partial<ReturnType<typeof GameContextModule.
     defenseRevealPairs: null,
     eloResult: null,
     clearEloResult: vi.fn(),
+    latestStats: null,
     rematchState: null,
     gameAbortReason: null,
     clearGameAbortReason: vi.fn(),
