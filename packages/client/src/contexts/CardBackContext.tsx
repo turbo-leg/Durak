@@ -7,6 +7,7 @@ interface CardBackContextState {
 
 const CardBackContext = createContext<CardBackContextState>({ imageUrl: null });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCardBack = () => useContext(CardBackContext);
 
 export const CardBackProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -15,6 +16,7 @@ export const CardBackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     if (!user?.token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setImageUrl(null);
       return;
     }

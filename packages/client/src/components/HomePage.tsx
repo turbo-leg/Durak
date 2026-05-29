@@ -507,6 +507,7 @@ function CustomLobbySheet({ discordId, userId }: { discordId?: string; userId?: 
   }, [findPublicGames]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tab === 'browse') void fetchRooms();
   }, [tab, fetchRooms]);
 

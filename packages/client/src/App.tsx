@@ -12,6 +12,45 @@ import './App.css';
 
 type NavTab = 'home' | 'shop' | 'profile';
 
+function ConnectingSplash({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',
+        gap: 20,
+      }}
+    >
+      <div
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: '50%',
+          border: '4px solid rgba(212,175,55,0.2)',
+          borderTopColor: '#d4af37',
+          animation: 'spin 1.1s linear infinite',
+        }}
+      />
+      <div
+        style={{
+          color: '#f4d774',
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontWeight: 700,
+          fontSize: 13,
+          letterSpacing: 4,
+          textTransform: 'uppercase',
+        }}
+      >
+        {label}
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
 function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { room, isConnected, isReconnecting, error, leaveGame, autoJoinDiscordRoom, gameState } =
     useGame();
@@ -97,43 +136,6 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
       </div>
     );
   }
-
-  const ConnectingSplash = ({ label }: { label: string }) => (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100dvh',
-        gap: 20,
-      }}
-    >
-      <div
-        style={{
-          width: 60,
-          height: 60,
-          borderRadius: '50%',
-          border: '4px solid rgba(212,175,55,0.2)',
-          borderTopColor: '#d4af37',
-          animation: 'spin 1.1s linear infinite',
-        }}
-      />
-      <div
-        style={{
-          color: '#f4d774',
-          fontFamily: "'Cinzel', Georgia, serif",
-          fontWeight: 700,
-          fontSize: 13,
-          letterSpacing: 4,
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
 
   // Non-game shell: bottom nav + page content
   return (
