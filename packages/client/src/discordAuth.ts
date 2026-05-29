@@ -1,20 +1,16 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
-const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-if (!clientId) {
-  throw new Error(
-    'VITE_DISCORD_CLIENT_ID is not set. Add it to your .env.local file (see .env.example).',
-  );
-}
+const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined;
 
 export const isEmbedded =
-  window.location.search.includes('frame_id') || document.referrer.includes('discord.com');
+  !!clientId &&
+  (window.location.search.includes('frame_id') || document.referrer.includes('discord.com'));
 
 // Only instantiate the DiscordSDK if we are actually embedded in Discord
-export const discordSdk = isEmbedded ? new DiscordSDK(clientId) : null;
+export const discordSdk = isEmbedded && clientId ? new DiscordSDK(clientId) : null;
 
 export async function setupDiscordSdk() {
-  if (!discordSdk) return null;
+  if (!discordSdk || !clientId) return null;
   await discordSdk.ready();
 
   // Authorize with Discord Client
