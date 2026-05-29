@@ -483,7 +483,7 @@ const gameServer = new Server({
 
 gameServer
   .define('durak', DurakRoom)
-  .filterBy(['discordInstanceId', 'mode', 'maxPlayers', 'handSize']);
+  .filterBy(['discordInstanceId', 'mode', 'maxPlayers', 'handSize', 'eloTier']);
 
 app.use('/colyseus', monitor());
 
