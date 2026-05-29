@@ -120,6 +120,51 @@ describe('Suhuh first-turn draw (#123)', () => {
     });
   });
 
+  describe('suit hierarchy tie-breakers', () => {
+    it('applies spades > hearts > clubs > diamonds for non-trumps of equal rank (trump is diamonds)', () => {
+      setupPlayers(['p1', 'p2', 'p3']);
+      room.state.huzurSuit = 'diamonds';
+
+      // Pop order:
+      // p1 draws Spades 10 (Trump rank 10)
+      // p2 draws Clubs 10
+      // p3 draws Hearts 10
+      // Spades is strongest non-trump, so p1 wins
+      pushDeckTop(new Card('hearts', 10), new Card('clubs', 10), new Card('spades', 10));
+
+      const { firstId } = (room as any).resolveSuhuh();
+      expect(firstId).toBe('p1');
+    });
+
+    it('ranks trump higher than default spades ranking (trump is clubs)', () => {
+      setupPlayers(['p1', 'p2']);
+      room.state.huzurSuit = 'clubs';
+
+      // Pop order:
+      // p1 draws Clubs 10 (trump)
+      // p2 draws Spades 10 (non-trump)
+      // Clubs is trump, so Clubs 10 beats Spades 10 (p1 wins)
+      pushDeckTop(new Card('spades', 10), new Card('clubs', 10));
+
+      const { firstId } = (room as any).resolveSuhuh();
+      expect(firstId).toBe('p1');
+    });
+
+    it('falls back to spades > hearts > clubs > diamonds when ranks tie and trump is not drawn (trump is diamonds)', () => {
+      setupPlayers(['p1', 'p2']);
+      room.state.huzurSuit = 'diamonds';
+
+      // Pop order:
+      // p1 draws Clubs 10 (strength 1)
+      // p2 draws Hearts 10 (strength 2)
+      // Hearts (2) > Clubs (1) (p2 wins)
+      pushDeckTop(new Card('hearts', 10), new Card('clubs', 10));
+
+      const { firstId } = (room as any).resolveSuhuh();
+      expect(firstId).toBe('p2');
+    });
+  });
+
   describe('fallback when deck is empty', () => {
     it('falls back to lowest-trump-in-hand when deck is empty after deal', () => {
       setupPlayers(['p1', 'p2']);
