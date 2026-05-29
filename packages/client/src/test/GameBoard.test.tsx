@@ -529,20 +529,21 @@ describe('GameBoard component', () => {
       expect(screen.getByText(/draw/i)).toBeInTheDocument();
     });
 
-    it('shows a "Play Again" button', () => {
+    it('shows a "Rematch" button', () => {
       const { gs, room } = buildFinishedContext('p2', 'p1');
       mockGameContext({ room: room as never, gameState: gs });
       render(<GameBoard />);
-      expect(screen.getByRole('button', { name: /play again/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /rematch/i })).toBeInTheDocument();
     });
 
-    it('sends startGame when "Play Again" is clicked', async () => {
+    it('calls sendRematchVote when "Rematch" is clicked', async () => {
       const user = userEvent.setup();
+      const sendRematchVote = vi.fn();
       const { gs, room } = buildFinishedContext('p2', 'p1');
-      mockGameContext({ room: room as never, gameState: gs });
+      mockGameContext({ room: room as never, gameState: gs, sendRematchVote });
       render(<GameBoard />);
-      await user.click(screen.getByRole('button', { name: /play again/i }));
-      expect(room.send).toHaveBeenCalledWith('startGame');
+      await user.click(screen.getByRole('button', { name: /rematch/i }));
+      expect(sendRematchVote).toHaveBeenCalledWith(true);
     });
   });
 
