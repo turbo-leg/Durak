@@ -18,6 +18,7 @@ import mongoose from 'mongoose';
 import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
+import { SHOP_ITEMS, FREE_ITEM_IDS } from './src/config/shopCatalog';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -151,6 +152,29 @@ app.post('/api/token', async (req, res) => {
     Sentry.captureException(error);
     logger.error({ err: error }, 'Token exchange error');
     res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Issue a server-signed JWT for Discord users so they can use authenticated API endpoints
+app.post('/api/auth/discord/session', async (req, res) => {
+  try {
+    const { access_token } = req.body;
+    if (!access_token) {
+      res.status(400).json({ error: 'Missing access_token' });
+      return;
+    }
+    const meRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    if (!meRes.ok) {
+      res.status(401).json({ error: 'Invalid Discord token' });
+      return;
+    }
+    const me = await meRes.json();
+    const token = jwt.sign({ discordId: me.id }, _JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -305,6 +329,137 @@ app.get('/api/history/:id', async (req, res) => {
   }
 });
 
+// ── Shop API ─────────────────────────────────────────────────────────────────
+
+// Helper: resolve caller's userId from Bearer JWT. Returns null if token is invalid/missing.
+function userIdFromToken(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { userId?: string };
+    return payload.userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper: resolve caller's discordId from Bearer JWT. Returns null if not a Discord session token.
+function discordIdFromToken(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(authHeader.slice(7), _JWT_SECRET) as { discordId?: string };
+    return payload.discordId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper: resolve caller's PlayerProfile from Bearer JWT (handles both email and Discord users).
+// Creates a profile on first access for Discord users who haven't finished a game yet.
+async function profileFromToken(
+  authHeader: string | undefined,
+): Promise<InstanceType<typeof PlayerProfile> | null> {
+  const userId = userIdFromToken(authHeader);
+  if (userId) return PlayerProfile.findOne({ userId });
+  const discordId = discordIdFromToken(authHeader);
+  if (discordId) {
+    return PlayerProfile.findOneAndUpdate(
+      { discordId },
+      { $setOnInsert: { discordId } },
+      { upsert: true, new: true },
+    );
+  }
+  return null;
+}
+
+app.get('/api/shop/items', (_req, res) => {
+  res.json(SHOP_ITEMS);
+});
+
+app.get('/api/shop/me', async (req, res) => {
+  const profile = await profileFromToken(req.headers.authorization);
+  if (
+    profile === null &&
+    !userIdFromToken(req.headers.authorization) &&
+    !discordIdFromToken(req.headers.authorization)
+  ) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  res.json({
+    coins: profile?.coins ?? 0,
+    inventory: profile?.inventory ?? [],
+    equippedCardBack: profile?.equippedCardBack ?? '',
+    equippedTableSkin: profile?.equippedTableSkin ?? '',
+    equippedEmotes: profile?.equippedEmotes ?? [],
+  });
+});
+
+app.post('/api/shop/buy', async (req, res) => {
+  const profile = await profileFromToken(req.headers.authorization);
+  if (!profile) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { itemId } = req.body as { itemId?: string };
+  if (!itemId) {
+    res.status(400).json({ error: 'Missing itemId' });
+    return;
+  }
+  const item = SHOP_ITEMS.find((i) => i.id === itemId);
+  if (!item) {
+    res.status(404).json({ error: 'Item not found' });
+    return;
+  }
+  if (profile.inventory?.includes(itemId) || FREE_ITEM_IDS.has(itemId)) {
+    res.status(400).json({ error: 'Already owned' });
+    return;
+  }
+  if ((profile.coins ?? 0) < item.price) {
+    res.status(402).json({ error: 'Not enough coins' });
+    return;
+  }
+  profile.coins = (profile.coins ?? 0) - item.price;
+  profile.inventory = [...(profile.inventory ?? []), itemId];
+  await profile.save();
+  res.json({ coins: profile.coins, inventory: profile.inventory });
+});
+
+app.post('/api/shop/equip', async (req, res) => {
+  const profile = await profileFromToken(req.headers.authorization);
+  if (!profile) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { itemId } = req.body as { itemId?: string };
+  if (!itemId) {
+    res.status(400).json({ error: 'Missing itemId' });
+    return;
+  }
+  const item = SHOP_ITEMS.find((i) => i.id === itemId);
+  if (!item) {
+    res.status(404).json({ error: 'Item not found' });
+    return;
+  }
+  const owned = FREE_ITEM_IDS.has(itemId) || (profile.inventory ?? []).includes(itemId);
+  if (!owned) {
+    res.status(403).json({ error: 'Item not owned' });
+    return;
+  }
+  if (item.type === 'cardBack') profile.equippedCardBack = itemId;
+  else if (item.type === 'tableSkin') profile.equippedTableSkin = itemId;
+  else if (item.type === 'emote') {
+    const emotes = new Set(profile.equippedEmotes ?? []);
+    emotes.has(itemId) ? emotes.delete(itemId) : emotes.add(itemId);
+    profile.equippedEmotes = [...emotes];
+  }
+  await profile.save();
+  res.json({
+    equippedCardBack: profile.equippedCardBack,
+    equippedTableSkin: profile.equippedTableSkin,
+    equippedEmotes: profile.equippedEmotes,
+  });
+});
+
 // ── Health ───────────────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
@@ -326,7 +481,9 @@ const gameServer = new Server({
     : {}),
 });
 
-gameServer.define('durak', DurakRoom).filterBy(['discordInstanceId']);
+gameServer
+  .define('durak', DurakRoom)
+  .filterBy(['discordInstanceId', 'mode', 'maxPlayers', 'handSize']);
 
 app.use('/colyseus', monitor());
 

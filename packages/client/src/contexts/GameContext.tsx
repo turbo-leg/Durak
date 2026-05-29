@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useRef 
 import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
+import { discordSdk } from '../discordAuth';
 
 type DefenseSnapshot = {
   at: number;
@@ -43,7 +44,20 @@ interface GameContextState {
   discardedCards: DiscardedCard[] | null;
   clearDiscardedCards: () => void;
   defenseRevealPairs: RevealPair[] | null;
+  eloResult: {
+    delta: number;
+    oldElo: number;
+    newElo: number;
+    isWinner: boolean;
+    isDurak: boolean;
+  } | null;
+  clearEloResult: () => void;
+  rematchState: { votes: number; needed: number; voters: string[] } | null;
+  gameAbortReason: string | null;
+  clearGameAbortReason: () => void;
+  sendRematchVote: (accept: boolean) => void;
   createGame: (options: Record<string, unknown>) => Promise<void>;
+  joinOrCreateGame: (options: Record<string, unknown>) => Promise<void>;
   joinGame: (roomId: string, discordId?: string, userId?: string) => Promise<void>;
   spectateGame: (roomId: string) => Promise<void>;
   findPublicGames: () => Promise<RoomAvailable[]>;
@@ -77,7 +91,14 @@ const GameContext = createContext<GameContextState>({
   discardedCards: null,
   clearDiscardedCards: () => {},
   defenseRevealPairs: null,
+  eloResult: null,
+  clearEloResult: () => {},
+  rematchState: null,
+  gameAbortReason: null,
+  clearGameAbortReason: () => {},
+  sendRematchVote: () => {},
   createGame: async () => {},
+  joinOrCreateGame: async () => {},
   joinGame: async () => {},
   spectateGame: async () => {},
   findPublicGames: async () => [],
@@ -125,6 +146,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [suhuhResult, setSuhuhResult] = useState<SuhuhResult>(null);
   const [discardedCards, setDiscardedCards] = useState<DiscardedCard[] | null>(null);
   const [defenseRevealPairs, setDefenseRevealPairs] = useState<RevealPair[] | null>(null);
+  const [eloResult, setEloResult] = useState<{
+    delta: number;
+    oldElo: number;
+    newElo: number;
+    isWinner: boolean;
+    isDurak: boolean;
+  } | null>(null);
+  const [rematchState, setRematchState] = useState<{
+    votes: number;
+    needed: number;
+    voters: string[];
+  } | null>(null);
+  const [gameAbortReason, setGameAbortReason] = useState<string | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
@@ -145,6 +179,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearGameMessage = () => setGameMessage(null);
   const clearSuhuhResult = () => setSuhuhResult(null);
+  const clearEloResult = () => setEloResult(null);
+  const clearGameAbortReason = () => setGameAbortReason(null);
   const clearDiscardedCards = () => {
     if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
     setDiscardedCards(null);
@@ -267,6 +303,37 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Game is over — no reconnection needed after this point
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     });
+    roomInstance.onMessage(
+      'eloResult',
+      (data: {
+        delta: number;
+        oldElo: number;
+        newElo: number;
+        isWinner: boolean;
+        isDurak: boolean;
+      }) => {
+        setEloResult(data);
+      },
+    );
+    roomInstance.onMessage(
+      'rematchVoted',
+      (data: { sessionId: string; username: string; votes: number; needed: number }) => {
+        setRematchState((prev) => ({
+          votes: data.votes,
+          needed: data.needed,
+          voters: [...(prev?.voters ?? []), data.username],
+        }));
+      },
+    );
+    roomInstance.onMessage('rematchDeclined', (data: { username: string }) => {
+      setGameMessage(`${data.username} declined the rematch.`);
+      setRematchState(null);
+      setTimeout(() => setGameMessage(null), 4000);
+    });
+    roomInstance.onMessage('gameAborted', (data: { reason: string }) => {
+      setGameAbortReason(data.reason);
+      setRematchState(null);
+    });
     roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
       setGameMessage(
         data.playerId === roomInstance.sessionId
@@ -316,6 +383,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e: unknown) {
       console.error('Error creating room:', e);
       setError(e instanceof Error ? e.message : 'Failed to create room');
+    }
+  };
+
+  const joinOrCreateGame = async (options: Record<string, unknown>) => {
+    try {
+      // Always pin discordInstanceId so filterBy produces a consistent match key.
+      // Browser games use null; Discord Activity games use the instance ID.
+      const discordInstanceId = discordSdk?.instanceId ?? null;
+      const roomInstance = await client.joinOrCreate<GameState>('durak', {
+        ...options,
+        discordInstanceId,
+      });
+      handleRoomEvents(roomInstance);
+    } catch (e: unknown) {
+      console.error('Error joining/creating room:', e);
+      setError(e instanceof Error ? e.message : 'Failed to find match');
     }
   };
 
@@ -375,6 +458,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendRematchVote = (accept: boolean) => {
+    if (room) room.send('rematchVote', { accept });
+    if (!accept) setRematchState(null);
+  };
+
   const updateLobbySettings = (settings: Partial<GameState>) => {
     if (room && room.state.phase === 'waiting') {
       room.send('updateSettings', settings);
@@ -421,7 +509,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         discardedCards,
         clearDiscardedCards,
         defenseRevealPairs,
+        eloResult,
+        clearEloResult,
+        rematchState,
+        gameAbortReason,
+        clearGameAbortReason,
+        sendRematchVote,
         createGame,
+        joinOrCreateGame,
         joinGame,
         spectateGame,
         findPublicGames,

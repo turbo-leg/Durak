@@ -17,13 +17,7 @@ const suitSymbols: Record<string, string> = {
   None: '',
 };
 
-const suitColors: Record<string, string> = {
-  Spades: 'text-gray-800',
-  Clubs: 'text-gray-800',
-  Hearts: 'text-red-600',
-  Diamonds: 'text-red-600',
-  None: 'text-gray-800',
-};
+const isRed = (suit: string) => suit === 'Hearts' || suit === 'Diamonds';
 
 const rankNames: Record<number, string> = {
   7: '7',
@@ -47,36 +41,78 @@ export const Card: React.FC<CardProps> = ({
   isPlayable = false,
   compact = false,
 }) => {
-  const colorClass = suitColors[card.suit] || 'text-black';
+  const red = !card.isJoker && isRed(card.suit);
   const symbol = card.isJoker ? '★' : suitSymbols[card.suit];
   const name = rankNames[card.rank] || String(card.rank);
 
   const cardLabel = card.isJoker ? `${name} Joker` : `${name} of ${card.suit}`;
   const ariaLabel = onClick ? (isPlayable ? `Play ${cardLabel}` : cardLabel) : cardLabel;
 
+  const inkColor = red ? '#a01818' : '#1b150a';
+  const watermark = red ? '#a01818' : '#3a2a14';
+
+  // Shared visual styles
+  const baseStyle: React.CSSProperties = {
+    position: 'relative',
+    background: 'linear-gradient(170deg, #faf3dd 0%, #ebe0c4 60%, #d8c89c 100%)',
+    color: inkColor,
+    boxShadow: isPlayable
+      ? '0 8px 20px rgba(0,0,0,0.45), 0 0 0 2px rgba(212,175,55,0.55), inset 0 0 0 1px rgba(255,255,255,0.6)'
+      : '0 4px 12px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.4)',
+    border: '1px solid rgba(139,105,20,0.55)',
+    fontFamily: "'Cinzel', Georgia, serif",
+    cursor: isPlayable ? 'pointer' : 'default',
+    transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    userSelect: 'none',
+  };
+
   if (compact) {
     return (
       <button
         type="button"
         aria-label={ariaLabel}
-        aria-disabled={onClick ? (!isPlayable ? true : undefined) : true}
-        disabled={onClick ? (!isPlayable ? true : undefined) : true}
+        aria-disabled={onClick ? !isPlayable : true}
+        disabled={onClick ? !isPlayable : true}
         tabIndex={!onClick || !isPlayable ? -1 : undefined}
-        className={`
-          relative w-12 h-[72px] bg-white rounded-md shadow border border-gray-300
-          flex flex-col justify-between p-0.5 select-none text-[11px]
-          ${isPlayable ? 'cursor-pointer' : 'opacity-90'}
-          ${className}
-        `}
+        className={`w-12${className ? ` ${className}` : ''}`}
+        style={{
+          ...baseStyle,
+          width: 48,
+          height: 72,
+          borderRadius: 6,
+          padding: '3px 4px',
+          fontSize: 11,
+          fontWeight: 800,
+          opacity: isPlayable ? 1 : 0.92,
+        }}
         onClick={() => isPlayable && onClick?.(card)}
       >
-        <div className={`font-bold leading-none ${colorClass}`}>
-          <div>{name}</div>
-          <div className="-mt-0.5 text-xs">{symbol}</div>
+        <div
+          style={{
+            lineHeight: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+          }}
+        >
+          <span>{name}</span>
+          <span style={{ fontSize: 12, marginTop: -1 }}>{symbol}</span>
         </div>
-        <div className={`font-bold leading-none ${colorClass} rotate-180 self-end`}>
-          <div>{name}</div>
-          <div className="-mt-0.5 text-xs">{symbol}</div>
+        <div
+          style={{
+            lineHeight: 1,
+            transform: 'rotate(180deg)',
+            alignSelf: 'flex-end',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span>{name}</span>
+          <span style={{ fontSize: 12, marginTop: -1 }}>{symbol}</span>
         </div>
       </button>
     );
@@ -86,35 +122,83 @@ export const Card: React.FC<CardProps> = ({
     <button
       type="button"
       aria-label={ariaLabel}
-      aria-disabled={onClick ? (!isPlayable ? true : undefined) : true}
-      disabled={onClick ? (!isPlayable ? true : undefined) : true}
+      aria-disabled={onClick ? !isPlayable : true}
+      disabled={onClick ? !isPlayable : true}
       tabIndex={!onClick || !isPlayable ? -1 : undefined}
-      className={`
-        relative w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-36 bg-white rounded-lg shadow-md border border-gray-200
-        flex flex-col justify-between p-1 md:p-2 select-none
-        transition-transform duration-200
-        ${isPlayable ? 'cursor-pointer hover:-translate-y-4 hover:shadow-xl hover:ring-2 hover:ring-yellow-400' : 'opacity-90'}
-        ${className}
-      `}
+      className={`${isPlayable ? 'cursor-pointer' : ''}${className ? ` ${className}` : ''}`}
+      style={{
+        ...baseStyle,
+        width: 'clamp(64px, 8vw, 96px)',
+        height: 'clamp(94px, 12vw, 142px)',
+        borderRadius: 10,
+        padding: '8px 9px',
+        transform: isPlayable ? undefined : undefined,
+        opacity: isPlayable ? 1 : 0.94,
+      }}
       onClick={() => isPlayable && onClick?.(card)}
+      onMouseEnter={(e) => {
+        if (isPlayable) e.currentTarget.style.transform = 'translateY(-14px)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+      }}
     >
-      {/* Top Left */}
-      <div className={`text-base md:text-lg font-bold leading-none ${colorClass}`}>
+      {/* Top-left rank/suit */}
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 700,
+          lineHeight: 1,
+          textShadow: '0 1px 0 rgba(255,255,255,0.6)',
+        }}
+      >
         <div>{name}</div>
-        <div className="text-lg md:text-xl -mt-1 md:-mt-1">{symbol}</div>
+        <div style={{ fontSize: 18, marginTop: 2 }}>{symbol}</div>
       </div>
 
-      {/* Center Large Symbol */}
+      {/* Centre embossed watermark suit */}
       <div
-        className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl opacity-20 ${colorClass}`}
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: 56,
+          color: watermark,
+          opacity: 0.16,
+          textShadow: '0 2px 0 rgba(255,255,255,0.4)',
+          pointerEvents: 'none',
+        }}
       >
         {symbol}
       </div>
 
-      {/* Bottom Right */}
-      <div className={`text-lg font-bold leading-none ${colorClass} rotate-180 self-end`}>
+      {/* Gold inset frame */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 4,
+          border: '1px solid rgba(139,105,20,0.35)',
+          borderRadius: 7,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Bottom-right rank/suit (rotated) */}
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 700,
+          lineHeight: 1,
+          transform: 'rotate(180deg)',
+          alignSelf: 'flex-end',
+          textShadow: '0 1px 0 rgba(255,255,255,0.6)',
+        }}
+      >
         <div>{name}</div>
-        <div className="text-xl -mt-1">{symbol}</div>
+        <div style={{ fontSize: 18, marginTop: 2 }}>{symbol}</div>
       </div>
     </button>
   );

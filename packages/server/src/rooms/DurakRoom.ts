@@ -30,6 +30,7 @@ export class DurakRoom extends Room<GameState> {
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
   private spectators = new Set<string>(); // sessionIds of read-only spectators
   private discordInstanceId: string | null = null;
+  private rematchVotes = new Set<string>(); // sessionIds that voted for rematch
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -218,6 +219,7 @@ export class DurakRoom extends Room<GameState> {
     this.onMessage('updateSettings', (client, message) => {
       if (this.isRateLimited(client.sessionId)) return;
       if (this.state.phase !== 'waiting' || client.sessionId !== this.state.hostId) return;
+      if (!this.state.isPrivate) return; // matchmade rooms are locked
       if (message.mode) this.state.mode = String(message.mode).slice(0, MAX_SHORT_STRING_LEN);
       if (message.teamSelection)
         this.state.teamSelection = String(message.teamSelection).slice(0, MAX_SHORT_STRING_LEN);
@@ -230,26 +232,23 @@ export class DurakRoom extends Room<GameState> {
       }
     });
 
-    // Start Game Manually
+    // Start Game Manually (private lobbies only)
     this.onMessage('startGame', (client) => {
       if (this.isRateLimited(client.sessionId)) return;
       if (client.sessionId !== this.state.hostId) return;
-
-      if (this.state.phase === 'finished') {
-        this.resetGameStateForReplay();
-        this.startGame();
-        return;
-      }
-
       if (this.state.phase !== 'waiting') return;
 
+      const playerCount = Array.from(this.state.players.values()).length;
+      if (playerCount < 2) {
+        client.send('error', 'Need at least 2 players to start.');
+        return;
+      }
       const allReady = Array.from(this.state.players.values()).every((p) => p.isReady);
       if (!allReady) {
         client.send('error', 'All players must be ready to start.');
         return;
       }
 
-      // Teams balance enforcement
       if (
         (this.state.mode === 'teams' || this.state.mode === 'horse') &&
         this.state.teamSelection === 'manual'
@@ -270,6 +269,41 @@ export class DurakRoom extends Room<GameState> {
       }
 
       this.startGame();
+    });
+
+    // Rematch voting — any player in a finished game can request a rematch
+    this.onMessage('rematchVote', (client, message: { accept: boolean }) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      if (this.state.phase !== 'finished') return;
+      if (!this.state.players.has(client.sessionId)) return;
+
+      const player = this.state.players.get(client.sessionId)!;
+
+      if (!message.accept) {
+        // One decline cancels the rematch for everyone
+        this.rematchVotes.clear();
+        this.broadcast('rematchDeclined', {
+          username: player.username || client.sessionId.slice(0, 6),
+        });
+        return;
+      }
+
+      this.rematchVotes.add(client.sessionId);
+      const humanPlayers = Array.from(this.state.players.keys()).filter(
+        (id) => !this.botIds.has(id),
+      );
+      this.broadcast('rematchVoted', {
+        sessionId: client.sessionId,
+        username: player.username || client.sessionId.slice(0, 6),
+        votes: this.rematchVotes.size,
+        needed: humanPlayers.length,
+      });
+
+      if (this.rematchVotes.size >= humanPlayers.length) {
+        this.rematchVotes.clear();
+        this.resetGameStateForReplay();
+        this.startGame();
+      }
     });
 
     // Allow players to ready up manually
@@ -305,6 +339,18 @@ export class DurakRoom extends Room<GameState> {
     }
     if (options?.spectator) throw new Error('Game has not started yet');
     if (this.state.players.size >= this.state.maxPlayers) throw new Error('Room is full');
+
+    // Hard-reject mismatched matchmaking options so a Colyseus routing quirk
+    // can never put a Classic player into a Teams room (or vice versa).
+    if (!options?.spectator && this.state.phase === 'waiting') {
+      if (options?.mode && String(options.mode) !== this.state.mode) {
+        throw new Error('Game mode mismatch');
+      }
+      if (options?.maxPlayers && parseInt(options.maxPlayers) !== this.state.maxPlayers) {
+        throw new Error('Player count mismatch');
+      }
+    }
+
     return true;
   }
 
@@ -335,6 +381,21 @@ export class DurakRoom extends Room<GameState> {
 
     this.state.players.set(client.sessionId, player);
     this.updateLobbyMetadata();
+
+    // Auto-start for matchmade (non-private) rooms: mark player ready and
+    // start immediately once the lobby is full.
+    if (!this.state.isPrivate && this.state.phase === 'waiting') {
+      player.isReady = true;
+      const playerCount = Array.from(this.state.players.values()).length;
+      if (playerCount >= this.state.maxPlayers) {
+        // Defer one tick so all onJoin state changes are committed before game logic runs.
+        this.clock.setTimeout(() => {
+          if (this.state.phase === 'waiting') {
+            this.startGame();
+          }
+        }, 50);
+      }
+    }
   }
 
   async onLeave(client: Client, consented: boolean) {
@@ -379,7 +440,21 @@ export class DurakRoom extends Room<GameState> {
         return;
       } catch {
         if (pickupTimer) clearTimeout(pickupTimer);
-        // Reconnection window expired - fall through to permanent removal
+        // Reconnection window expired
+        if (!this.state.isPrivate) {
+          // Ranked game: abort instead of continuing with a player down
+          this.broadcast('gameAborted', {
+            reason: `${displayName} disconnected and did not reconnect.`,
+          });
+          this.state.phase = 'finished';
+          if (this.turnTimeoutId) {
+            clearInterval(this.turnTimeoutId);
+            this.turnTimeoutId = null;
+          }
+          this.updateLobbyMetadata();
+          return;
+        }
+        // Private game: fall through to permanent removal and continue
       }
     }
 
@@ -427,6 +502,10 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private startGame() {
+    const playerCount = Array.from(this.state.players.values()).length;
+    if (playerCount < 2) return; // Guard: never start with fewer than 2 players
+
+    this.rematchVotes.clear();
     this.clearRoundStateForNewGame();
 
     this.state.phase = 'playing';
@@ -1256,6 +1335,7 @@ export class DurakRoom extends Room<GameState> {
       // Upsert PlayerProfile for every authenticated participant (Discord or email)
       const authedPlayers = players.filter((p) => p?.discordId || p?.userId);
       const eloField = this.state.mode === 'teams' ? 'eloTeams' : 'eloClassic';
+      const isRanked = !this.state.isPrivate;
 
       // Fetch current profiles so we can compute Elo deltas
       const currentProfiles = await Promise.all(
@@ -1277,7 +1357,8 @@ export class DurakRoom extends Room<GameState> {
         };
       });
 
-      const eloDeltas = calculateEloDeltas(eloInputs);
+      // ELO deltas are only applied for ranked (non-private) games
+      const eloDeltas = isRanked ? calculateEloDeltas(eloInputs) : new Map<string, number>();
 
       const profileOps = authedPlayers.map((p) => {
         const isWinner = winnerSessions.includes(p.id);
@@ -1296,7 +1377,10 @@ export class DurakRoom extends Room<GameState> {
             {
               $set: {
                 ...setFields,
-                [eloField]: { $max: [100, { $add: [`$${eloField}`, delta] }] },
+                // Only mutate ELO field for ranked games
+                ...(isRanked && {
+                  [eloField]: { $max: [100, { $add: [`$${eloField}`, delta] }] },
+                }),
                 'stats.gamesPlayed': { $add: ['$stats.gamesPlayed', 1] },
                 'stats.wins': { $add: ['$stats.wins', isWinner ? 1 : 0] },
                 'stats.losses': { $add: ['$stats.losses', isDurak ? 1 : 0] },
@@ -1314,6 +1398,23 @@ export class DurakRoom extends Room<GameState> {
         );
       });
       const updatedProfiles = await Promise.all(profileOps);
+
+      // Send each player their personal ELO result for ranked games
+      if (isRanked) {
+        for (const p of authedPlayers) {
+          const delta = eloDeltas.get(p.id) ?? 0;
+          const prof = currentProfiles[authedPlayers.indexOf(p)];
+          const oldElo = prof?.[eloField] ?? 1000;
+          const newElo = Math.max(100, oldElo + delta);
+          const isWinner = winnerSessions.includes(p.id);
+          const isDurak = this.state.loser === p.id;
+          // Find the client by sessionId (p.id is the sessionId)
+          const client = this.clients.find((c) => c.sessionId === p.id);
+          if (client) {
+            client.send('eloResult', { delta, oldElo, newElo, isWinner, isDurak });
+          }
+        }
+      }
 
       // Award any newly earned badges
       const badgeResults: { playerName: string; newBadges: string[] }[] = [];
@@ -1333,6 +1434,16 @@ export class DurakRoom extends Room<GameState> {
       for (const { playerName, newBadges } of badgeResults) {
         this.notifyBadgeUnlocks(playerName, newBadges);
       }
+
+      // Award coins: winner = +10, durak = +3, others = +5
+      const coinOps = authedPlayers.map((p) => {
+        const isWinner = winnerSessions.includes(p.id);
+        const isDurak = this.state.loser === p.id;
+        const award = isWinner ? 10 : isDurak ? 3 : 5;
+        const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
+        return PlayerProfile.findOneAndUpdate(filter, { $inc: { coins: award } });
+      });
+      await Promise.all(coinOps);
     } catch (e) {
       Sentry.captureException(e);
       logger.error({ err: e }, 'Failed to save GameLog to MongoDB');

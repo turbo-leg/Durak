@@ -21,6 +21,8 @@ interface LobbyProps {
   userId?: string;
   username?: string;
   avatarUrl?: string;
+  defaultPrivate?: boolean;
+  defaultVsBot?: boolean;
 }
 
 export const Lobby: React.FC<LobbyProps> = ({
@@ -28,6 +30,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   userId,
   username = '',
   avatarUrl = '',
+  defaultPrivate = false,
+  defaultVsBot = false,
 }) => {
   const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
 
@@ -36,8 +40,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   // Form options
-  const [maxPlayers, setMaxPlayers] = useState(6);
-  const [isPrivate, setIsPrivate] = useState(false);
+  const [maxPlayers, setMaxPlayers] = useState(defaultVsBot ? 2 : 6);
+  const [isPrivate, setIsPrivate] = useState(defaultPrivate);
   const [mode, setMode] = useState('classic');
   const [teamSelection, setTeamSelection] = useState<'random' | 'manual'>('random');
   const [handSize, setHandSize] = useState(5);

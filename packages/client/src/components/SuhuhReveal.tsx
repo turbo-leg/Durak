@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card as UICard } from './Card';
+import { CardBack } from './CardBack';
 import { Card as SharedCard } from '@durak/shared';
 import type { Player } from '@durak/shared';
 import type { SuhuhDraw } from '../contexts/GameContext';
@@ -14,14 +15,6 @@ interface SuhuhRevealProps {
 }
 
 type Phase = 'drawing' | 'drawn' | 'revealing' | 'highlighting' | 'exiting';
-
-const CardBack: React.FC = () => (
-  <div className="w-full h-full rounded-lg border-2 border-blue-400 bg-blue-800 flex items-center justify-center shadow-lg select-none">
-    <div className="w-[calc(100%-10px)] h-[calc(100%-10px)] rounded border border-blue-300/40 bg-blue-900 flex items-center justify-center">
-      <span className="text-blue-300 text-3xl">♦</span>
-    </div>
-  </div>
-);
 
 interface FlipCardProps {
   draw: SuhuhDraw;

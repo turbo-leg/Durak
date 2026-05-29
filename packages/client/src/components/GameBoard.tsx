@@ -7,6 +7,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useAudio } from '../utils/audio';
 import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
+import { CardBack } from './CardBack';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
@@ -30,6 +31,12 @@ export const GameBoard: React.FC = () => {
     discardedCards,
     clearDiscardedCards,
     defenseRevealPairs,
+    eloResult,
+    clearEloResult,
+    rematchState,
+    gameAbortReason,
+    clearGameAbortReason,
+    sendRematchVote,
     serverTimeOffset,
     updateLobbySettings,
     startLobbyGame,
@@ -442,8 +449,27 @@ export const GameBoard: React.FC = () => {
 
   // ── WAITING PHASE: Full-screen lobby ──
   if (gameState.phase === 'waiting') {
+    const isRankedLobby = !gameState.isPrivate;
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-green-950 text-white overflow-hidden safe-p">
+      <div
+        className="fixed inset-0 z-50 flex flex-col overflow-hidden safe-p"
+        style={{
+          color: '#f5ead0',
+          background: isRankedLobby
+            ? 'radial-gradient(ellipse at 50% 0%, #2a1a00 0%, #150c00 45%, #04150e 100%)'
+            : 'radial-gradient(ellipse at 50% 0%, #135c3f 0%, #0a3624 38%, #04150e 100%)',
+        }}
+      >
+        {/* Ambient glow */}
+        {isRankedLobby && (
+          <div
+            className="absolute inset-0 pointer-events-none z-0"
+            style={{
+              boxShadow: 'inset 0 0 120px rgba(212,175,55,0.12)',
+              animation: 'pulse 3.5s ease-in-out infinite',
+            }}
+          />
+        )}
         {/* ── Dev Tools (waiting phase) ── */}
         {isDevMode && (
           <div className="absolute top-12 right-2 bg-red-950/90 text-white p-2 rounded-xl border-2 border-red-500 shadow-2xl z-[60] flex flex-col space-y-1 backdrop-blur-md w-40 text-[10px]">
@@ -476,118 +502,285 @@ export const GameBoard: React.FC = () => {
             </button>
           </div>
         )}
-        {/* Compact header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-green-700/50 shrink-0 bg-black/30">
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-lg font-extrabold tracking-tight text-green-100 truncate">
-              ♦ Durak <span className="text-yellow-400">Online</span> ♦
-            </h1>
+        {/* Header */}
+        <div
+          className="flex items-center justify-between shrink-0 relative z-10"
+          style={{
+            padding: '12px 20px',
+            background: 'linear-gradient(180deg, rgba(7,38,26,0.85), rgba(4,21,14,0.92))',
+            borderBottom: `1px solid ${isRankedLobby ? 'rgba(212,175,55,0.5)' : 'rgba(212,175,55,0.3)'}`,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.6)',
+          }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            {isRankedLobby ? (
+              <h1
+                style={{
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  letterSpacing: 3,
+                  textTransform: 'uppercase',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.7)',
+                }}
+              >
+                <span style={{ fontSize: 22 }}>🏆</span>
+                <span style={{ color: '#f4d774' }}>Ranked</span>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    color: '#d8c89c',
+                    background: 'rgba(212,175,55,0.1)',
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    border: '1px solid rgba(212,175,55,0.3)',
+                  }}
+                >
+                  {gameState.mode === 'teams' ? 'Teams' : 'Classic'}
+                </span>
+              </h1>
+            ) : (
+              <h1
+                style={{
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  margin: 0,
+                  letterSpacing: 4,
+                  textTransform: 'uppercase',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.7)',
+                  color: '#f4d774',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <span style={{ opacity: 0.6, fontSize: 10 }}>◆</span>
+                Durak
+                <span style={{ opacity: 0.6, fontSize: 10 }}>◆</span>
+              </h1>
+            )}
             {isDevMode && (
-              <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-orange-300 bg-orange-950/90 px-2 py-0.5 rounded border border-orange-500/45">
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 800,
+                  letterSpacing: 2,
+                  color: '#f4d774',
+                  background: 'linear-gradient(135deg, #5b1818, #2a0a0a)',
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  border: '1px solid #8b2121',
+                  textTransform: 'uppercase',
+                }}
+              >
                 Dev
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] text-gray-400 uppercase font-bold">Room</span>
-            <span className="text-xs font-mono text-yellow-400 bg-black/50 px-2 py-1 rounded border border-yellow-500/20 select-all cursor-pointer">
-              {room.id}
-            </span>
+            {!isRankedLobby && (
+              <>
+                <span
+                  style={{
+                    fontSize: 9,
+                    color: '#d8c89c',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    textTransform: 'uppercase',
+                    opacity: 0.75,
+                  }}
+                >
+                  Table
+                </span>
+                <span
+                  className="select-all cursor-pointer"
+                  style={{
+                    fontSize: 13,
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontWeight: 700,
+                    letterSpacing: 3,
+                    color: '#f4d774',
+                    background: 'rgba(0,0,0,0.5)',
+                    padding: '4px 12px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(212,175,55,0.4)',
+                    boxShadow: 'inset 0 1px 0 rgba(212,175,55,0.1)',
+                  }}
+                >
+                  {room.id}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
         {/* Lobby body */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Settings panel */}
-          <div className="md:w-1/3 md:max-w-xs bg-black/60 border-b md:border-b-0 md:border-r border-white/10 p-4 flex flex-col shrink-0 md:overflow-y-auto">
-            <h2 className="text-lg font-black text-green-100 mb-3 uppercase tracking-wider text-center border-b border-green-700/50 pb-2">
+          <div
+            className="md:w-1/3 md:max-w-xs flex flex-col shrink-0 md:overflow-y-auto"
+            style={{
+              padding: 20,
+              background: 'linear-gradient(180deg, rgba(7,38,26,0.7), rgba(4,21,14,0.85))',
+              borderRight: '1px solid rgba(212,175,55,0.25)',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#f4d774',
+                letterSpacing: 3,
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                margin: '0 0 14px',
+                paddingBottom: 12,
+                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                borderBottom: '1px solid rgba(212,175,55,0.25)',
+                position: 'relative',
+              }}
+            >
               Game Settings
             </h2>
-            <div className="flex-1 space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Game Mode</label>
-                {room.sessionId === gameState.hostId ? (
-                  <select
-                    value={gameState.mode}
-                    onChange={(e) => updateLobbySettings({ mode: e.target.value })}
-                    className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
-                  >
-                    <option value="classic">Classic (Free-for-all)</option>
-                    <option value="teams">Teams (2v2, 3v3)</option>
-                  </select>
-                ) : (
-                  <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 text-sm font-bold">
-                    {gameState.mode === 'teams' ? 'Teams (2v2, 3v3)' : 'Classic (Free-for-all)'}
-                  </div>
-                )}
-              </div>
-              {gameState.mode === 'teams' && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">
-                    Team Selection
-                  </label>
-                  {room.sessionId === gameState.hostId ? (
-                    <select
-                      value={gameState.teamSelection}
-                      onChange={(e) => updateLobbySettings({ teamSelection: e.target.value })}
-                      className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
-                    >
-                      <option value="random">Random Assignment</option>
-                      <option value="manual">Manual Selection</option>
-                    </select>
-                  ) : (
-                    <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 text-sm font-bold">
-                      {gameState.teamSelection === 'manual'
-                        ? 'Manual Selection'
-                        : 'Random Assignment'}
+            <div className="flex-1" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {(() => {
+                const labelStyle: React.CSSProperties = {
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#d4af37',
+                  letterSpacing: 2.5,
+                  textTransform: 'uppercase',
+                  display: 'block',
+                  marginBottom: 6,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                };
+                const selectStyle: React.CSSProperties = {
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1.5px solid rgba(212,175,55,0.4)',
+                  color: '#f5ead0',
+                  fontSize: 13,
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                  fontWeight: 700,
+                  outline: 'none',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.4)',
+                  appearance: 'none',
+                  backgroundImage:
+                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' stroke='%23d4af37' stroke-width='2' fill='none'/></svg>\")",
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 12px center',
+                  paddingRight: 32,
+                  cursor: 'pointer',
+                };
+                const lockedStyle: React.CSSProperties = {
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(0,0,0,0.25)',
+                  border: '1px solid rgba(212,175,55,0.15)',
+                  color: '#d8c89c',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.2)',
+                };
+                const canEdit = room.sessionId === gameState.hostId && gameState.isPrivate;
+                return (
+                  <>
+                    <div>
+                      <label style={labelStyle}>Game Mode</label>
+                      {canEdit ? (
+                        <select
+                          value={gameState.mode}
+                          onChange={(e) => updateLobbySettings({ mode: e.target.value })}
+                          style={selectStyle}
+                        >
+                          <option value="classic">Classic (Free-for-all)</option>
+                          <option value="teams">Teams (2v2, 3v3)</option>
+                        </select>
+                      ) : (
+                        <div style={lockedStyle}>
+                          {gameState.mode === 'teams'
+                            ? 'Teams (2v2, 3v3)'
+                            : 'Classic (Free-for-all)'}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Max Players</label>
-                {room.sessionId === gameState.hostId ? (
-                  <select
-                    value={gameState.maxPlayers}
-                    onChange={(e) => updateLobbySettings({ maxPlayers: parseInt(e.target.value) })}
-                    className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
-                  >
-                    {[2, 3, 4, 5, 6].map((n) => (
-                      <option key={n} value={n}>
-                        {n} Players
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 text-sm font-bold">
-                    {gameState.maxPlayers} Players
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">
-                  Starting Hand Size
-                </label>
-                {room.sessionId === gameState.hostId ? (
-                  <select
-                    value={gameState.targetHandSize}
-                    onChange={(e) =>
-                      updateLobbySettings({ targetHandSize: parseInt(e.target.value) })
-                    }
-                    className="w-full bg-green-900/50 text-white border border-green-500/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none font-bold shadow-inner"
-                  >
-                    {[5, 7].map((n) => (
-                      <option key={n} value={n}>
-                        {n} Cards
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full bg-black/40 text-gray-300 border border-white/5 rounded-lg px-3 py-2 text-sm font-bold">
-                    {gameState.targetHandSize} Cards
-                  </div>
-                )}
-              </div>
+                    {gameState.mode === 'teams' && (
+                      <div>
+                        <label style={labelStyle}>Team Selection</label>
+                        {canEdit ? (
+                          <select
+                            value={gameState.teamSelection}
+                            onChange={(e) => updateLobbySettings({ teamSelection: e.target.value })}
+                            style={selectStyle}
+                          >
+                            <option value="random">Random Assignment</option>
+                            <option value="manual">Manual Selection</option>
+                          </select>
+                        ) : (
+                          <div style={lockedStyle}>
+                            {gameState.teamSelection === 'manual'
+                              ? 'Manual Selection'
+                              : 'Random Assignment'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div>
+                      <label style={labelStyle}>Players at the Table</label>
+                      {canEdit ? (
+                        <select
+                          value={gameState.maxPlayers}
+                          onChange={(e) =>
+                            updateLobbySettings({ maxPlayers: parseInt(e.target.value) })
+                          }
+                          style={selectStyle}
+                        >
+                          {[2, 3, 4, 5, 6].map((n) => (
+                            <option key={n} value={n}>
+                              {n} Players
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div style={lockedStyle}>{gameState.maxPlayers} Players</div>
+                      )}
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Cards in Hand</label>
+                      {canEdit ? (
+                        <select
+                          value={gameState.targetHandSize}
+                          onChange={(e) =>
+                            updateLobbySettings({ targetHandSize: parseInt(e.target.value) })
+                          }
+                          style={selectStyle}
+                        >
+                          {[5, 7].map((n) => (
+                            <option key={n} value={n}>
+                              {n} Cards
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div style={lockedStyle}>{gameState.targetHandSize} Cards</div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
 
               {isDevMode && (
                 <div className="mt-4 pt-4 border-t border-orange-500/35 space-y-2 shrink-0">
@@ -634,64 +827,196 @@ export const GameBoard: React.FC = () => {
           </div>
 
           {/* Players panel */}
-          <div className="flex-1 flex flex-col p-4 relative overflow-hidden">
-            <div className="flex items-center mb-3 border-b border-green-700/50 pb-2 shrink-0">
-              <h2 className="text-lg font-black text-green-100 uppercase tracking-wider flex items-center">
+          <div className="flex-1 flex flex-col p-5 relative overflow-hidden">
+            <div
+              className="flex items-center mb-4 shrink-0"
+              style={{
+                paddingBottom: 12,
+                borderBottom: '1px solid rgba(212,175,55,0.3)',
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#f4d774',
+                  letterSpacing: 3,
+                  textTransform: 'uppercase',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                }}
+              >
                 Lobby
-                <span className="ml-2 bg-green-900/50 text-green-300 text-xs px-2 py-0.5 rounded-full border border-green-700/50">
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: '#1a1308',
+                    background: 'linear-gradient(135deg, #f4d774, #d4af37 60%, #8b6914)',
+                    padding: '3px 12px',
+                    borderRadius: 999,
+                    letterSpacing: 1,
+                    textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                    boxShadow: '0 0 14px rgba(212,175,55,0.4)',
+                  }}
+                >
                   {gameState.players.size}/{gameState.maxPlayers}
                 </span>
               </h2>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {Array.from(gameState.players.entries()).map(([id, p]) => (
-                  <div
-                    key={id}
-                    className={`flex items-center p-2 rounded-xl border transition-all ${id === room.sessionId ? 'bg-green-900/30 border-green-500/50' : 'bg-black/50 border-white/5'}`}
-                  >
-                    {p.avatarUrl ? (
-                      <img
-                        src={p.avatarUrl}
-                        alt={p.username || id}
-                        className="w-8 h-8 rounded-full border-2 border-black/50 shadow-md"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-800 border-2 border-gray-700 flex items-center justify-center font-bold text-gray-400 text-xs">
-                        {(p.username || id).slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="ml-2 flex-1 overflow-hidden">
-                      <div className="flex items-center space-x-1">
-                        <span className="font-bold text-sm text-green-100 truncate">
-                          {p.username || id.slice(0, 8)}
-                        </span>
-                        {id === gameState.hostId && (
-                          <span className="bg-yellow-500 text-yellow-900 text-[8px] font-black px-1.5 py-0.5 rounded-sm uppercase">
-                            Host
-                          </span>
+            <div className="flex-1 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {Array.from(gameState.players.entries()).map(([id, p]) => {
+                  const isMe = id === room.sessionId;
+                  const isHostP = id === gameState.hostId;
+                  return (
+                    <div
+                      key={id}
+                      className="flex items-center transition-all"
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 14,
+                        background: isMe
+                          ? 'linear-gradient(135deg, rgba(212,175,55,0.12), rgba(139,105,20,0.08))'
+                          : 'linear-gradient(180deg, rgba(7,38,26,0.6), rgba(4,21,14,0.85))',
+                        border: isMe
+                          ? '1.5px solid rgba(212,175,55,0.6)'
+                          : '1px solid rgba(212,175,55,0.15)',
+                        boxShadow: isMe
+                          ? '0 0 18px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,255,255,0.05)'
+                          : '0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: 2,
+                          borderRadius: '50%',
+                          background: isHostP
+                            ? 'linear-gradient(135deg, #f4d774, #d4af37 60%, #8b6914)'
+                            : 'linear-gradient(135deg, rgba(212,175,55,0.4), rgba(139,105,20,0.4))',
+                        }}
+                      >
+                        {p.avatarUrl ? (
+                          <img
+                            src={p.avatarUrl}
+                            alt={p.username || id}
+                            className="w-9 h-9 rounded-full"
+                            style={{ display: 'block' }}
+                          />
+                        ) : (
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center"
+                            style={{
+                              background: 'linear-gradient(180deg, #07261a, #04150e)',
+                              color: '#d8c89c',
+                              fontFamily: "'Cinzel', Georgia, serif",
+                              fontWeight: 700,
+                              fontSize: 13,
+                            }}
+                          >
+                            {(p.username || id).slice(0, 2).toUpperCase()}
+                          </div>
                         )}
-                        {id === room.sessionId && (
-                          <span className="bg-white/10 text-gray-300 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                            YOU
+                      </div>
+                      <div className="ml-3 flex-1 overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="truncate"
+                            style={{
+                              fontFamily: "'Cinzel', Georgia, serif",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: isMe ? '#f4d774' : '#f5ead0',
+                              letterSpacing: 0.5,
+                              textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                            }}
+                          >
+                            {p.username || id.slice(0, 8)}
+                          </span>
+                          {isHostP && (
+                            <span
+                              style={{
+                                fontSize: 8,
+                                fontWeight: 800,
+                                color: '#1a1308',
+                                background:
+                                  'linear-gradient(135deg, #f4d774, #d4af37 60%, #8b6914)',
+                                padding: '2px 7px',
+                                borderRadius: 4,
+                                letterSpacing: 1.5,
+                                textTransform: 'uppercase',
+                                textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                              }}
+                            >
+                              Host
+                            </span>
+                          )}
+                          {isMe && !isHostP && (
+                            <span
+                              style={{
+                                fontSize: 8,
+                                fontWeight: 800,
+                                color: '#d8c89c',
+                                background: 'rgba(212,175,55,0.15)',
+                                border: '1px solid rgba(212,175,55,0.3)',
+                                padding: '2px 7px',
+                                borderRadius: 4,
+                                letterSpacing: 1.5,
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        {p.isReady ? (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontFamily: "'Cinzel', Georgia, serif",
+                              fontWeight: 700,
+                              color: '#1a1308',
+                              background: 'linear-gradient(135deg, #f4d774, #d4af37 60%, #8b6914)',
+                              padding: '4px 12px',
+                              borderRadius: 999,
+                              letterSpacing: 1.5,
+                              textTransform: 'uppercase',
+                              boxShadow: '0 0 12px rgba(212,175,55,0.45)',
+                              textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                            }}
+                          >
+                            Ready
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontFamily: "'Cinzel', Georgia, serif",
+                              fontWeight: 700,
+                              color: '#d8c89c',
+                              background: 'rgba(0,0,0,0.35)',
+                              border: '1px solid rgba(212,175,55,0.18)',
+                              padding: '4px 12px',
+                              borderRadius: 999,
+                              letterSpacing: 1.5,
+                              textTransform: 'uppercase',
+                              opacity: 0.85,
+                            }}
+                          >
+                            Waiting
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="ml-1">
-                      {p.isReady ? (
-                        <span className="bg-green-500/20 text-green-400 text-[10px] font-bold px-2 py-1 rounded-full border border-green-500/30">
-                          Ready
-                        </span>
-                      ) : (
-                        <span className="bg-white/5 text-gray-400 text-[10px] font-bold px-2 py-1 rounded-full border border-white/10">
-                          Waiting
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -707,38 +1032,151 @@ export const GameBoard: React.FC = () => {
             )}
 
             {/* Action buttons pinned at bottom */}
-            <div className="shrink-0 pt-3 border-t border-white/10 mt-2">
-              {viewAsSpectator ? (
-                <div className="text-center text-purple-300 text-sm font-bold py-3">
-                  👁 Spectating
-                </div>
-              ) : room.sessionId === gameState.hostId ? (
-                <div className="flex items-center gap-2">
+            <div
+              className="shrink-0 mt-3"
+              style={{
+                paddingTop: 16,
+                borderTop: '1px solid rgba(212,175,55,0.25)',
+              }}
+            >
+              {(() => {
+                const goldBtn: React.CSSProperties = {
+                  padding: '14px 22px',
+                  borderRadius: 14,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontWeight: 800,
+                  fontSize: 14,
+                  letterSpacing: 3,
+                  textTransform: 'uppercase',
+                  background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+                  color: '#1a1308',
+                  border: '1.5px solid rgba(212,175,55,0.7)',
+                  textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                  boxShadow: '0 10px 24px rgba(0,0,0,0.5), 0 0 22px rgba(212,175,55,0.4)',
+                  cursor: 'pointer',
+                };
+                const ghostBtn: React.CSSProperties = {
+                  padding: '12px 18px',
+                  borderRadius: 14,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  letterSpacing: 2.5,
+                  textTransform: 'uppercase',
+                  background: 'rgba(212,175,55,0.08)',
+                  color: '#d8c89c',
+                  border: '1.5px solid rgba(212,175,55,0.35)',
+                  cursor: 'pointer',
+                };
+                const readyChip: React.CSSProperties = {
+                  padding: '12px 18px',
+                  borderRadius: 14,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  letterSpacing: 2.5,
+                  textTransform: 'uppercase',
+                  background: 'linear-gradient(135deg, #1e7c4a, #0a3624)',
+                  color: '#f5ead0',
+                  border: '1.5px solid #2f9e5d',
+                  cursor: 'pointer',
+                };
+                const disabledBtn: React.CSSProperties = {
+                  ...goldBtn,
+                  background: 'rgba(0,0,0,0.35)',
+                  color: '#d8c89c',
+                  border: '1.5px solid rgba(212,175,55,0.2)',
+                  textShadow: 'none',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+                  cursor: 'not-allowed',
+                  opacity: 0.6,
+                };
+                if (viewAsSpectator) {
+                  return (
+                    <div
+                      className="text-center"
+                      style={{
+                        padding: '14px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        letterSpacing: 2.5,
+                        textTransform: 'uppercase',
+                        color: '#d8c89c',
+                      }}
+                    >
+                      👁 Spectating
+                    </div>
+                  );
+                }
+                if (!gameState.isPrivate) {
+                  return (
+                    <div
+                      className="flex items-center justify-center gap-3"
+                      style={{ padding: '14px 0' }}
+                    >
+                      <div
+                        className="animate-spin shrink-0"
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: '50%',
+                          border: '2px solid rgba(212,175,55,0.3)',
+                          borderTopColor: '#d4af37',
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: '#f4d774',
+                          letterSpacing: 2,
+                          textTransform: 'uppercase',
+                          textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                        }}
+                      >
+                        Awaiting players… {gameState.players.size} / {gameState.maxPlayers}
+                      </span>
+                    </div>
+                  );
+                }
+                if (room.sessionId === gameState.hostId) {
+                  const canStart =
+                    gameState.players.size >= 2 &&
+                    Array.from(gameState.players.values()).every((p) => p.isReady);
+                  return (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleToggleReady}
+                        style={myPlayer?.isReady ? readyChip : ghostBtn}
+                      >
+                        {myPlayer?.isReady ? '✓ Ready' : 'Mark Ready'}
+                      </button>
+                      <button
+                        onClick={startLobbyGame}
+                        disabled={!canStart}
+                        style={{ ...(canStart ? goldBtn : disabledBtn), flex: 1 }}
+                      >
+                        ♛ Start Game
+                      </button>
+                    </div>
+                  );
+                }
+                return (
                   <button
                     onClick={handleToggleReady}
-                    className={`px-4 py-2 text-xs rounded-lg font-bold transition-all ${myPlayer?.isReady ? 'bg-green-900/40 text-green-400 border border-green-500/30' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                    style={{
+                      ...(myPlayer?.isReady ? readyChip : goldBtn),
+                      width: '100%',
+                      fontSize: 14,
+                      padding: '14px 20px',
+                    }}
                   >
-                    {myPlayer?.isReady ? '✓ Ready' : 'Mark Ready'}
+                    {myPlayer?.isReady ? '✓ Ready to Play' : 'Tap to Ready'}
                   </button>
-                  <button
-                    onClick={startLobbyGame}
-                    disabled={
-                      gameState.players.size < 2 ||
-                      !Array.from(gameState.players.values()).every((p) => p.isReady)
-                    }
-                    className={`flex-1 py-2 rounded-lg font-black text-base shadow-lg transition-all ${gameState.players.size >= 2 && Array.from(gameState.players.values()).every((p) => p.isReady) ? 'bg-yellow-500 hover:bg-yellow-400 text-yellow-900 hover:scale-105 active:scale-95' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
-                  >
-                    START GAME
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleToggleReady}
-                  className={`w-full py-3 font-black text-base rounded-xl shadow-lg transition-all ${myPlayer?.isReady ? 'bg-green-500 hover:bg-green-400 text-green-900 ring-2 ring-green-300' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-                >
-                  {myPlayer?.isReady ? 'READY TO PLAY' : 'CLICK TO READY'}
-                </button>
-              )}
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -813,7 +1251,19 @@ export const GameBoard: React.FC = () => {
   const seatPositions = SEAT_POSITIONS[opponents.length] || SEAT_POSITIONS[1] || [];
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-green-950 overflow-hidden safe-p text-white relative">
+    <div
+      className="safe-p"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100dvh',
+        width: '100%',
+        overflow: 'hidden',
+        position: 'relative',
+        background: 'radial-gradient(ellipse at 50% 0%, #135c3f 0%, #0a3624 38%, #04150e 100%)',
+        color: '#f5ead0',
+      }}
+    >
       {suhuhResult && (
         <SuhuhReveal
           draws={suhuhResult.draws}
@@ -823,43 +1273,390 @@ export const GameBoard: React.FC = () => {
           onDone={clearSuhuhResult}
         />
       )}
+
+      {/* ── ELO Result Overlay (ranked games only) ── */}
+      {eloResult &&
+        (() => {
+          const accent = eloResult.isDurak ? '#b13030' : eloResult.isWinner ? '#d4af37' : '#d8c89c';
+          const deltaColor = eloResult.delta >= 0 ? '#f4d774' : '#ff7a7a';
+          return (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center"
+              style={{ background: 'rgba(0,0,0,0.86)', backdropFilter: 'blur(10px)' }}
+              onClick={clearEloResult}
+            >
+              <div
+                className="flex flex-col items-center text-center"
+                style={{
+                  gap: 22,
+                  padding: '34px 40px',
+                  borderRadius: 22,
+                  minWidth: 300,
+                  background:
+                    'linear-gradient(180deg, rgba(10,54,36,0.96) 0%, rgba(7,38,26,0.96) 60%, rgba(4,21,14,0.98) 100%)',
+                  border: `2px solid ${accent}`,
+                  boxShadow: `0 0 80px ${accent}55, 0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  position: 'relative',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 6,
+                    borderRadius: 18,
+                    border: '1px solid rgba(212,175,55,0.35)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div style={{ fontSize: 60, lineHeight: 1 }}>
+                  {eloResult.isDurak ? '💀' : eloResult.isWinner ? '👑' : '🤝'}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontWeight: 900,
+                      fontSize: 22,
+                      color: '#f4d774',
+                      letterSpacing: 3,
+                      textTransform: 'uppercase',
+                      textShadow: '0 2px 8px rgba(0,0,0,0.7)',
+                    }}
+                  >
+                    {eloResult.isDurak ? 'The Durak' : eloResult.isWinner ? 'Victory' : 'Game Over'}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontSize: 10,
+                      color: '#d8c89c',
+                      marginTop: 6,
+                      letterSpacing: 3,
+                      textTransform: 'uppercase',
+                      opacity: 0.7,
+                    }}
+                  >
+                    Ranked Result
+                  </div>
+                </div>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                >
+                  <div
+                    style={{
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontSize: 48,
+                      fontWeight: 900,
+                      color: deltaColor,
+                      letterSpacing: -1,
+                      textShadow: `0 0 20px ${deltaColor}55`,
+                    }}
+                  >
+                    {eloResult.delta >= 0 ? '+' : ''}
+                    {eloResult.delta}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#d8c89c',
+                      fontWeight: 600,
+                      letterSpacing: 2,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {eloResult.oldElo} →{' '}
+                    <span style={{ color: '#f4d774', fontFamily: "'Cinzel', Georgia, serif" }}>
+                      {eloResult.newElo}
+                    </span>{' '}
+                    ELO
+                  </div>
+                </div>
+                <button
+                  onClick={clearEloResult}
+                  style={{
+                    padding: '12px 32px',
+                    borderRadius: 999,
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontWeight: 800,
+                    fontSize: 13,
+                    letterSpacing: 2.5,
+                    textTransform: 'uppercase',
+                    background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+                    border: '1.5px solid rgba(212,175,55,0.7)',
+                    color: '#1a1308',
+                    textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                    boxShadow: '0 8px 22px rgba(0,0,0,0.5), 0 0 22px rgba(212,175,55,0.4)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* ── Rematch overlay ── */}
+      {gameState.phase === 'finished' && !eloResult && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(8px)' }}
+        >
+          <div
+            className="flex flex-col items-center text-center"
+            style={{
+              gap: 18,
+              padding: '28px 36px',
+              borderRadius: 22,
+              minWidth: 300,
+              background: 'linear-gradient(180deg, rgba(10,54,36,0.95), rgba(4,21,14,0.98))',
+              border: '1.5px solid rgba(212,175,55,0.4)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)',
+              position: 'relative',
+            }}
+          >
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                inset: 6,
+                borderRadius: 18,
+                border: '1px solid rgba(212,175,55,0.3)',
+                pointerEvents: 'none',
+              }}
+            />
+            <div
+              style={{
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#f4d774',
+                letterSpacing: 3,
+                textTransform: 'uppercase',
+                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+              }}
+            >
+              {rematchState
+                ? `${rematchState.votes} / ${rematchState.needed} call for a rematch`
+                : 'Game Over'}
+            </div>
+            {rematchState && rematchState.voters.length > 0 && (
+              <div style={{ fontSize: 11, color: '#d8c89c', opacity: 0.75, fontStyle: 'italic' }}>
+                {rematchState.voters.join(', ')} ✓
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => sendRematchVote(true)}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: 14,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+                  border: '1.5px solid rgba(212,175,55,0.7)',
+                  color: '#1a1308',
+                  textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                  boxShadow: '0 8px 22px rgba(0,0,0,0.5), 0 0 22px rgba(212,175,55,0.4)',
+                }}
+              >
+                ♛ Rematch
+              </button>
+              <button
+                onClick={() => sendRematchVote(false)}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: 14,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #b13030, #5b1818)',
+                  border: '1.5px solid #8b2121',
+                  color: '#f5ead0',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                }}
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Game aborted overlay ── */}
+      {gameAbortReason && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.86)', backdropFilter: 'blur(8px)' }}
+        >
+          <div
+            className="flex flex-col items-center text-center"
+            style={{
+              gap: 18,
+              padding: '28px 36px',
+              borderRadius: 22,
+              minWidth: 300,
+              background: 'linear-gradient(180deg, rgba(10,54,36,0.95), rgba(4,21,14,0.98))',
+              border: '2px solid #b13030',
+              boxShadow: '0 0 60px rgba(177,48,48,0.4), 0 24px 60px rgba(0,0,0,0.85)',
+            }}
+          >
+            <div style={{ fontSize: 48 }}>⚠</div>
+            <div>
+              <div
+                style={{
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontWeight: 900,
+                  fontSize: 20,
+                  color: '#ff9999',
+                  letterSpacing: 3,
+                  textTransform: 'uppercase',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.7)',
+                }}
+              >
+                Game Aborted
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#d8c89c',
+                  marginTop: 8,
+                  fontStyle: 'italic',
+                  opacity: 0.85,
+                }}
+              >
+                {gameAbortReason}
+              </div>
+            </div>
+            <button
+              onClick={clearGameAbortReason}
+              style={{
+                padding: '12px 28px',
+                borderRadius: 999,
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontWeight: 800,
+                fontSize: 12,
+                letterSpacing: 2.5,
+                textTransform: 'uppercase',
+                background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+                border: '1.5px solid rgba(212,175,55,0.7)',
+                color: '#1a1308',
+                textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                cursor: 'pointer',
+              }}
+            >
+              Back to Menu
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Info Bar ── */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-black/50 border-b border-green-800/50 shrink-0 z-20">
-        <div className="flex items-center gap-3 text-xs">
+      <div
+        className="shrink-0 z-20"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 14px',
+          background: 'linear-gradient(180deg, rgba(7,38,26,0.92), rgba(4,21,14,0.96))',
+          borderBottom: '1px solid rgba(212,175,55,0.35)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(0,0,0,0.4)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
           {isMyTurn && (
             <motion.div
               animate={shouldShake ? { x: [0, -2, 2, -2, 0] } : { x: 0 }}
               transition={shouldShake ? { duration: 0.3, repeat: Infinity } : { duration: 0 }}
               className={`font-bold tabular-nums ${getTimerColor()}`}
+              style={{
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 14,
+                letterSpacing: 1,
+                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+              }}
             >
               ⏳ {(timeRemaining / 1000).toFixed(1)}s
             </motion.div>
           )}
-          <span className="text-gray-400">
-            🃏 <span className="text-white font-bold">{gameState.deck?.length || 0}</span>
+          <span style={{ color: '#d8c89c', display: 'flex', alignItems: 'center', gap: 4 }}>
+            🂠
+            <span
+              style={{ color: '#f4d774', fontWeight: 800, fontFamily: "'Cinzel', Georgia, serif" }}
+            >
+              {gameState.deck?.length || 0}
+            </span>
           </span>
           {gameState.huzurCard && (
-            <span className="text-yellow-400 font-bold">♦ {gameState.huzurSuit}</span>
+            <span
+              style={{
+                color: '#f4d774',
+                fontWeight: 700,
+                fontFamily: "'Cinzel', Georgia, serif",
+                letterSpacing: 1.5,
+                textShadow: '0 0 8px rgba(212,175,55,0.4)',
+              }}
+            >
+              ♦ {gameState.huzurSuit}
+            </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {gameState.mode === 'teams' && !viewAsSpectator && myPlayer && (
             <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${myTeamBadge}`}>
               {myTeamLabel}
             </div>
           )}
           {viewAsSpectator && (
-            <span className="text-[10px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full">
-              👁 SPECTATING
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontWeight: 700,
+                letterSpacing: 2,
+                color: '#f5ead0',
+                background: 'linear-gradient(135deg, #5b1818, #2a0a0a)',
+                border: '1px solid #8b2121',
+                padding: '3px 10px',
+                borderRadius: 999,
+                textTransform: 'uppercase',
+              }}
+            >
+              👁 Spectating
             </span>
           )}
           {!viewAsSpectator && isMyTurn && (
-            <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/20 px-2 py-0.5 rounded-full animate-pulse">
+            <span
+              className="animate-pulse"
+              style={{
+                fontSize: 10,
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontWeight: 800,
+                letterSpacing: 2,
+                color: '#1a1308',
+                background: 'linear-gradient(135deg, #f4d774, #d4af37 60%, #8b6914)',
+                padding: '3px 12px',
+                borderRadius: 999,
+                textTransform: 'uppercase',
+                textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                boxShadow: '0 0 14px rgba(212,175,55,0.55)',
+              }}
+            >
               YOUR TURN
             </span>
           )}
           {(gameState.spectatorCount ?? 0) > 0 && (
-            <span className="text-[10px] text-gray-400">👁 {gameState.spectatorCount}</span>
+            <span style={{ fontSize: 10, color: '#d8c89c' }}>👁 {gameState.spectatorCount}</span>
           )}
         </div>
       </div>
@@ -871,15 +1668,34 @@ export const GameBoard: React.FC = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute top-12 left-1/2 -translate-x-1/2 bg-red-600 border border-red-400 font-bold text-white px-4 py-2 rounded-lg shadow-2xl flex items-center z-50 text-sm max-w-[90%]"
+            className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex items-center max-w-[90%]"
+            style={{
+              padding: '10px 16px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #8b2121, #2a0a0a)',
+              border: '1px solid #b13030',
+              color: '#f5ead0',
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              boxShadow: '0 12px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
+            }}
           >
             <span>{gameMessage}</span>
             <button
               onClick={clearGameMessage}
               aria-label="Dismiss message"
-              className="text-red-200 hover:text-white ml-3"
+              style={{
+                marginLeft: 14,
+                background: 'transparent',
+                border: 'none',
+                color: '#f5ead0',
+                opacity: 0.7,
+                cursor: 'pointer',
+                fontSize: 18,
+              }}
             >
-              &times;
+              ✕
             </button>
           </motion.div>
         )}
@@ -938,13 +1754,21 @@ export const GameBoard: React.FC = () => {
         {/* Oval felt surface — also the drop zone for drag-to-play */}
         <div
           ref={dropZoneRef}
-          className={`absolute inset-3 md:inset-8 rounded-[50%] bg-[radial-gradient(ellipse_at_center,#1a5c2e,#0a3618)] border-2 shadow-[inset_0_0_60px_rgba(0,0,0,0.5)] transition-colors duration-150 ${
-            draggingCardKey
-              ? isOverDropZone
-                ? 'border-yellow-300 shadow-[inset_0_0_80px_rgba(250,204,21,0.45)]'
-                : 'border-yellow-500/60'
-              : 'border-yellow-900/30'
-          }`}
+          className="absolute inset-3 md:inset-8 rounded-[50%] transition-colors duration-150"
+          style={{
+            background: 'radial-gradient(ellipse at center, #135c3f 0%, #0a3624 55%, #04150e 100%)',
+            border: `3px solid ${
+              draggingCardKey
+                ? isOverDropZone
+                  ? '#f4d774'
+                  : 'rgba(212,175,55,0.7)'
+                : 'rgba(212,175,55,0.45)'
+            }`,
+            boxShadow:
+              draggingCardKey && isOverDropZone
+                ? 'inset 0 0 90px rgba(212,175,55,0.35), inset 0 0 0 1px rgba(212,175,55,0.6), 0 0 30px rgba(212,175,55,0.25)'
+                : 'inset 0 0 80px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(212,175,55,0.18), 0 8px 24px rgba(0,0,0,0.55)',
+          }}
         >
           {/* Deck + Trump — pinned to the oval's left edge so played cards never collide with it */}
           {gameState.phase === 'playing' && gameState.huzurCard && (
@@ -952,22 +1776,28 @@ export const GameBoard: React.FC = () => {
               <div className="relative w-8 h-12 md:w-10 md:h-14">
                 {(gameState.deck?.length || 0) > 0 ? (
                   <>
-                    <div className="absolute inset-0 bg-red-900 rounded border border-white/20 shadow-md flex items-center justify-center">
-                      <span className="text-white font-black text-[10px] md:text-xs">
-                        {gameState.deck?.length}
-                      </span>
+                    <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rounded border border-white/10 bg-black/40 -z-10" />
+                    <div className="absolute inset-0">
+                      <CardBack />
                     </div>
-                    <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 bg-red-950 rounded border border-white/10 -z-10" />
+                    <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[10px] md:text-xs drop-shadow z-10">
+                      {gameState.deck?.length}
+                    </span>
                   </>
                 ) : (
                   <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
                 )}
               </div>
-              <UICard
-                card={gameState.huzurCard}
-                compact
-                className="border-yellow-500 shadow-[0_0_8px_rgba(250,204,21,0.4)]"
-              />
+              <div
+                style={{
+                  borderRadius: 8,
+                  padding: 1,
+                  background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 45%, #8b6914 100%)',
+                  boxShadow: '0 0 16px rgba(212,175,55,0.55)',
+                }}
+              >
+                <UICard card={gameState.huzurCard} compact />
+              </div>
             </div>
           )}
 
@@ -1259,34 +2089,95 @@ export const GameBoard: React.FC = () => {
               style={{ top: pos.top, left: pos.left }}
             >
               <div
-                className={`flex flex-col items-center p-1 md:p-1.5 rounded-xl transition-all ${
-                  isPlaying
-                    ? 'bg-yellow-500/20 ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]'
-                    : ''
-                }`}
+                className="flex flex-col items-center transition-all"
+                style={{
+                  padding: '6px 8px',
+                  borderRadius: 14,
+                  background: isPlaying
+                    ? 'linear-gradient(180deg, rgba(212,175,55,0.18), rgba(139,105,20,0.12))'
+                    : 'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
+                  border: isPlaying ? '1.5px solid #d4af37' : '1px solid rgba(212,175,55,0.18)',
+                  boxShadow: isPlaying
+                    ? '0 0 20px rgba(212,175,55,0.5), inset 0 1px 0 rgba(255,255,255,0.06)'
+                    : '0 4px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)',
+                }}
               >
-                {player.avatarUrl ? (
-                  <img
-                    src={player.avatarUrl}
-                    alt={player.username || id}
-                    className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-black/50 shadow"
-                  />
-                ) : (
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center font-bold text-gray-400 text-[8px]">
-                    {(player.username || id).slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <span className="text-[9px] md:text-[11px] font-bold text-gray-300 truncate max-w-[55px] md:max-w-[100px] mt-0.5">
+                <div
+                  style={{
+                    padding: 2,
+                    borderRadius: '50%',
+                    background: isPlaying
+                      ? 'linear-gradient(135deg, #f4d774, #d4af37 50%, #8b6914)'
+                      : 'linear-gradient(135deg, rgba(212,175,55,0.5), rgba(139,105,20,0.5))',
+                  }}
+                >
+                  {player.avatarUrl ? (
+                    <img
+                      src={player.avatarUrl}
+                      alt={player.username || id}
+                      className="w-7 h-7 md:w-9 md:h-9 rounded-full"
+                      style={{ display: 'block' }}
+                    />
+                  ) : (
+                    <div
+                      className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center"
+                      style={{
+                        background: 'linear-gradient(180deg, #07261a, #04150e)',
+                        color: '#d8c89c',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontWeight: 700,
+                        fontSize: 11,
+                      }}
+                    >
+                      {(player.username || id).slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <span
+                  className="truncate max-w-[60px] md:max-w-[110px]"
+                  style={{
+                    marginTop: 4,
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: isPlaying ? '#f4d774' : '#d8c89c',
+                    letterSpacing: 0.5,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                  }}
+                >
                   {player.username || id.slice(0, 6)}
                 </span>
-                <span className="text-[9px] font-bold text-white bg-black/40 px-1.5 py-0.5 rounded-full mt-0.5">
+                <span
+                  style={{
+                    marginTop: 3,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#f5ead0',
+                    background: 'rgba(0,0,0,0.55)',
+                    border: '1px solid rgba(212,175,55,0.3)',
+                    padding: '1px 8px',
+                    borderRadius: 999,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
                   🃏{player.hand.length}
                 </span>
                 {gameState.mode === 'teams' && (
                   <span
-                    className={`text-[7px] font-bold px-1 py-0.5 rounded mt-0.5 ${
-                      player.team === 0 ? 'bg-blue-700 text-blue-100' : 'bg-red-700 text-red-100'
-                    }`}
+                    style={{
+                      marginTop: 3,
+                      fontSize: 8,
+                      fontWeight: 800,
+                      letterSpacing: 1,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background:
+                        player.team === 0
+                          ? 'linear-gradient(135deg, #1e3a8a, #0a1a4a)'
+                          : 'linear-gradient(135deg, #8b2121, #2a0a0a)',
+                      color: player.team === 0 ? '#dbeafe' : '#fde2e2',
+                      border: player.team === 0 ? '1px solid #3b82f6' : '1px solid #b13030',
+                    }}
                   >
                     {player.team === 0 ? 'BLU' : 'RED'}
                   </span>
@@ -1365,91 +2256,142 @@ export const GameBoard: React.FC = () => {
 
       {/* ── Action Buttons ── */}
       {gameState.phase === 'playing' && !viewAsSpectator && (
-        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 px-2 py-1 shrink-0 z-20 touch-manipulation">
-          {isMyTurn && attackCards.length === 0 && (
-            <button
-              onClick={handleAttack}
-              disabled={selectedCards.length === 0}
-              className="px-4 py-1.5 md:px-6 md:py-2 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
-            >
-              ⚔ Attack ({selectedCards.length})
-            </button>
-          )}
-          {isMyTurn && attackCards.length > 0 && (
-            <>
-              {(() => {
-                const stagedCount = Object.keys(stagedDefense).length;
-                const needCount = attackCards.length;
-                const allStaged = stagedCount > 0 && stagedCount === needCount;
-                return (
-                  <>
-                    {stagedCount > 0 ? (
+        <div
+          className="flex flex-wrap justify-center gap-2 shrink-0 z-20 touch-manipulation"
+          style={{ padding: '6px 10px 4px' }}
+        >
+          {(() => {
+            const btnBase: React.CSSProperties = {
+              padding: '9px 22px',
+              borderRadius: 999,
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              transition: 'transform 0.05s, opacity 0.15s',
+              boxShadow: '0 8px 22px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)',
+            };
+            const gold: React.CSSProperties = {
+              ...btnBase,
+              background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+              color: '#1a1308',
+              border: '1.5px solid rgba(212,175,55,0.7)',
+              textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+            };
+            const burgundy: React.CSSProperties = {
+              ...btnBase,
+              background: 'linear-gradient(135deg, #b13030, #5b1818)',
+              color: '#f5ead0',
+              border: '1.5px solid #8b2121',
+              textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+            };
+            const emerald: React.CSSProperties = {
+              ...btnBase,
+              background: 'linear-gradient(135deg, #1e7c4a, #0a3624)',
+              color: '#f5ead0',
+              border: '1.5px solid #2f9e5d',
+              textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+            };
+            const slate: React.CSSProperties = {
+              ...btnBase,
+              background: 'linear-gradient(180deg, rgba(7,38,26,0.7), rgba(4,21,14,0.85))',
+              color: '#d8c89c',
+              border: '1px solid rgba(212,175,55,0.25)',
+            };
+            return (
+              <>
+                {isMyTurn && attackCards.length === 0 && (
+                  <button
+                    onClick={handleAttack}
+                    disabled={selectedCards.length === 0}
+                    style={{
+                      ...burgundy,
+                      opacity: selectedCards.length === 0 ? 0.4 : 1,
+                      cursor: selectedCards.length === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    ⚔ Attack ({selectedCards.length})
+                  </button>
+                )}
+                {isMyTurn &&
+                  attackCards.length > 0 &&
+                  (() => {
+                    const stagedCount = Object.keys(stagedDefense).length;
+                    const needCount = attackCards.length;
+                    const allStaged = stagedCount > 0 && stagedCount === needCount;
+                    return (
                       <>
-                        <button
-                          onClick={commitStagedDefense}
-                          disabled={!allStaged}
-                          className="px-4 py-1.5 md:px-6 md:py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
-                        >
-                          ✓ Confirm Defense ({stagedCount}/{needCount})
-                        </button>
-                        <button
-                          onClick={clearStagedDefense}
-                          className="px-4 py-1.5 md:px-6 md:py-2 bg-gray-700 hover:bg-gray-600 rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
-                        >
-                          Clear
+                        {stagedCount > 0 ? (
+                          <>
+                            <button
+                              onClick={commitStagedDefense}
+                              disabled={!allStaged}
+                              style={{
+                                ...emerald,
+                                opacity: allStaged ? 1 : 0.4,
+                                cursor: allStaged ? 'pointer' : 'not-allowed',
+                              }}
+                            >
+                              ✓ Confirm ({stagedCount}/{needCount})
+                            </button>
+                            <button onClick={clearStagedDefense} style={slate}>
+                              Clear
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={handleDefend}
+                            disabled={selectedCards.length === 0}
+                            style={{
+                              ...emerald,
+                              opacity: selectedCards.length === 0 ? 0.4 : 1,
+                              cursor: selectedCards.length === 0 ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            🛡 Defend ({selectedCards.length})
+                          </button>
+                        )}
+                        <button onClick={handlePickUp} style={gold}>
+                          Pick Up
                         </button>
                       </>
-                    ) : (
-                      <button
-                        onClick={handleDefend}
-                        disabled={selectedCards.length === 0}
-                        className="px-4 py-1.5 md:px-6 md:py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-full font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
-                      >
-                        🛡 Defend ({selectedCards.length})
-                      </button>
-                    )}
-                  </>
-                );
-              })()}
-              <button
-                onClick={handlePickUp}
-                className="px-4 py-1.5 md:px-6 md:py-2 bg-yellow-600 hover:bg-yellow-500 rounded-full text-yellow-900 font-bold shadow-lg text-xs md:text-sm active:scale-95 transition"
-              >
-                Pick Up
-              </button>
-            </>
-          )}
-          {gameState.phase === 'playing' &&
-            (gameState.deck?.length || 0) > 0 &&
-            gameState.huzurCard &&
-            (gameState.huzurCard.isJoker
-              ? myHand.some((c) => c.suit === 'Spades' && c.rank === 16) &&
-                !myPlayer?.pickedUpCardKeys.includes('Spades:16:0') && (
-                  <button
-                    onClick={handleSwapHuzur}
-                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg text-xs active:scale-95 transition"
-                  >
-                    Swap Ace
-                  </button>
-                )
-              : myHand.some((c) => c.suit === gameState.huzurSuit && c.rank === 7) &&
-                !myPlayer?.pickedUpCardKeys.includes(`${gameState.huzurSuit}:7:0`) && (
-                  <button
-                    onClick={handleSwapHuzur}
-                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-full font-bold shadow-lg text-xs active:scale-95 transition"
-                  >
-                    Swap 7
-                  </button>
-                ))}
+                    );
+                  })()}
+                {(gameState.deck?.length || 0) > 0 &&
+                  gameState.huzurCard &&
+                  (gameState.huzurCard.isJoker
+                    ? myHand.some((c) => c.suit === 'Spades' && c.rank === 16) &&
+                      !myPlayer?.pickedUpCardKeys.includes('Spades:16:0') && (
+                        <button onClick={handleSwapHuzur} style={{ ...slate, color: '#f4d774' }}>
+                          ♛ Swap Ace
+                        </button>
+                      )
+                    : myHand.some((c) => c.suit === gameState.huzurSuit && c.rank === 7) &&
+                      !myPlayer?.pickedUpCardKeys.includes(`${gameState.huzurSuit}:7:0`) && (
+                        <button onClick={handleSwapHuzur} style={{ ...slate, color: '#f4d774' }}>
+                          ♛ Swap 7
+                        </button>
+                      ))}
+              </>
+            );
+          })()}
         </div>
       )}
 
       {/* ── Player Hand ── */}
       {!viewAsSpectator && (
         <div
-          className={`shrink-0 bg-black/30 border-t border-white/10 transition-all duration-300 ${
+          className={`shrink-0 transition-all duration-300 ${
             draggingCardKey ? 'overflow-visible' : 'overflow-hidden'
           } ${isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'}`}
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(4,21,14,0.45) 0%, rgba(4,21,14,0.85) 60%, rgba(4,21,14,0.95) 100%)',
+            borderTop: '1px solid rgba(212,175,55,0.3)',
+            boxShadow: '0 -8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(212,175,55,0.08)',
+          }}
         >
           <div
             className={`flex flex-row items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar ${
@@ -1583,9 +2525,36 @@ export const GameBoard: React.FC = () => {
             exit={{ opacity: 0, y: -16 }}
             className="absolute top-0 inset-x-0 z-[90] flex items-center justify-center pointer-events-none"
           >
-            <div className="mt-12 flex items-center gap-3 bg-amber-900/95 border border-amber-400/60 text-amber-100 px-5 py-3 rounded-xl shadow-2xl backdrop-blur-sm">
-              <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
-              <span className="font-bold text-sm tracking-wide">
+            <div
+              className="mt-12 flex items-center gap-3 backdrop-blur-sm"
+              style={{
+                background: 'linear-gradient(135deg, #3b2700, #1c1000)',
+                border: '1.5px solid #d4af37',
+                color: '#f4d774',
+                padding: '12px 20px',
+                borderRadius: 14,
+                boxShadow: '0 14px 32px rgba(0,0,0,0.6), 0 0 24px rgba(212,175,55,0.35)',
+                fontFamily: "'Cinzel', Georgia, serif",
+              }}
+            >
+              <div
+                className="animate-spin shrink-0"
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '2px solid rgba(212,175,55,0.3)',
+                  borderTopColor: '#d4af37',
+                }}
+              />
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: 13,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                }}
+              >
                 Connection lost — reconnecting…
               </span>
             </div>
@@ -1602,11 +2571,40 @@ export const GameBoard: React.FC = () => {
             exit={{ opacity: 0, y: 16 }}
             className="absolute bottom-0 inset-x-0 z-[90] flex items-center justify-center pointer-events-none"
           >
-            <div className="mb-20 flex items-center gap-3 bg-gray-900/95 border border-white/20 text-gray-200 px-5 py-2.5 rounded-xl shadow-xl backdrop-blur-sm">
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin shrink-0" />
-              <span className="text-sm">
-                Waiting for <span className="font-bold text-white">{disconnectedOpponent}</span> to
-                reconnect… <span className="text-gray-400 text-xs">(they have 30s)</span>
+            <div
+              className="mb-20 flex items-center gap-3 backdrop-blur-sm"
+              style={{
+                background: 'linear-gradient(135deg, rgba(7,38,26,0.95), rgba(4,21,14,0.98))',
+                border: '1px solid rgba(212,175,55,0.4)',
+                color: '#f5ead0',
+                padding: '10px 18px',
+                borderRadius: 14,
+                boxShadow: '0 12px 30px rgba(0,0,0,0.55)',
+              }}
+            >
+              <div
+                className="animate-spin shrink-0"
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  border: '2px solid rgba(212,175,55,0.3)',
+                  borderTopColor: '#d4af37',
+                }}
+              />
+              <span style={{ fontSize: 13 }}>
+                Waiting for{' '}
+                <span
+                  style={{
+                    fontWeight: 800,
+                    color: '#f4d774',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                  }}
+                >
+                  {disconnectedOpponent}
+                </span>{' '}
+                to reconnect{' '}
+                <span style={{ color: '#d8c89c', fontSize: 11, opacity: 0.75 }}>(30s)</span>
               </span>
             </div>
           </motion.div>
@@ -1616,70 +2614,160 @@ export const GameBoard: React.FC = () => {
       {/* ── Game Over Overlay ── */}
       {gameState.phase === 'finished' && (
         <div
-          className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-md safe-p"
+          className="absolute inset-0 z-[100] flex items-center justify-center safe-p"
           role="dialog"
           aria-modal="true"
           aria-labelledby="game-over-title"
+          style={{
+            background: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(8px)',
+          }}
         >
-          <div className="bg-gray-900 border-2 border-yellow-500 rounded-3xl p-6 md:p-12 flex flex-col items-center shadow-[0_0_50px_rgba(250,204,21,0.3)] text-center max-w-sm md:max-w-lg w-[90%]">
-            {gameState.loser === room.sessionId ? (
-              <>
-                <h1
-                  className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full"
-                  aria-hidden="true"
+          {(() => {
+            const isLoser = gameState.loser === room.sessionId;
+            const isDraw = gameState.loser === null;
+            const isWinner = !isLoser && !isDraw;
+            const accent = isLoser ? '#b13030' : isDraw ? '#3b82f6' : '#d4af37';
+            const icon = isLoser ? '🥴' : isDraw ? '🤝' : '👑';
+            const title = isLoser ? 'You Are the Durak' : isDraw ? 'Draw' : 'You Survived';
+            const subtitle = isLoser
+              ? 'Better luck next round.'
+              : isDraw
+                ? 'A gentleman’s tie.'
+                : `The fool is ${gameState.loser?.slice(0, 5)}…`;
+            return (
+              <div
+                className="text-center"
+                style={{
+                  width: '90%',
+                  maxWidth: 480,
+                  padding: '32px 28px 28px',
+                  borderRadius: 22,
+                  background:
+                    'linear-gradient(180deg, rgba(10,54,36,0.95) 0%, rgba(7,38,26,0.95) 60%, rgba(4,21,14,0.98) 100%)',
+                  border: `2px solid ${accent}`,
+                  boxShadow: `0 0 80px ${accent}55, 0 24px 60px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  position: 'relative',
+                }}
+              >
+                {/* Ornate gold frame */}
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 6,
+                    borderRadius: 18,
+                    border: '1px solid rgba(212,175,55,0.4)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
+                    marginBottom: 8,
+                  }}
                 >
-                  🥴
-                </h1>
+                  <div
+                    style={{
+                      width: 50,
+                      height: 1,
+                      background: `linear-gradient(90deg, transparent, ${accent})`,
+                    }}
+                  />
+                  <span style={{ color: accent, fontSize: 9 }}>◆</span>
+                  <div
+                    style={{
+                      width: 50,
+                      height: 1,
+                      background: `linear-gradient(90deg, ${accent}, transparent)`,
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 16 }} aria-hidden>
+                  {icon}
+                </div>
                 <h2
                   id="game-over-title"
-                  className="text-2xl md:text-4xl font-extrabold text-red-500 mb-2"
+                  style={{
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 30,
+                    fontWeight: 900,
+                    letterSpacing: 4,
+                    textTransform: 'uppercase',
+                    color: isWinner ? '#f4d774' : isLoser ? '#ff7a7a' : '#bfdbfe',
+                    textShadow: `0 2px 12px ${accent}66, 0 1px 2px rgba(0,0,0,0.8)`,
+                    margin: '0 0 6px',
+                  }}
                 >
-                  YOU ARE THE DURAK!
+                  {title}
                 </h2>
-                <p className="text-gray-400 text-sm md:text-lg">Better luck next time.</p>
-              </>
-            ) : gameState.loser === null ? (
-              <>
-                <h1
-                  className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full"
-                  aria-hidden="true"
+                <p
+                  style={{
+                    color: '#d8c89c',
+                    fontSize: 13,
+                    opacity: 0.85,
+                    margin: '0 0 8px',
+                    fontStyle: 'italic',
+                  }}
                 >
-                  🤝
-                </h1>
-                <h2
-                  id="game-over-title"
-                  className="text-2xl md:text-4xl font-extrabold text-blue-400 mb-2"
-                >
-                  DRAW!
-                </h2>
-                <p className="text-gray-400 text-sm md:text-lg">Everybody wins (or loses?).</p>
-              </>
-            ) : (
-              <>
-                <h1
-                  className="text-5xl md:text-7xl mb-4 pb-3 border-b border-gray-700 w-full"
-                  aria-hidden="true"
-                >
-                  👑
-                </h1>
-                <h2
-                  id="game-over-title"
-                  className="text-2xl md:text-4xl font-extrabold text-yellow-400 mb-2"
-                >
-                  YOU SURVIVED!
-                </h2>
-                <p className="text-gray-400 text-sm md:text-lg">
-                  The fool is {gameState.loser.slice(0, 5)}...
+                  {subtitle}
                 </p>
-              </>
-            )}
-            <button
-              onClick={handleStartGame}
-              className="mt-6 md:mt-10 px-8 py-3 md:px-10 md:py-5 bg-gradient-to-br from-yellow-400 to-yellow-600 hover:from-yellow-300 hover:to-yellow-500 text-yellow-950 font-black text-lg md:text-2xl rounded-full shadow-[0_0_20px_rgba(250,204,21,0.5)] transition active:scale-95"
-            >
-              Play Again
-            </button>
-          </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
+                    margin: '18px 0',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 50,
+                      height: 1,
+                      background: `linear-gradient(90deg, transparent, ${accent})`,
+                    }}
+                  />
+                  <span style={{ color: accent, fontSize: 9 }}>◆</span>
+                  <div
+                    style={{
+                      width: 50,
+                      height: 1,
+                      background: `linear-gradient(90deg, ${accent}, transparent)`,
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleStartGame}
+                  style={{
+                    padding: '14px 32px',
+                    borderRadius: 999,
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontWeight: 800,
+                    fontSize: 14,
+                    letterSpacing: 2.5,
+                    textTransform: 'uppercase',
+                    color: '#1a1308',
+                    background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 50%, #8b6914 100%)',
+                    border: '1.5px solid rgba(212,175,55,0.7)',
+                    boxShadow:
+                      '0 12px 32px rgba(0,0,0,0.55), 0 0 26px rgba(212,175,55,0.45), inset 0 1px 0 rgba(255,255,255,0.3)',
+                    cursor: 'pointer',
+                    textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+                    transition: 'transform 0.05s',
+                  }}
+                  onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.96)')}
+                  onMouseUp={(e) => (e.currentTarget.style.transform = '')}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
+                >
+                  ♛ Play Again
+                </button>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

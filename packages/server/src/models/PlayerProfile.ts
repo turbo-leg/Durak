@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 export interface IPlayerProfile extends mongoose.Document {
   discordId: string;
-  userId: string; // internal user ID for email/password accounts
+  userId: string;
   username: string;
   avatarUrl: string;
   stats: {
@@ -16,6 +16,11 @@ export interface IPlayerProfile extends mongoose.Document {
   eloClassic: number;
   eloTeams: number;
   badges: string[];
+  coins: number;
+  inventory: string[];
+  equippedCardBack: string;
+  equippedTableSkin: string;
+  equippedEmotes: string[];
   updatedAt: Date;
 }
 
@@ -36,6 +41,11 @@ const PlayerProfileSchema = new mongoose.Schema(
     eloClassic: { type: Number, default: 1000 },
     eloTeams: { type: Number, default: 1000 },
     badges: { type: [String], default: [] },
+    coins: { type: Number, default: 0 },
+    inventory: { type: [String], default: [] },
+    equippedCardBack: { type: String, default: '' },
+    equippedTableSkin: { type: String, default: '' },
+    equippedEmotes: { type: [String], default: [] },
   },
   { timestamps: true },
 );
