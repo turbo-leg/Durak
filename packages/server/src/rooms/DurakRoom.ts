@@ -62,7 +62,7 @@ export class DurakRoom extends Room<GameState> {
       playerCount: 0,
       spectatorCount: 0,
       phase: this.state.phase,
-    });
+    }).catch(() => {});
 
     this.testModeDeck = options.testModeDeck;
 
@@ -326,7 +326,7 @@ export class DurakRoom extends Room<GameState> {
         playerCount: this.state.players.size,
         spectatorCount: this.spectators.size,
         phase: this.state.phase,
-      });
+      }).catch(() => {});
     } catch {
       // setMetadata requires an active room listing; no-op in test environments
     }
@@ -601,9 +601,32 @@ export class DurakRoom extends Room<GameState> {
     if (a.isJoker && !b.isJoker) return true;
     if (!a.isJoker && b.isJoker) return false;
     if (a.isJoker && b.isJoker) return a.rank > b.rank;
-    if (a.suit === this.state.huzurSuit && b.suit !== this.state.huzurSuit) return true;
-    if (a.suit !== this.state.huzurSuit && b.suit === this.state.huzurSuit) return false;
-    return a.rank > b.rank;
+
+    const huzur = this.state.huzurSuit.toLowerCase();
+    const aSuit = a.suit.toLowerCase();
+    const bSuit = b.suit.toLowerCase();
+
+    // 1. Trump vs Non-Trump
+    if (aSuit === huzur && bSuit !== huzur) return true;
+    if (aSuit !== huzur && bSuit === huzur) return false;
+
+    // 2. Rank Comparison (if different ranks)
+    if (a.rank !== b.rank) {
+      return a.rank > b.rank;
+    }
+
+    // 3. Suit Hierarchy Tie-breaker (if equal ranks)
+    // Strength: Trump > Spades > Hearts > Clubs > Diamonds
+    const getSuitStrength = (suit: string): number => {
+      if (suit === huzur) return 4;
+      if (suit === 'spades') return 3;
+      if (suit === 'hearts') return 2;
+      if (suit === 'clubs') return 1;
+      if (suit === 'diamonds') return 0;
+      return -1;
+    };
+
+    return getSuitStrength(aSuit) > getSuitStrength(bSuit);
   }
 
   /**
@@ -1379,12 +1402,16 @@ export class DurakRoom extends Room<GameState> {
                 ...setFields,
                 // Only mutate ELO field for ranked games
                 ...(isRanked && {
-                  [eloField]: { $max: [100, { $add: [`$${eloField}`, delta] }] },
+                  [eloField]: {
+                    $max: [100, { $add: [{ $ifNull: [`$${eloField}`, 1000] }, delta] }],
+                  },
                 }),
-                'stats.gamesPlayed': { $add: ['$stats.gamesPlayed', 1] },
-                'stats.wins': { $add: ['$stats.wins', isWinner ? 1 : 0] },
-                'stats.losses': { $add: ['$stats.losses', isDurak ? 1 : 0] },
-                'stats.durakCount': { $add: ['$stats.durakCount', isDurak ? 1 : 0] },
+                'stats.gamesPlayed': { $add: [{ $ifNull: ['$stats.gamesPlayed', 0] }, 1] },
+                'stats.wins': { $add: [{ $ifNull: ['$stats.wins', 0] }, isWinner ? 1 : 0] },
+                'stats.losses': { $add: [{ $ifNull: ['$stats.losses', 0] }, isDurak ? 1 : 0] },
+                'stats.durakCount': {
+                  $add: [{ $ifNull: ['$stats.durakCount', 0] }, isDurak ? 1 : 0],
+                },
                 'stats.winStreak': isWinner
                   ? { $add: [{ $ifNull: ['$stats.winStreak', 0] }, 1] }
                   : 0,
