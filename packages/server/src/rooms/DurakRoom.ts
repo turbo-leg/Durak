@@ -1448,7 +1448,7 @@ export class DurakRoom extends Room<GameState> {
               },
             },
           ],
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: 'after', updatePipeline: true },
         );
       });
       const updatedProfiles = await Promise.all(profileOps);
