@@ -11,6 +11,7 @@ interface ShopItem {
   description: string;
   price: number;
   preview: string;
+  image?: string;
 }
 
 interface ShopState {
@@ -43,37 +44,37 @@ const RARITY: Record<
   }
 > = {
   common: {
-    cardGradient: 'linear-gradient(175deg, #4b5563 0%, #1f2937 55%, #111827 100%)',
-    border: '#6b7280',
-    topBar: 'linear-gradient(90deg, #374151, #6b7280, #374151)',
-    glow: 'rgba(107,114,128,0.45)',
+    cardGradient: 'linear-gradient(175deg, #f5ead0 0%, #ebe0c4 55%, #d8c89c 100%)', // Parchment
+    border: 'rgba(212,175,55,0.5)', // Gold outline
+    topBar: 'linear-gradient(90deg, #ebe0c4, #faf3dd, #ebe0c4)',
+    glow: 'rgba(212,175,55,0.2)',
     label: 'COMMON',
     stars: 1,
-    starColor: '#9ca3af',
+    starColor: '#d4af37',
   },
   rare: {
-    cardGradient: 'linear-gradient(175deg, #2563eb 0%, #1e3a8a 55%, #0f1f57 100%)',
-    border: '#3b82f6',
-    topBar: 'linear-gradient(90deg, #1e3a8a, #60a5fa, #1e3a8a)',
-    glow: 'rgba(59,130,246,0.55)',
+    cardGradient: 'linear-gradient(175deg, #135c3f 0%, #0a3624 55%, #04150e 100%)', // Felt Green
+    border: '#e6c258', // Light Gold
+    topBar: 'linear-gradient(90deg, #0a3624, #135c3f, #0a3624)',
+    glow: 'rgba(230,194,88,0.3)',
     label: 'RARE',
     stars: 2,
-    starColor: '#93c5fd',
+    starColor: '#e6c258',
   },
   epic: {
-    cardGradient: 'linear-gradient(175deg, #7c3aed 0%, #4c1d95 55%, #2e1065 100%)',
-    border: '#a855f7',
-    topBar: 'linear-gradient(90deg, #4c1d95, #c084fc, #4c1d95)',
-    glow: 'rgba(168,85,247,0.6)',
+    cardGradient: 'linear-gradient(175deg, #8b2121 0%, #5b1818 55%, #2a0a0a 100%)', // Velvet Burgundy
+    border: '#f4d774', // Soft Gold
+    topBar: 'linear-gradient(90deg, #5b1818, #8b2121, #5b1818)',
+    glow: 'rgba(244,215,116,0.4)',
     label: 'EPIC',
     stars: 3,
-    starColor: '#d8b4fe',
+    starColor: '#f4d774',
   },
   legendary: {
-    cardGradient: 'linear-gradient(175deg, #d97706 0%, #92400e 55%, #451a03 100%)',
-    border: '#f59e0b',
-    topBar: 'linear-gradient(90deg, #92400e, #fbbf24, #92400e)',
-    glow: 'rgba(245,158,11,0.7)',
+    cardGradient: 'linear-gradient(175deg, #d4af37 0%, #b8902a 55%, #4a3608 100%)', // Pure Gold
+    border: '#f4d774',
+    topBar: 'linear-gradient(90deg, #b8902a, #f4d774, #b8902a)',
+    glow: 'rgba(212,175,55,0.6)',
     label: 'LEGENDARY',
     stars: 3,
     starColor: '#fcd34d',
@@ -84,7 +85,7 @@ const RARITY: Record<
 
 const SHOP_CSS = `
   @keyframes shopCardIn {
-    from { opacity: 0; transform: translateY(28px) scale(0.93); }
+    from { opacity: 0; transform: translateY(24px) scale(0.95); }
     to   { opacity: 1; transform: translateY(0)    scale(1);    }
   }
   @keyframes shopShimmer {
@@ -92,18 +93,20 @@ const SHOP_CSS = `
     100% { background-position:  200% center; }
   }
   @keyframes shopGlowPulse {
-    0%,100% { opacity: 1; }
-    50%     { opacity: 0.55; }
+    0%,100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(212,175,55,0.5)); }
+    50%     { opacity: 0.7; filter: drop-shadow(0 0 1px rgba(212,175,55,0.1)); }
   }
-  @keyframes shopBounce {
-    0%  { transform: scale(1); }
-    40% { transform: scale(0.93); }
-    70% { transform: scale(1.04); }
-    100%{ transform: scale(1); }
+  .shop-card { 
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease, border-color 0.2s ease;
+    background: linear-gradient(180deg, rgba(10,54,36,0.65) 0%, rgba(7,38,26,0.85) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
-  .shop-card { transition: transform 0.14s ease, box-shadow 0.14s ease; }
-  .shop-card:active { transform: scale(0.96) !important; }
-  .shop-card:hover  { transform: scale(1.025); }
+  .shop-card:active { transform: scale(0.97) !important; }
+  .shop-card:hover  { transform: translateY(-4px); border-color: rgba(212,175,55,0.55) !important; }
+  .shop-btn {
+    transition: transform 0.1s ease, filter 0.1s ease, box-shadow 0.1s ease;
+  }
   .shop-btn:active  { transform: scale(0.96) !important; filter: brightness(0.9); }
 `;
 
@@ -293,7 +296,81 @@ function EmoteArt({ emoji, rarity }: { emoji: string; rarity: Rarity }) {
   );
 }
 
+function CardImageArt({ src, rarity }: { src: string; rarity: Rarity }) {
+  const r = RARITY[rarity];
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: 68,
+        height: 92,
+        borderRadius: 9,
+        overflow: 'hidden',
+        boxShadow: `0 8px 24px rgba(0,0,0,0.7), 0 0 18px ${r.glow}`,
+        border: `2px solid ${r.border}`,
+      }}
+    >
+      <img
+        src={`/assets/${src}`}
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '42%',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.14) 0%, transparent 100%)',
+          borderRadius: '9px 9px 0 0',
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+}
+
+function EmoteImageArt({ src, rarity }: { src: string; rarity: Rarity }) {
+  const r = RARITY[rarity];
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: 80,
+        height: 80,
+        borderRadius: '50%',
+        overflow: 'hidden',
+        boxShadow: `0 8px 24px rgba(0,0,0,0.7), 0 0 18px ${r.glow}`,
+        border: `2px solid ${r.border}`,
+      }}
+    >
+      <img
+        src={`/assets/${src}`}
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '42%',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%)',
+          borderRadius: '50% 50% 0 0 / 30% 30% 0 0',
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+}
+
 function ItemArt({ item, rarity }: { item: ShopItem; rarity: Rarity }) {
+  if (item.image) {
+    if (item.type === 'cardBack') return <CardImageArt src={item.image} rarity={rarity} />;
+    if (item.type === 'emote') return <EmoteImageArt src={item.image} rarity={rarity} />;
+  }
   const isEmoji = !/^#/.test(item.preview);
   if (isEmoji) return <EmoteArt emoji={item.preview} rarity={rarity} />;
   if (item.type === 'cardBack') return <CardArt color={item.preview} rarity={rarity} />;
@@ -350,14 +427,14 @@ function ShopCard({
   const topBarStyle: React.CSSProperties = isLegendary
     ? {
         height: 5,
-        background: 'linear-gradient(90deg, #92400e, #fbbf24, #fff7, #fbbf24, #92400e)',
+        background: 'linear-gradient(90deg, #b8902a, #f4d774, #fff7, #f4d774, #b8902a)',
         backgroundSize: '200% auto',
         animation: 'shopShimmer 2s linear infinite',
       }
     : isEpic
       ? {
           height: 5,
-          background: 'linear-gradient(90deg, #4c1d95, #c084fc, #fff4, #c084fc, #4c1d95)',
+          background: 'linear-gradient(90deg, #5b1818, #8b2121, #fff4, #8b2121, #5b1818)',
           backgroundSize: '200% auto',
           animation: 'shopShimmer 2.5s linear infinite',
         }
@@ -370,7 +447,7 @@ function ShopCard({
       style={{
         borderRadius: 16,
         overflow: 'hidden',
-        border: `2px solid ${equipped ? r.border : 'rgba(255,255,255,0.08)'}`,
+        border: `1px solid ${equipped ? r.border : 'rgba(212,175,55,0.18)'}`,
         boxShadow: equipped
           ? `0 0 22px ${r.glow}, 0 6px 20px rgba(0,0,0,0.6)`
           : `0 6px 20px rgba(0,0,0,0.5)`,
@@ -412,8 +489,8 @@ function ShopCard({
               position: 'absolute',
               top: 8,
               right: 8,
-              background: r.border,
-              color: '#000',
+              background: 'var(--gradient-gold)',
+              color: 'var(--ink-900)',
               fontSize: 8,
               fontWeight: 900,
               letterSpacing: 0.8,
@@ -434,7 +511,8 @@ function ShopCard({
               position: 'absolute',
               top: 8,
               left: 8,
-              background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+              background: 'linear-gradient(135deg, #8b2121, #2a0a0a)',
+              border: '1px solid rgba(212,175,55,0.3)',
               color: '#fff',
               fontSize: 8,
               fontWeight: 900,
@@ -451,9 +529,9 @@ function ShopCard({
       {/* Info + action area */}
       <div
         style={{
-          background: 'linear-gradient(180deg, #0f0f1e 0%, #080812 100%)',
+          background: 'linear-gradient(180deg, rgba(7,38,26,0.95) 0%, rgba(4,21,14,0.98) 100%)',
           padding: '10px 10px 12px',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          borderTop: '1px solid rgba(212,175,55,0.18)',
         }}
       >
         {/* Name + stars row */}
@@ -469,7 +547,7 @@ function ShopCard({
             style={{
               fontSize: 13,
               fontWeight: 800,
-              color: '#f1f5f9',
+              color: 'var(--ivory-100)',
               lineHeight: 1.2,
               flex: 1,
               paddingRight: 4,
@@ -484,15 +562,15 @@ function ShopCard({
         {equipped ? (
           <div
             style={{
-              background: `linear-gradient(180deg, ${r.border}22 0%, ${r.border}11 100%)`,
-              border: `1.5px solid ${r.border}55`,
+              background: `linear-gradient(180deg, rgba(212,175,55,0.08) 0%, rgba(212,175,55,0.03) 100%)`,
+              border: `1px solid rgba(212,175,55,0.35)`,
               borderRadius: 10,
               padding: '8px 0',
               textAlign: 'center',
-              fontSize: 12,
-              fontWeight: 800,
-              color: r.border,
-              letterSpacing: 0.5,
+              fontSize: 11,
+              fontWeight: 900,
+              color: 'var(--gold-400)',
+              letterSpacing: 1.2,
             }}
           >
             ✓ EQUIPPED
@@ -509,18 +587,18 @@ function ShopCard({
               width: '100%',
               background: busy
                 ? 'rgba(255,255,255,0.06)'
-                : 'linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%)',
+                : 'linear-gradient(180deg, #135c3f 0%, #0a3624 100%)',
               border: 'none',
-              borderTop: '2px solid rgba(167,139,250,0.5)',
-              borderBottom: '3px solid #2e1065',
+              borderTop: '2px solid rgba(212,175,55,0.4)',
+              borderBottom: '3px solid #04150e',
               borderRadius: 10,
               padding: '8px 0',
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 900,
-              color: '#ede9fe',
-              letterSpacing: 0.5,
+              color: 'var(--ivory-50)',
+              letterSpacing: 1.2,
               cursor: busy ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+              boxShadow: '0 4px 12px rgba(19,92,63,0.4)',
               transition: 'filter 0.1s',
             }}
           >
@@ -538,18 +616,18 @@ function ShopCard({
               width: '100%',
               background: busy
                 ? 'rgba(255,255,255,0.06)'
-                : 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)',
+                : 'linear-gradient(180deg, var(--gold-300) 0%, var(--gold-500) 100%)',
               border: 'none',
-              borderTop: '2px solid #fcd34d',
-              borderBottom: '3px solid #92400e',
+              borderTop: '2px solid var(--gold-300)',
+              borderBottom: '3px solid var(--gold-700)',
               borderRadius: 10,
               padding: '8px 0',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 900,
-              color: '#1c0a00',
-              letterSpacing: 0.3,
+              color: 'var(--ink-900)',
+              letterSpacing: 1.2,
               cursor: busy ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 14px rgba(245,158,11,0.45)',
+              boxShadow: '0 4px 14px rgba(212,175,55,0.45)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -561,7 +639,11 @@ function ShopCard({
               '…'
             ) : (
               <>
-                <span style={{ fontSize: 14 }}>🪙</span>
+                <img
+                  src="/assets/coin.png"
+                  alt="coins"
+                  style={{ width: 14, height: 14, objectFit: 'contain', display: 'inline-block' }}
+                />
                 <span>{item.price.toLocaleString()}</span>
               </>
             )}
@@ -576,12 +658,12 @@ function ShopCard({
 
 function SectionHeader({ label, icon }: { label: string; icon: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 12px 10px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 12px 12px' }}>
       <div
         style={{
           flex: 1,
           height: 1,
-          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.12))',
+          background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.22))',
         }}
       />
       <div
@@ -592,7 +674,8 @@ function SectionHeader({ label, icon }: { label: string; icon: string }) {
           fontSize: 11,
           fontWeight: 900,
           letterSpacing: 1.5,
-          color: 'rgba(255,255,255,0.5)',
+          color: 'var(--gold-400)',
+          fontFamily: 'var(--font-display)',
         }}
       >
         <span>{icon}</span>
@@ -602,7 +685,7 @@ function SectionHeader({ label, icon }: { label: string; icon: string }) {
         style={{
           flex: 1,
           height: 1,
-          background: 'linear-gradient(90deg, rgba(255,255,255,0.12), transparent)',
+          background: 'linear-gradient(90deg, rgba(212,175,55,0.22), transparent)',
         }}
       />
     </div>
@@ -644,7 +727,7 @@ function DetailSheet({
         position: 'fixed',
         inset: 0,
         zIndex: 50,
-        background: 'rgba(0,0,0,0.82)',
+        background: 'rgba(4,21,14,0.85)',
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
@@ -655,8 +738,8 @@ function DetailSheet({
         style={{
           width: '100%',
           maxWidth: 520,
-          background: 'linear-gradient(180deg, #15102e 0%, #0a0a18 100%)',
-          border: `2px solid ${r.border}`,
+          background: 'linear-gradient(180deg, #07261a 0%, #04150e 100%)',
+          border: `2px solid var(--gold-500)`,
           borderBottom: 'none',
           borderRadius: '24px 24px 0 0',
           padding: '0 0 36px',
@@ -673,7 +756,7 @@ function DetailSheet({
             style={{
               width: 40,
               height: 4,
-              background: 'rgba(255,255,255,0.18)',
+              background: 'rgba(212,175,55,0.25)',
               borderRadius: 999,
             }}
           />
@@ -709,6 +792,7 @@ function DetailSheet({
                   letterSpacing: 1.5,
                   color: r.starColor,
                   marginBottom: 4,
+                  fontFamily: 'var(--font-display)',
                 }}
               >
                 {r.label}
@@ -717,9 +801,10 @@ function DetailSheet({
                 style={{
                   fontSize: 22,
                   fontWeight: 900,
-                  color: '#fff',
+                  color: 'var(--ivory-50)',
                   lineHeight: 1.15,
                   marginBottom: 6,
+                  fontFamily: 'var(--font-display)',
                 }}
               >
                 {item.name}
@@ -728,9 +813,10 @@ function DetailSheet({
               <div
                 style={{
                   fontSize: 13,
-                  color: 'rgba(255,255,255,0.4)',
+                  color: 'var(--ivory-200)',
                   marginTop: 8,
                   lineHeight: 1.4,
+                  opacity: 0.85,
                 }}
               >
                 {item.description}
@@ -745,23 +831,27 @@ function DetailSheet({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'rgba(212,175,55,0.06)',
+                border: '1px solid rgba(212,175,55,0.18)',
                 borderRadius: 12,
                 padding: '10px 16px',
                 marginBottom: 14,
               }}
             >
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 700 }}>
+              <div style={{ fontSize: 13, color: 'var(--ivory-200)', fontWeight: 700 }}>
                 Your coins
               </div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <span style={{ fontSize: 16 }}>🪙</span>
+                <img
+                  src="/assets/coin.png"
+                  alt="coins"
+                  style={{ width: 16, height: 16, objectFit: 'contain', display: 'inline-block' }}
+                />
                 <span
                   style={{
                     fontWeight: 900,
                     fontSize: 16,
-                    color: canAfford ? '#fcd34d' : '#f87171',
+                    color: canAfford ? 'var(--gold-300)' : '#f87171',
                   }}
                 >
                   {coins.toLocaleString()}
@@ -781,19 +871,20 @@ function DetailSheet({
               style={{
                 padding: '14px',
                 borderRadius: 14,
-                background: `${r.border}18`,
-                border: `1.5px solid ${r.border}44`,
+                background: `rgba(212,175,55,0.08)`,
+                border: `1.5px solid rgba(212,175,55,0.35)`,
                 textAlign: 'center',
-                color: r.border,
+                color: 'var(--gold-400)',
                 fontWeight: 900,
-                fontSize: 15,
-                letterSpacing: 0.5,
+                fontSize: 14,
+                letterSpacing: 1.5,
               }}
             >
               ✓ CURRENTLY EQUIPPED
             </div>
           ) : owned || free ? (
             <button
+              className="shop-btn"
               disabled={busy}
               onClick={onEquip}
               style={{
@@ -801,17 +892,17 @@ function DetailSheet({
                 padding: '16px',
                 background: busy
                   ? 'rgba(255,255,255,0.06)'
-                  : 'linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%)',
+                  : 'linear-gradient(180deg, #135c3f 0%, #0a3624 100%)',
                 border: 'none',
-                borderTop: '2px solid rgba(167,139,250,0.6)',
-                borderBottom: '4px solid #2e1065',
+                borderTop: '2px solid rgba(212,175,55,0.4)',
+                borderBottom: '4px solid #04150e',
                 borderRadius: 14,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: 900,
-                color: '#ede9fe',
-                letterSpacing: 0.5,
+                color: 'var(--ivory-50)',
+                letterSpacing: 1.5,
                 cursor: busy ? 'not-allowed' : 'pointer',
-                boxShadow: '0 6px 20px rgba(124,58,237,0.5)',
+                boxShadow: '0 6px 20px rgba(19,92,63,0.5)',
               }}
             >
               {busy ? 'Equipping…' : 'EQUIP NOW'}
@@ -824,7 +915,7 @@ function DetailSheet({
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid rgba(255,255,255,0.08)',
                 textAlign: 'center',
-                color: 'rgba(255,255,255,0.4)',
+                color: 'var(--ivory-300)',
                 fontWeight: 700,
                 fontSize: 14,
               }}
@@ -833,6 +924,7 @@ function DetailSheet({
             </div>
           ) : (
             <button
+              className="shop-btn"
               disabled={busy || !canAfford}
               onClick={onBuy}
               style={{
@@ -841,27 +933,34 @@ function DetailSheet({
                 background:
                   busy || !canAfford
                     ? 'rgba(255,255,255,0.06)'
-                    : 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)',
+                    : 'linear-gradient(180deg, var(--gold-300) 0%, var(--gold-500) 100%)',
                 border: 'none',
-                borderTop: canAfford ? '2px solid #fcd34d' : '2px solid rgba(255,255,255,0.1)',
-                borderBottom: canAfford ? '4px solid #78350f' : '4px solid rgba(0,0,0,0.3)',
+                borderTop: canAfford
+                  ? '2px solid var(--gold-300)'
+                  : '2px solid rgba(255,255,255,0.1)',
+                borderBottom: canAfford ? '4px solid var(--gold-700)' : '4px solid rgba(0,0,0,0.3)',
                 borderRadius: 14,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: 900,
-                color: busy || !canAfford ? 'rgba(255,255,255,0.3)' : '#1c0a00',
+                color: busy || !canAfford ? 'rgba(255,255,255,0.3)' : 'var(--ink-900)',
                 cursor: busy || !canAfford ? 'not-allowed' : 'pointer',
-                boxShadow: canAfford ? '0 6px 22px rgba(245,158,11,0.5)' : 'none',
+                boxShadow: canAfford ? '0 6px 22px rgba(212,175,55,0.5)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
+                letterSpacing: 1.5,
               }}
             >
               {busy ? (
                 'Buying…'
               ) : (
                 <>
-                  <span style={{ fontSize: 20 }}>🪙</span>
+                  <img
+                    src="/assets/coin.png"
+                    alt="coins"
+                    style={{ width: 20, height: 20, objectFit: 'contain', display: 'inline-block' }}
+                  />
                   <span>{item.price.toLocaleString()}</span>
                 </>
               )}
@@ -897,6 +996,7 @@ export const ShopPage: React.FC = () => {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ShopItem | null>(null);
+  const [showEarnInfo, setShowEarnInfo] = useState(false);
 
   const token = user?.token;
 
@@ -1013,17 +1113,20 @@ export const ShopPage: React.FC = () => {
           .filter((g) => g.items.length > 0);
 
   return (
-    <div style={{ background: '#0a0a18', minHeight: '100vh', color: 'white', paddingBottom: 100 }}>
+    <div
+      style={{ background: 'transparent', minHeight: '100vh', color: 'white', paddingBottom: 100 }}
+    >
       <ShopStyles />
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div
         style={{
-          background: 'linear-gradient(180deg, #12083a 0%, #0a0a18 100%)',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          background: 'linear-gradient(180deg, #07261a 0%, rgba(4,21,14,0.85) 100%)',
+          borderBottom: '1px solid rgba(212,175,55,0.22)',
           position: 'sticky',
           top: 0,
           zIndex: 30,
           backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
         }}
       >
         {/* title row */}
@@ -1038,47 +1141,146 @@ export const ShopPage: React.FC = () => {
           <div style={{ lineHeight: 1 }}>
             <div
               style={{
-                fontSize: 24,
+                fontSize: 26,
                 fontWeight: 900,
-                letterSpacing: -0.5,
-                background: 'linear-gradient(90deg, #f59e0b 0%, #fcd34d 50%, #f59e0b 100%)',
+                letterSpacing: 2,
+                fontFamily: 'var(--font-display)',
+                background: 'var(--gradient-gold)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
-                textShadow: 'none',
+                textShadow: '0 2px 4px rgba(0,0,0,0.5)',
               }}
             >
               ♦ SHOP
             </div>
             <div
               style={{
-                fontSize: 10,
-                color: 'rgba(255,255,255,0.28)',
+                fontSize: 9,
+                color: 'var(--ivory-300)',
                 fontWeight: 700,
-                letterSpacing: 1,
-                marginTop: 2,
+                letterSpacing: 1.5,
+                marginTop: 4,
+                opacity: 0.7,
               }}
             >
               WIN GAMES · EARN COINS · BUY ITEMS
             </div>
           </div>
 
-          {/* Coin pill */}
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #3a1a00, #1c0a00)',
-              border: '2px solid #d97706',
-              borderRadius: 999,
-              padding: '7px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              boxShadow: '0 0 16px rgba(245,158,11,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
-            }}
-          >
-            <span style={{ fontSize: 18 }}>🪙</span>
-            <span style={{ fontWeight: 900, fontSize: 18, color: '#fcd34d', letterSpacing: -0.5 }}>
-              {(shopState?.coins ?? (user ? 0 : null))?.toLocaleString() ?? '—'}
-            </span>
+          {/* Coin pill + earn button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #3a1a00, #1c0a00)',
+                border: '2px solid var(--gold-500)',
+                borderRadius: 999,
+                padding: '7px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                boxShadow: '0 0 16px rgba(212,175,55,0.35), inset 0 1px 0 rgba(255,255,255,0.1)',
+              }}
+            >
+              <img
+                src="/assets/coin.png"
+                alt="coins"
+                style={{ width: 20, height: 20, objectFit: 'contain', display: 'inline-block' }}
+              />
+              <span
+                style={{
+                  fontWeight: 900,
+                  fontSize: 18,
+                  color: 'var(--gold-300)',
+                  letterSpacing: -0.5,
+                }}
+              >
+                {(shopState?.coins ?? 0).toLocaleString()}
+              </span>
+            </div>
+            <button
+              className="shop-btn"
+              onClick={() => setShowEarnInfo((v) => !v)}
+              style={{
+                background: 'linear-gradient(180deg, #135c3f 0%, #0a3624 100%)',
+                border: '1.5px solid var(--gold-500)',
+                borderRadius: 999,
+                padding: '8px 14px',
+                color: 'var(--gold-300)',
+                fontWeight: 900,
+                fontSize: 11,
+                cursor: 'pointer',
+                letterSpacing: 1,
+                boxShadow: '0 0 12px rgba(19,92,63,0.3)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              + Get Coins
+            </button>
+            {showEarnInfo && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '115%',
+                  right: 0,
+                  background: 'linear-gradient(180deg, #07261a 0%, #04150e 100%)',
+                  border: '1.5px solid var(--gold-500)',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  zIndex: 100,
+                  minWidth: 200,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.65)',
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 900,
+                    fontSize: 11,
+                    color: 'var(--gold-400)',
+                    marginBottom: 8,
+                    letterSpacing: 0.8,
+                    fontFamily: 'var(--font-display)',
+                  }}
+                >
+                  HOW TO EARN COINS
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
+                    { label: 'Win a game', reward: '+10' },
+                    { label: 'Finish (not durak)', reward: '+5' },
+                    { label: 'Be the durak', reward: '+3' },
+                  ].map(({ label, reward }) => (
+                    <div
+                      key={label}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 12,
+                      }}
+                    >
+                      <span style={{ fontSize: 12, color: 'var(--ivory-200)' }}>{label}</span>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 900,
+                          color: 'var(--gold-300)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <span>{reward}</span>
+                        <img
+                          src="/assets/coin.png"
+                          alt="coins"
+                          style={{ width: 12, height: 12, objectFit: 'contain' }}
+                        />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1089,24 +1291,28 @@ export const ShopPage: React.FC = () => {
             return (
               <button
                 key={t.key}
+                className="shop-btn"
                 onClick={() => setTab(t.key)}
                 style={{
                   flexShrink: 0,
-                  padding: '7px 14px',
+                  padding: '8px 16px',
                   borderRadius: 999,
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: 900,
-                  letterSpacing: 0.8,
-                  border: active ? '2px solid #f59e0b' : '2px solid rgba(255,255,255,0.07)',
+                  letterSpacing: 1.5,
+                  border: active
+                    ? '1.5px solid var(--gold-400)'
+                    : '1.5px solid rgba(212,175,55,0.18)',
                   background: active
-                    ? 'linear-gradient(135deg, #78350f, #451a03)'
+                    ? 'linear-gradient(180deg, #0a3624 0%, #04150e 100%)'
                     : 'rgba(255,255,255,0.03)',
-                  color: active ? '#fcd34d' : 'rgba(255,255,255,0.35)',
+                  color: active ? 'var(--gold-300)' : 'var(--ivory-300)',
                   cursor: 'pointer',
-                  boxShadow: active ? '0 0 12px rgba(245,158,11,0.4)' : 'none',
+                  boxShadow: active ? '0 0 12px rgba(212,175,55,0.22)' : 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
+                  fontFamily: 'var(--font-display)',
                 }}
               >
                 <span style={{ fontSize: 13 }}>{t.icon}</span>
@@ -1133,13 +1339,13 @@ export const ShopPage: React.FC = () => {
             style={{
               width: 40,
               height: 40,
-              border: '3px solid rgba(245,158,11,0.2)',
-              borderTop: '3px solid #f59e0b',
+              border: '3px solid rgba(212,175,55,0.2)',
+              borderTop: '3px solid var(--gold-500)',
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
             }}
           />
-          <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 700 }}>
+          <div style={{ color: 'var(--ivory-300)', fontSize: 13, fontWeight: 700 }}>
             Loading shop…
           </div>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -1226,18 +1432,18 @@ export const ShopPage: React.FC = () => {
             left: '50%',
             transform: 'translateX(-50%)',
             background: toast.ok
-              ? 'linear-gradient(135deg, #065f46, #047857)'
-              : 'linear-gradient(135deg, #7f1d1d, #991b1b)',
-            border: `1.5px solid ${toast.ok ? '#10b981' : '#ef4444'}`,
-            color: toast.ok ? '#6ee7b7' : '#fca5a5',
+              ? 'linear-gradient(135deg, #0a3624, #04150e)'
+              : 'linear-gradient(135deg, #8b2121, #2a0a0a)',
+            border: `1.5px solid ${toast.ok ? 'var(--gold-400)' : '#ef4444'}`,
+            color: toast.ok ? 'var(--ivory-50)' : '#fca5a5',
             padding: '11px 22px',
             borderRadius: 999,
             fontSize: 13,
             fontWeight: 800,
             zIndex: 60,
-            boxShadow: `0 4px 24px rgba(0,0,0,0.5)`,
+            boxShadow: `0 4px 24px rgba(0,0,0,0.55)`,
             whiteSpace: 'nowrap',
-            letterSpacing: 0.3,
+            letterSpacing: 0.5,
           }}
         >
           {toast.msg}

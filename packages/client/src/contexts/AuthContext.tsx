@@ -51,7 +51,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved) as AuthUser;
+        const parsed = JSON.parse(saved) as AuthUser;
+        // Invalidate old Discord sessions that stored a raw Discord access_token
+        // instead of a server-signed JWT. Server JWTs are always 3-part dot-separated.
+        if (parsed.method === 'discord' && parsed.token && parsed.token.split('.').length !== 3) {
+          localStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
+        return parsed;
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -99,13 +106,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!meRes.ok) throw new Error('Failed to fetch Discord user');
       const me = await meRes.json();
 
+      // Exchange Discord token for a server-signed JWT so authenticated endpoints work
+      const sessionRes = await fetch('/api/auth/discord/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token }),
+      });
+      const sessionData = await sessionRes.json();
+      if (!sessionRes.ok) throw new Error(sessionData?.error || 'Session exchange failed');
+
       persist({
         id: me.id,
         method: 'discord',
         username: me.username,
         globalName: me.global_name ?? null,
         avatarUrl: buildAvatarUrl(me.id, me.avatar),
-        token: access_token,
+        token: sessionData.token,
       });
 
       window.history.replaceState({}, '', window.location.pathname);

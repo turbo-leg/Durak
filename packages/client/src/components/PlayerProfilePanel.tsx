@@ -108,57 +108,68 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
   const elo = profile?.eloClassic ?? 1000;
 
   return (
-    <div className="bg-indigo-950 border border-indigo-700 rounded-xl p-5 text-white">
+    <div className="casino-panel p-5 border-[rgba(212,175,55,0.22)] text-white">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         {avatarUrl ? (
           <img
             src={avatarUrl}
             alt={username}
-            className="w-12 h-12 rounded-full border-2 border-indigo-400"
+            className="w-12 h-12 rounded-full border-2 border-[var(--gold-400)] shadow-[var(--gold-glow)]"
           />
         ) : (
-          <div className="w-12 h-12 rounded-full bg-indigo-700 flex items-center justify-center text-xl font-bold border-2 border-indigo-400">
+          <div className="w-12 h-12 rounded-full bg-[var(--gradient-velvet)] flex items-center justify-center text-xl font-bold border-2 border-[var(--gold-400)] text-[var(--gold-300)] shadow-[var(--gold-glow)]">
             {username.charAt(0).toUpperCase()}
           </div>
         )}
         <div>
-          <div className="font-bold text-lg leading-tight">{username}</div>
+          <div
+            className="font-bold text-base leading-tight font-display text-[var(--ivory-50)]"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            {username}
+          </div>
           {profile && (
-            <div className="text-yellow-400 text-xs font-semibold">
-              ★ {elo} <span className="text-indigo-400 font-normal">ELO</span>
+            <div className="text-[var(--gold-400)] text-[10px] font-bold tracking-wide">
+              ★ {elo} <span className="text-[var(--ivory-300)] font-normal opacity-70">ELO</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        {(['stats', 'history', 'leaderboard'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-label={t === 'leaderboard' ? 'Leaderboard' : undefined}
-            className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
-              tab === t
-                ? 'bg-indigo-600 text-white'
-                : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
-            }`}
-          >
-            {t === 'leaderboard' ? (
-              <>
-                <span aria-hidden="true">🏆</span>
-                <span className="sr-only">Leaderboard</span>
-              </>
-            ) : (
-              t
-            )}
-          </button>
-        ))}
+      <div className="flex gap-1 p-0.5 rounded-lg bg-black/45 border border-[rgba(212,175,55,0.15)] mb-4">
+        {(['stats', 'history', 'leaderboard'] as const).map((t) => {
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              aria-label={t === 'leaderboard' ? 'Leaderboard' : undefined}
+              className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition border-none cursor-pointer ${
+                active
+                  ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-extrabold shadow-sm'
+                  : 'bg-transparent text-[var(--ivory-300)] hover:text-white'
+              }`}
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {t === 'leaderboard' ? (
+                <>
+                  <span aria-hidden="true">🏆 LEADER</span>
+                  <span className="sr-only">Leaderboard</span>
+                </>
+              ) : (
+                t
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {loading && tab !== 'leaderboard' ? (
-        <div className="text-indigo-400 text-sm text-center py-4 animate-pulse">Loading...</div>
+        <div className="text-[var(--gold-400)] text-xs text-center py-4 animate-pulse font-bold tracking-widest">
+          LOADING STATS…
+        </div>
       ) : tab === 'stats' ? (
         stats ? (
           <div className="grid grid-cols-2 gap-3">
@@ -166,24 +177,34 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
             <StatCard label="Win Rate" value={`${winRate}%`} highlight={winRate >= 50} />
             <StatCard label="Wins" value={stats.wins} highlight />
             <StatCard label="Durak" value={stats.durakCount} dim />
-            <div className="col-span-2 bg-indigo-900/60 rounded-lg p-3 flex justify-between items-center">
+            <div className="col-span-2 bg-[var(--gradient-velvet)] border border-[rgba(212,175,55,0.18)] rounded-lg p-3 flex justify-between items-center shadow-md">
               <div>
-                <div className="text-yellow-400 font-bold text-xl">
+                <div
+                  className="text-[var(--gold-400)] font-black text-lg font-display"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
                   ★ {profile?.eloClassic ?? 1000}
                 </div>
-                <div className="text-indigo-400 text-xs mt-0.5">Classic ELO</div>
+                <div className="text-[var(--ivory-300)] text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-70">
+                  Classic ELO
+                </div>
               </div>
               <div className="text-right">
-                <div className="text-yellow-400 font-bold text-xl">
+                <div
+                  className="text-[var(--gold-400)] font-black text-lg font-display"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
                   ★ {profile?.eloTeams ?? 1000}
                 </div>
-                <div className="text-indigo-400 text-xs mt-0.5">Teams ELO</div>
+                <div className="text-[var(--ivory-300)] text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-70">
+                  Teams ELO
+                </div>
               </div>
             </div>
             <BadgesSection earned={profile?.badges ?? []} />
           </div>
         ) : (
-          <div className="text-indigo-400 text-sm text-center py-4">
+          <div className="text-[var(--ivory-300)] text-xs text-center py-4 italic opacity-60">
             No stats yet — play a game to get started.
           </div>
         )
@@ -207,13 +228,18 @@ const StatCard: React.FC<{
   highlight?: boolean;
   dim?: boolean;
 }> = ({ label, value, highlight, dim }) => (
-  <div className="bg-indigo-900/60 rounded-lg p-3 text-center">
+  <div className="bg-[var(--gradient-velvet)] border border-[rgba(212,175,55,0.15)] rounded-lg p-3 text-center">
     <div
-      className={`text-2xl font-bold ${highlight ? 'text-green-400' : dim ? 'text-red-400' : 'text-white'}`}
+      className={`text-xl font-black font-display ${
+        highlight ? 'text-emerald-400' : dim ? 'text-red-400' : 'text-[var(--gold-300)]'
+      }`}
+      style={{ fontFamily: 'var(--font-display)' }}
     >
       {value}
     </div>
-    <div className="text-indigo-400 text-xs mt-1">{label}</div>
+    <div className="text-[var(--ivory-300)] text-[9px] font-bold uppercase tracking-widest mt-1 opacity-70">
+      {label}
+    </div>
   </div>
 );
 
@@ -222,7 +248,11 @@ const HistoryList: React.FC<{ history: MatchRecord[]; playerId: string }> = ({
   playerId,
 }) => {
   if (history.length === 0) {
-    return <div className="text-indigo-400 text-sm text-center py-4">No match history yet.</div>;
+    return (
+      <div className="text-[var(--ivory-300)] text-xs text-center py-4 italic opacity-60">
+        No match history yet.
+      </div>
+    );
   }
 
   return (
@@ -231,7 +261,11 @@ const HistoryList: React.FC<{ history: MatchRecord[]; playerId: string }> = ({
         const won = m.winners.includes(playerId);
         const wasDurak = m.durak === playerId;
         const result = won ? 'Win' : wasDurak ? 'Durak' : 'Loss';
-        const resultColor = won ? 'text-green-400' : wasDurak ? 'text-red-400' : 'text-yellow-400';
+        const resultColor = won
+          ? 'text-emerald-400'
+          : wasDurak
+            ? 'text-red-400'
+            : 'text-[var(--gold-400)]';
         const date = new Date(m.date).toLocaleDateString(undefined, {
           month: 'short',
           day: 'numeric',
@@ -240,13 +274,17 @@ const HistoryList: React.FC<{ history: MatchRecord[]; playerId: string }> = ({
         return (
           <div
             key={m._id}
-            className="flex items-center justify-between bg-indigo-900/50 rounded px-3 py-2 text-xs"
+            className="flex items-center justify-between bg-black/25 border border-[rgba(212,175,55,0.15)] rounded-lg px-3 py-2 text-xs"
           >
             <div className="flex items-center gap-2">
-              <span className={`font-bold ${resultColor}`}>{result}</span>
-              <span className="text-indigo-400 capitalize">{m.mode}</span>
+              <span className={`font-black uppercase tracking-wider text-[10px] ${resultColor}`}>
+                {result}
+              </span>
+              <span className="text-[var(--ivory-200)] capitalize font-semibold">
+                {m.mode} Mode
+              </span>
             </div>
-            <div className="text-indigo-500">{date}</div>
+            <div className="text-[var(--ivory-300)] opacity-70 text-[10px]">{date}</div>
           </div>
         );
       })}
@@ -258,14 +296,19 @@ const BadgesSection: React.FC<{ earned: string[] }> = ({ earned }) => {
   const earnedBadges = BADGES.filter((b) => earned.includes(b.id));
   if (earnedBadges.length === 0) return null;
   return (
-    <div className="col-span-2 mt-1">
-      <div className="text-indigo-400 text-xs mb-1.5">Badges</div>
+    <div className="col-span-2 mt-2">
+      <div
+        className="text-[var(--gold-400)] text-[9px] mb-1.5 font-bold uppercase tracking-widest"
+        style={{ fontFamily: 'var(--font-display)' }}
+      >
+        Badges
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {earnedBadges.map((b) => (
           <span
             key={b.id}
             title={b.description}
-            className="inline-flex items-center gap-1 bg-indigo-800/70 border border-indigo-600 rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+            className="inline-flex items-center gap-1 bg-black/25 border border-[rgba(212,175,55,0.22)] rounded-full px-2.5 py-1 text-[11px] font-bold text-[var(--ivory-50)]"
           >
             <span>{b.emoji}</span>
             <span>{b.name}</span>
@@ -283,23 +326,29 @@ const LeaderboardList: React.FC<{
   myProfileId?: string;
 }> = ({ leaders, mode, onModeChange, myProfileId }) => (
   <div>
-    <div className="flex gap-2 mb-3">
-      {(['classic', 'teams'] as const).map((m) => (
-        <button
-          key={m}
-          onClick={() => onModeChange(m)}
-          className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
-            mode === m
-              ? 'bg-yellow-600 text-white'
-              : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
-          }`}
-        >
-          {m}
-        </button>
-      ))}
+    <div className="flex gap-1 p-0.5 bg-black/45 border border-[rgba(212,175,55,0.15)] rounded mb-3">
+      {(['classic', 'teams'] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            onClick={() => onModeChange(m)}
+            className={`flex-1 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition border-none cursor-pointer ${
+              active
+                ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-extrabold shadow-sm'
+                : 'bg-transparent text-[var(--ivory-300)] hover:text-white'
+            }`}
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            {m}
+          </button>
+        );
+      })}
     </div>
     {leaders.length === 0 ? (
-      <div className="text-indigo-400 text-sm text-center py-4">No ranked players yet.</div>
+      <div className="text-[var(--ivory-300)] text-xs text-center py-4 italic opacity-60">
+        No ranked players yet.
+      </div>
     ) : (
       <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
         {leaders.map((p, i) => {
@@ -308,13 +357,27 @@ const LeaderboardList: React.FC<{
           return (
             <div
               key={p._id}
-              className={`flex items-center gap-2 px-3 py-2 rounded text-xs ${
-                isMe ? 'bg-yellow-900/40 border border-yellow-700' : 'bg-indigo-900/50'
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition ${
+                isMe
+                  ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-black border border-[var(--gold-400)] shadow-sm'
+                  : 'bg-black/25 border border-[rgba(212,175,55,0.15)]'
               }`}
             >
-              <span className="text-indigo-500 w-4 text-right shrink-0">{i + 1}</span>
-              <span className="flex-1 font-semibold truncate">{p.username}</span>
-              <span className="text-yellow-400 font-bold">★ {elo}</span>
+              <span
+                className={`w-4 text-right shrink-0 font-mono font-bold ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--gold-400)]'}`}
+              >
+                {i + 1}
+              </span>
+              <span
+                className={`flex-1 font-bold truncate ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--ivory-100)]'}`}
+              >
+                {p.username}
+              </span>
+              <span
+                className={`font-extrabold font-display shrink-0 ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--gold-300)]'}`}
+              >
+                ★ {elo}
+              </span>
             </div>
           );
         })}

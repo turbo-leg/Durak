@@ -4,13 +4,16 @@ import './index.css';
 import App from './App.tsx';
 import { GameProvider } from './contexts/GameContext.tsx';
 import { AuthProvider } from './contexts/AuthContext.tsx';
+import { CardBackProvider } from './contexts/CardBackContext.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <GameProvider>
-        <App />
-      </GameProvider>
+      <CardBackProvider>
+        <GameProvider>
+          <App />
+        </GameProvider>
+      </CardBackProvider>
     </AuthProvider>
   </StrictMode>,
 );

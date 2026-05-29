@@ -7,6 +7,7 @@ export interface ShopItem {
   description: string;
   price: number;
   preview: string; // emoji or hex color or url key
+  image?: string; // path relative to /assets/ for image previews
 }
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -18,6 +19,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Timeless red diamond pattern',
     price: 0,
     preview: '#c0392b',
+    image: 'cardbacks/cardback_classic.png',
   },
   {
     id: 'cardback_midnight',
@@ -26,6 +28,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Deep navy card back',
     price: 200,
     preview: '#1a237e',
+    image: 'cardbacks/cardback_midnight.png',
   },
   {
     id: 'cardback_forest',
@@ -34,6 +37,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Rich emerald finish',
     price: 200,
     preview: '#1b5e20',
+    image: 'cardbacks/cardback_forest.png',
   },
   {
     id: 'cardback_gold',
@@ -42,6 +46,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Shimmering gold card back',
     price: 500,
     preview: '#f9a825',
+    image: 'cardbacks/cardback_gold.png',
   },
   {
     id: 'cardback_galaxy',
@@ -50,6 +55,25 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Cosmic purple starfield',
     price: 800,
     preview: '#4a148c',
+    image: 'cardbacks/cardback_galaxy.png',
+  },
+  {
+    id: 'cardback_obsidian',
+    type: 'cardBack',
+    name: 'Obsidian',
+    description: 'Sleek black finish',
+    price: 600,
+    preview: '#111111',
+    image: 'cardbacks/cardback_obsidian.png',
+  },
+  {
+    id: 'cardback_filigree',
+    type: 'cardBack',
+    name: 'Imperial Filigree',
+    description: 'Gold baroque filigree on premium dark leather',
+    price: 1500,
+    preview: '#d4af37',
+    image: 'cardbacks/cardback_filigree.png',
   },
 
   // Table skins
@@ -102,6 +126,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Good game!',
     price: 0,
     preview: '🤝',
+    image: 'emotes/emote_gg.png',
   },
   {
     id: 'emote_fire',
@@ -110,6 +135,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'That was lit',
     price: 150,
     preview: '🔥',
+    image: 'emotes/emote_fire.png',
   },
   {
     id: 'emote_think',
@@ -118,6 +144,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Hmm...',
     price: 150,
     preview: '🤔',
+    image: 'emotes/emote_think.png',
   },
   {
     id: 'emote_laugh',
@@ -126,6 +153,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "That's hilarious",
     price: 150,
     preview: '😂',
+    image: 'emotes/emote_laugh.png',
   },
   {
     id: 'emote_crown',
@@ -134,6 +162,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'All hail the winner',
     price: 400,
     preview: '👑',
+    image: 'emotes/emote_crown.png',
   },
   {
     id: 'emote_skull',
@@ -142,6 +171,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'You are cooked',
     price: 400,
     preview: '💀',
+    image: 'emotes/emote_skull.png',
   },
   {
     id: 'emote_100',
@@ -150,7 +180,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: 'Flawless play',
     price: 600,
     preview: '💯',
+    image: 'emotes/emote_100.png',
   },
 ];
-
 export const FREE_ITEM_IDS = new Set(SHOP_ITEMS.filter((i) => i.price === 0).map((i) => i.id));
