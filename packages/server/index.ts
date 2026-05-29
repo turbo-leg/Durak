@@ -13,7 +13,11 @@ import pino from 'pino';
 import * as Sentry from '@sentry/node';
 
 import { DurakRoom } from './src/rooms/DurakRoom';
-import 'dotenv/config';
+// Load .env from the monorepo root first (local dev), then fall back to cwd (Docker/prod).
+// ts-node runs from packages/server/ so ../../.env resolves to the repo root.
+import dotenv from 'dotenv';
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config(); // cwd fallback — picks up any local packages/server/.env overrides
 import mongoose from 'mongoose';
 import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
