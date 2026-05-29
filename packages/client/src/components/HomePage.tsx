@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 import { LoginPanel } from './LoginPanel';
@@ -210,76 +210,21 @@ function SearchingOverlay({ onCancel, label }: { onCancel: () => void; label: st
 // ── Ranked config sheet ───────────────────────────────────────────────────────
 
 function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions) => void }) {
-  const [mode, setMode] = useState<'classic' | 'teams'>('classic');
   const [maxPlayers, setMaxPlayers] = useState(4);
-  const [handSize, setHandSize] = useState(6);
+  const [handSize, setHandSize] = useState(5);
 
-  const playerOptions = getAvailablePlayers(mode);
-  const handSizeOptions = getAvailableHandSizes(mode, maxPlayers);
+  const playerOptions = [2, 3, 4, 5, 6];
+  const handSizeOptions = getAvailableHandSizes('classic', maxPlayers);
   const effectiveHandSize = handSizeOptions.includes(handSize) ? handSize : handSizeOptions[0]!;
-
-  const handleModeChange = (m: 'classic' | 'teams') => {
-    setMode(m);
-    const opts = getAvailablePlayers(m);
-    const np = opts.includes(maxPlayers) ? maxPlayers : opts[0]!;
-    if (np !== maxPlayers) setMaxPlayers(np);
-    const hs = getAvailableHandSizes(m, np);
-    if (!hs.includes(handSize)) setHandSize(hs[0]!);
-  };
 
   const handlePlayerChange = (n: number) => {
     setMaxPlayers(n);
-    const hs = getAvailableHandSizes(mode, n);
+    const hs = getAvailableHandSizes('classic', n);
     if (!hs.includes(handSize)) setHandSize(hs[0]!);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-      <div>
-        <SectionLabel>Game Mode</SectionLabel>
-        <div style={{ display: 'flex', gap: 12 }}>
-          {(['classic', 'teams'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => handleModeChange(m)}
-              style={{
-                flex: 1,
-                padding: '16px 12px',
-                borderRadius: radii.md,
-                cursor: 'pointer',
-                background: mode === m ? gradients.gold : 'rgba(255,255,255,0.03)',
-                color: mode === m ? colors.ink[900] : colors.ivory[200],
-                border: `1.5px solid ${
-                  mode === m ? 'rgba(212,175,55,0.85)' : 'rgba(212,175,55,0.18)'
-                }`,
-                fontFamily: fonts.body,
-                fontWeight: 800,
-                fontSize: 14,
-                letterSpacing: 0.6,
-                textShadow:
-                  mode === m ? '0 1px 0 rgba(255,255,255,0.3)' : '0 1px 2px rgba(0,0,0,0.6)',
-                boxShadow: mode === m ? `${shadows.engrave}, ${shadows.goldGlow}` : shadows.engrave,
-                transition: 'all 0.18s',
-              }}
-            >
-              {m === 'classic' ? '♠  CLASSIC' : '⚔  TEAMS'}
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  marginTop: 5,
-                  opacity: 0.75,
-                  letterSpacing: 1,
-                  textTransform: 'uppercase',
-                }}
-              >
-                {m === 'classic' ? 'Free for all' : '3v3 / 2v2'}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div>
         <SectionLabel>Players at the Table</SectionLabel>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -355,7 +300,7 @@ function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions)
       <GoldButton
         size="lg"
         block
-        onClick={() => onFindMatch({ mode, maxPlayers, handSize: effectiveHandSize })}
+        onClick={() => onFindMatch({ mode: 'classic', maxPlayers, handSize: effectiveHandSize })}
       >
         ♛ Find a Match
       </GoldButton>
@@ -878,10 +823,11 @@ const ModeCard: React.FC<{
 // ── Main HomePage ─────────────────────────────────────────────────────────────
 
 export const HomePage: React.FC<HomePageProps> = ({ discordId, userId, error }) => {
-  const { joinOrCreateGame } = useGame();
+  const { joinOrCreateGame, leaveGame } = useGame();
   const [phase, setPhase] = useState<'intro' | 'home'>('intro');
   const [homeState, setHomeState] = useState<HomeState>('home');
   const [sheet, setSheet] = useState<SheetKey>(null);
+  const cancelRef = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setPhase('home'), 1300);
@@ -891,7 +837,42 @@ export const HomePage: React.FC<HomePageProps> = ({ discordId, userId, error }) 
   const handleFindMatch = async (opts: RankedOptions) => {
     setSheet(null);
     setHomeState('searching');
-    await joinOrCreateGame({ ...opts, isPrivate: false, teamSelection: 'random' });
+    cancelRef.current = false;
+
+    // Fetch the player's ELO to compute their matchmaking tier (±200 band).
+    // Unauthenticated players and new accounts default to tier 1000 (starting ELO).
+    let eloTier = 1000;
+    if (discordId || userId) {
+      try {
+        const id = discordId ?? userId!;
+        const byParam = discordId ? '' : '?by=user';
+        const res = await fetch(`/api/profile/${id}${byParam}`);
+        if (res.ok) {
+          const profile = await res.json();
+          const elo: number = profile?.eloClassic ?? 1000;
+          eloTier = Math.floor(elo / 200) * 200;
+        }
+      } catch {
+        // network error — fall back to default tier
+      }
+    }
+
+    if (cancelRef.current) {
+      setHomeState('home');
+      return;
+    }
+
+    await joinOrCreateGame({ ...opts, isPrivate: false, teamSelection: 'random', eloTier });
+
+    // If the user cancelled while joinOrCreate was in flight, immediately leave.
+    if (cancelRef.current) {
+      leaveGame();
+    }
+  };
+
+  const handleCancelMatch = () => {
+    cancelRef.current = true;
+    leaveGame();
     setHomeState('home');
   };
 
@@ -1042,7 +1023,7 @@ export const HomePage: React.FC<HomePageProps> = ({ discordId, userId, error }) 
           <SearchingOverlay
             key="searching"
             label="Seeking Opponents"
-            onCancel={() => setHomeState('home')}
+            onCancel={handleCancelMatch}
           />
         )}
 

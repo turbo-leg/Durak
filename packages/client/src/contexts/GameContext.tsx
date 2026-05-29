@@ -441,6 +441,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         discordInstanceId,
         username,
         avatarUrl,
+        isPrivate: true,
         ...(discordId ? { discordId } : {}),
       });
       handleRoomEvents(roomInstance);
