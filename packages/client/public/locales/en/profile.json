@@ -1,0 +1,51 @@
+{
+  "signInPrompt": "Sign in to view your profile and stats",
+  "loading": "LOADING PLAYER CARD…",
+  "tabs": {
+    "stats": "stats",
+    "history": "history",
+    "leaderboard": "leaderboard"
+  },
+  "stats": {
+    "games": "Games",
+    "winRate": "Win Rate",
+    "wins": "Wins",
+    "durakRate": "Durak Rate",
+    "durakCount": "Durak Count",
+    "losses": "Losses",
+    "winStreak": "Win Streak",
+    "cleanStreak": "Clean Streak",
+    "eloClassic": "Classic ELO",
+    "eloTeams": "Teams ELO",
+    "noStats": "No stats yet — play a game to get started",
+    "badges": "Earned Badges"
+  },
+  "history": {
+    "filterMode": {
+      "all": "All Modes",
+      "classic": "classic",
+      "teams": "teams"
+    },
+    "filterResult": {
+      "all": "All Results",
+      "win": "win",
+      "durak": "durak",
+      "loss": "loss"
+    },
+    "result": {
+      "win": "Win",
+      "durak": "Durak",
+      "loss": "Loss"
+    },
+    "mode": "Mode",
+    "of": "of {{total}} games",
+    "noHistory": "No match history yet"
+  },
+  "leaderboard": {
+    "noPlayers": "No ranked players yet",
+    "mode": {
+      "classic": "classic",
+      "teams": "teams"
+    }
+  }
+}

@@ -9,6 +9,8 @@ import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
 import { CardBack } from './CardBack';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
+import { useSettings } from '../contexts/SettingsContext';
+import { useTranslation } from 'react-i18next';
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -44,6 +46,8 @@ export const GameBoard: React.FC = () => {
     disconnectedOpponent,
     leaveGame,
   } = useGame();
+  const { settings } = useSettings();
+  const { t } = useTranslation('game');
   const [selectedCards, setSelectedCards] = useState<SharedCard[]>([]);
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
@@ -56,7 +60,7 @@ export const GameBoard: React.FC = () => {
     playVictorySound,
     playDefeatSound,
     playDiscardSound,
-  } = useAudio();
+  } = useAudio(settings.soundEffects);
   const isDesktop = useIsDesktop();
   const warningPlayedRef = React.useRef(false);
   const gameResultKeyRef = React.useRef<string | null>(null);
@@ -422,7 +426,7 @@ export const GameBoard: React.FC = () => {
   };
   const devCopyLog = () => {
     const logStr = Array.from(gameState.actionLog || []).join('\n');
-    navigator.clipboard.writeText(logStr).then(() => alert('Game Log Copied to Clipboard!'));
+    navigator.clipboard.writeText(logStr).then(() => alert(t('messages.logCopied')));
   };
   const handleDevCardClick = (oppId: string, card: SharedCard) => {
     if (!isDevMode || !isHost) return;
@@ -476,31 +480,31 @@ export const GameBoard: React.FC = () => {
         {isDevMode && (
           <div className="absolute top-12 right-2 bg-red-950/90 text-white p-2 rounded-xl border-2 border-red-500 shadow-2xl z-[60] flex flex-col space-y-1 backdrop-blur-md w-40 text-[10px]">
             <div className="font-bold uppercase tracking-widest border-b border-red-500/50 pb-1 text-red-300">
-              Dev Tools
+              {t('lobby.devTools')}
             </div>
             <button
               onClick={() => devSpawnDummies('dummy')}
               className="bg-purple-800 hover:bg-purple-700 px-2 py-1 rounded transition border border-purple-600"
             >
-              Spawn Dummy
+              {t('lobby.devDummy')}
             </button>
             <button
               onClick={() => devSpawnDummies('easy')}
               className="bg-red-800 hover:bg-red-700 px-2 py-1 rounded transition border border-red-600"
             >
-              Spawn Easy Bot
+              {t('lobby.devEasyBot')}
             </button>
             <button
               onClick={() => devSpawnDummies('hard')}
               className="bg-orange-800 hover:bg-orange-700 px-2 py-1 rounded transition border border-orange-600"
             >
-              Spawn Hard Bot
+              {t('lobby.devHardBot')}
             </button>
             <button
               onClick={devCopyLog}
               className="bg-blue-800 hover:bg-blue-700 px-2 py-1 rounded transition border border-blue-600"
             >
-              Copy Log ({gameState.actionLog?.length || 0})
+              {t('lobby.devCopyLog', { count: gameState.actionLog?.length || 0 })}
             </button>
           </div>
         )}
@@ -531,7 +535,7 @@ export const GameBoard: React.FC = () => {
                 }}
               >
                 <span style={{ fontSize: 22 }}>🏆</span>
-                <span style={{ color: '#f4d774' }}>Ranked</span>
+                <span style={{ color: '#f4d774' }}>{t('lobby.ranked')}</span>
                 <span
                   style={{
                     fontSize: 9,
@@ -544,7 +548,7 @@ export const GameBoard: React.FC = () => {
                     border: '1px solid rgba(212,175,55,0.3)',
                   }}
                 >
-                  {gameState.mode === 'teams' ? 'Teams' : 'Classic'}
+                  {gameState.mode === 'teams' ? t('lobby.teams') : t('lobby.classic')}
                 </span>
               </h1>
             ) : (
@@ -651,7 +655,7 @@ export const GameBoard: React.FC = () => {
                 position: 'relative',
               }}
             >
-              Game Settings
+              {t('lobby.gameSettings')}
             </h2>
             <div className="flex-1" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {(() => {
@@ -701,47 +705,47 @@ export const GameBoard: React.FC = () => {
                 return (
                   <>
                     <div>
-                      <label style={labelStyle}>Game Mode</label>
+                      <label style={labelStyle}>{t('lobby.gameMode')}</label>
                       {canEdit ? (
                         <select
                           value={gameState.mode}
                           onChange={(e) => updateLobbySettings({ mode: e.target.value })}
                           style={selectStyle}
                         >
-                          <option value="classic">Classic (Free-for-all)</option>
-                          <option value="teams">Teams (2v2, 3v3)</option>
+                          <option value="classic">{t('lobby.modeClassic')}</option>
+                          <option value="teams">{t('lobby.modeTeams')}</option>
                         </select>
                       ) : (
                         <div style={lockedStyle}>
                           {gameState.mode === 'teams'
-                            ? 'Teams (2v2, 3v3)'
-                            : 'Classic (Free-for-all)'}
+                            ? t('lobby.modeTeams')
+                            : t('lobby.modeClassic')}
                         </div>
                       )}
                     </div>
                     {gameState.mode === 'teams' && (
                       <div>
-                        <label style={labelStyle}>Team Selection</label>
+                        <label style={labelStyle}>{t('lobby.teamSelection')}</label>
                         {canEdit ? (
                           <select
                             value={gameState.teamSelection}
                             onChange={(e) => updateLobbySettings({ teamSelection: e.target.value })}
                             style={selectStyle}
                           >
-                            <option value="random">Random Assignment</option>
-                            <option value="manual">Manual Selection</option>
+                            <option value="random">{t('lobby.randomAssignment')}</option>
+                            <option value="manual">{t('lobby.manualSelection')}</option>
                           </select>
                         ) : (
                           <div style={lockedStyle}>
                             {gameState.teamSelection === 'manual'
-                              ? 'Manual Selection'
-                              : 'Random Assignment'}
+                              ? t('lobby.manualSelection')
+                              : t('lobby.randomAssignment')}
                           </div>
                         )}
                       </div>
                     )}
                     <div>
-                      <label style={labelStyle}>Players at the Table</label>
+                      <label style={labelStyle}>{t('lobby.playersAtTable')}</label>
                       {canEdit ? (
                         <select
                           value={gameState.maxPlayers}
@@ -752,16 +756,18 @@ export const GameBoard: React.FC = () => {
                         >
                           {[2, 3, 4, 5, 6].map((n) => (
                             <option key={n} value={n}>
-                              {n} Players
+                              {t('lobby.nPlayers', { count: n })}
                             </option>
                           ))}
                         </select>
                       ) : (
-                        <div style={lockedStyle}>{gameState.maxPlayers} Players</div>
+                        <div style={lockedStyle}>
+                          {t('lobby.nPlayers', { count: gameState.maxPlayers })}
+                        </div>
                       )}
                     </div>
                     <div>
-                      <label style={labelStyle}>Cards in Hand</label>
+                      <label style={labelStyle}>{t('lobby.cardsInHand')}</label>
                       {canEdit ? (
                         <select
                           value={gameState.targetHandSize}
@@ -772,12 +778,14 @@ export const GameBoard: React.FC = () => {
                         >
                           {[5, 7].map((n) => (
                             <option key={n} value={n}>
-                              {n} Cards
+                              {t('lobby.nCards', { count: n })}
                             </option>
                           ))}
                         </select>
                       ) : (
-                        <div style={lockedStyle}>{gameState.targetHandSize} Cards</div>
+                        <div style={lockedStyle}>
+                          {t('lobby.nCards', { count: gameState.targetHandSize })}
+                        </div>
                       )}
                     </div>
                   </>
@@ -789,16 +797,14 @@ export const GameBoard: React.FC = () => {
                   <h3 className="text-[11px] font-black text-orange-300 uppercase tracking-wider border-b border-orange-500/25 pb-1.5">
                     Developer
                   </h3>
-                  <p className="text-[9px] text-gray-500 leading-snug">
-                    Dummies are manually controlled via the in-game dev panel. Bots play with AI.
-                  </p>
+                  <p className="text-[9px] text-gray-500 leading-snug">{t('lobby.devNote')}</p>
                   <button
                     type="button"
                     onClick={() => devSpawnDummies('dummy')}
                     disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
                     className="w-full bg-purple-900/55 hover:bg-purple-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-purple-50 text-xs font-bold py-2 px-3 rounded-lg border border-purple-500/40 transition"
                   >
-                    Spawn dummy (manual control)
+                    {t('lobby.devDummy')}
                   </button>
                   <button
                     type="button"
@@ -806,7 +812,7 @@ export const GameBoard: React.FC = () => {
                     disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
                     className="w-full bg-orange-900/55 hover:bg-orange-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-orange-50 text-xs font-bold py-2 px-3 rounded-lg border border-orange-500/40 transition"
                   >
-                    Spawn easy bots (fill to {gameState.maxPlayers})
+                    {t('lobby.devEasyBot')}
                   </button>
                   <button
                     type="button"
@@ -814,14 +820,14 @@ export const GameBoard: React.FC = () => {
                     disabled={!isHost || gameState.players.size >= gameState.maxPlayers}
                     className="w-full bg-red-900/55 hover:bg-red-800/70 disabled:opacity-40 disabled:cursor-not-allowed text-red-50 text-xs font-bold py-2 px-3 rounded-lg border border-red-500/40 transition"
                   >
-                    Spawn hard bots (fill to {gameState.maxPlayers})
+                    {t('lobby.devHardBot')}
                   </button>
                   <button
                     type="button"
                     onClick={devCopyLog}
                     className="w-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-bold py-2 px-3 rounded-lg border border-slate-500/35 transition"
                   >
-                    Copy action log ({gameState.actionLog?.length || 0})
+                    {t('lobby.devCopyLog', { count: gameState.actionLog?.length || 0 })}
                   </button>
                 </div>
               )}
@@ -852,7 +858,7 @@ export const GameBoard: React.FC = () => {
                   textShadow: '0 1px 2px rgba(0,0,0,0.6)',
                 }}
               >
-                Lobby
+                {t('lobby.title')}
                 <span
                   style={{
                     fontSize: 11,
@@ -955,7 +961,7 @@ export const GameBoard: React.FC = () => {
                                 textShadow: '0 1px 0 rgba(255,255,255,0.3)',
                               }}
                             >
-                              Host
+                              {t('lobby.host')}
                             </span>
                           )}
                           {isMe && !isHostP && (
@@ -972,7 +978,7 @@ export const GameBoard: React.FC = () => {
                                 textTransform: 'uppercase',
                               }}
                             >
-                              YOU
+                              {t('lobby.you')}
                             </span>
                           )}
                         </div>
@@ -994,7 +1000,7 @@ export const GameBoard: React.FC = () => {
                               textShadow: '0 1px 0 rgba(255,255,255,0.3)',
                             }}
                           >
-                            Ready
+                            {t('lobby.statusReady')}
                           </span>
                         ) : (
                           <span
@@ -1012,7 +1018,7 @@ export const GameBoard: React.FC = () => {
                               opacity: 0.85,
                             }}
                           >
-                            Waiting
+                            {t('lobby.statusWaiting')}
                           </span>
                         )}
                       </div>
@@ -1107,7 +1113,7 @@ export const GameBoard: React.FC = () => {
                         color: '#d8c89c',
                       }}
                     >
-                      👁 Spectating
+                      {t('lobby.spectating')}
                     </div>
                   );
                 }
@@ -1138,7 +1144,10 @@ export const GameBoard: React.FC = () => {
                           textShadow: '0 1px 2px rgba(0,0,0,0.6)',
                         }}
                       >
-                        Awaiting players… {gameState.players.size} / {gameState.maxPlayers}
+                        {t('lobby.awaitingPlayers', {
+                          count: gameState.players.size,
+                          max: gameState.maxPlayers,
+                        })}
                       </span>
                     </div>
                   );
@@ -1153,14 +1162,14 @@ export const GameBoard: React.FC = () => {
                         onClick={handleToggleReady}
                         style={myPlayer?.isReady ? readyChip : ghostBtn}
                       >
-                        {myPlayer?.isReady ? '✓ Ready' : 'Mark Ready'}
+                        {myPlayer?.isReady ? t('lobby.ready') : t('lobby.markReady')}
                       </button>
                       <button
                         onClick={startLobbyGame}
                         disabled={!canStart}
                         style={{ ...(canStart ? goldBtn : disabledBtn), flex: 1 }}
                       >
-                        ♛ Start Game
+                        {t('lobby.startGame')}
                       </button>
                     </div>
                   );
@@ -1175,7 +1184,7 @@ export const GameBoard: React.FC = () => {
                       padding: '14px 20px',
                     }}
                   >
-                    {myPlayer?.isReady ? '✓ Ready to Play' : 'Tap to Ready'}
+                    {myPlayer?.isReady ? t('lobby.readyToPlay') : t('lobby.tapToReady')}
                   </button>
                 );
               })()}
@@ -1309,7 +1318,7 @@ export const GameBoard: React.FC = () => {
                   textShadow: '0 2px 8px rgba(0,0,0,0.7)',
                 }}
               >
-                Game Aborted
+                {t('result.gameAborted')}
               </div>
               <div
                 style={{
@@ -1340,7 +1349,7 @@ export const GameBoard: React.FC = () => {
                 cursor: 'pointer',
               }}
             >
-              Back to Menu
+              {t('result.backToMenu')}
             </button>
           </div>
         </div>
@@ -1360,7 +1369,7 @@ export const GameBoard: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
-          {isMyTurn && (
+          {isMyTurn && settings.showTimer && (
             <motion.div
               animate={shouldShake ? { x: [0, -2, 2, -2, 0] } : { x: 0 }}
               transition={shouldShake ? { duration: 0.3, repeat: Infinity } : { duration: 0 }}
@@ -1438,7 +1447,7 @@ export const GameBoard: React.FC = () => {
                 boxShadow: '0 0 14px rgba(212,175,55,0.55)',
               }}
             >
-              YOUR TURN
+              {t('messages.yourTurn')}
             </span>
           )}
           {(gameState.spectatorCount ?? 0) > 0 && (
@@ -1530,7 +1539,7 @@ export const GameBoard: React.FC = () => {
             onClick={devCopyLog}
             className="bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded-lg transition border border-slate-500/45 font-bold text-left"
           >
-            Copy log ({gameState.actionLog?.length || 0})
+            {t('lobby.devCopyLog', { count: gameState.actionLog?.length || 0 })}
           </button>
         </div>
       )}
@@ -2341,7 +2350,7 @@ export const GameBoard: React.FC = () => {
                   textTransform: 'uppercase',
                 }}
               >
-                Connection lost — reconnecting…
+                {t('messages.connectionLost')}
               </span>
             </div>
           </motion.div>
@@ -2379,18 +2388,7 @@ export const GameBoard: React.FC = () => {
                 }}
               />
               <span style={{ fontSize: 13 }}>
-                Waiting for{' '}
-                <span
-                  style={{
-                    fontWeight: 800,
-                    color: '#f4d774',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                  }}
-                >
-                  {disconnectedOpponent}
-                </span>{' '}
-                to reconnect{' '}
-                <span style={{ color: '#d8c89c', fontSize: 11, opacity: 0.75 }}>(30s)</span>
+                {t('messages.opponentDisconnected', { name: disconnectedOpponent })}
               </span>
             </div>
           </motion.div>
@@ -2412,7 +2410,11 @@ export const GameBoard: React.FC = () => {
             const isWinner = !isLoser && !isDraw;
             const accent = isLoser ? '#b13030' : isDraw ? '#3b82f6' : '#d4af37';
             const icon = isLoser ? '🥴' : isDraw ? '🤝' : '👑';
-            const title = isLoser ? 'You Are the Durak' : isDraw ? 'Draw' : 'You Survived';
+            const title = isLoser
+              ? t('result.youAreDurak')
+              : isDraw
+                ? t('result.draw')
+                : t('result.youSurvived');
             // Determine whose loser name to show
             const loserName =
               gameState.players.get(gameState.loser ?? '')?.username ??
@@ -2481,10 +2483,10 @@ export const GameBoard: React.FC = () => {
                     }}
                   >
                     {isDraw
-                      ? "A gentleman's tie."
+                      ? t('result.messageDraw')
                       : isLoser
-                        ? 'Better luck next round.'
-                        : `${loserName} is the Durak`}
+                        ? t('result.messageLost')
+                        : t('result.messageWon', { loser: loserName })}
                   </p>
                 </div>
 
@@ -2513,7 +2515,7 @@ export const GameBoard: React.FC = () => {
                         opacity: 0.7,
                       }}
                     >
-                      Ranked ELO
+                      {t('result.rankedElo')}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span
@@ -2603,7 +2605,10 @@ export const GameBoard: React.FC = () => {
                         textTransform: 'uppercase',
                       }}
                     >
-                      {rematchState.votes} / {rematchState.needed} want a rematch
+                      {t('result.rematchVotes', {
+                        votes: rematchState.votes,
+                        needed: rematchState.needed,
+                      })}
                     </div>
                     {rematchState.voters.length > 0 && (
                       <div
@@ -2647,7 +2652,7 @@ export const GameBoard: React.FC = () => {
                           textAlign: 'center',
                         }}
                       >
-                        ✓ Waiting…
+                        {t('result.rematchWaiting')}
                       </div>
                     ) : (
                       <button
@@ -2677,7 +2682,7 @@ export const GameBoard: React.FC = () => {
                         onMouseUp={(e) => (e.currentTarget.style.transform = '')}
                         onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
                       >
-                        ♛ Rematch
+                        {t('result.rematch')}
                       </button>
                     ))}
                   <button
@@ -2707,7 +2712,7 @@ export const GameBoard: React.FC = () => {
                     onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
                     onMouseUp={(e) => (e.currentTarget.style.transform = '')}
                   >
-                    Leave
+                    {t('result.leave')}
                   </button>
                 </div>
               </div>

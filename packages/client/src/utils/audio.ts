@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-export const useAudio = () => {
+export const useAudio = (enabled = true) => {
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -110,46 +110,53 @@ export const useAudio = () => {
 
   // Card dealt — soft papery rustle
   const playDealSound = useCallback(() => {
+    if (!enabled) return;
     playNoise(800, 0.18, 0.35);
-  }, [playNoise]);
+  }, [playNoise, enabled]);
 
   // Card played to the table — gentle tap
   const playCardSound = useCallback(() => {
+    if (!enabled) return;
     playNoise(600, 0.12, 0.3);
-  }, [playNoise]);
+  }, [playNoise, enabled]);
 
   // Cards picked up — soft low whoosh
   const playPickupSound = useCallback(() => {
+    if (!enabled) return;
     playNoise(280, 0.22, 0.25);
-  }, [playNoise]);
+  }, [playNoise, enabled]);
 
   // Timer warning — muted soft chime, not a harsh beep
   const playTimerWarning = useCallback(() => {
+    if (!enabled) return;
     playTone(660, 0, 0.2, 0.15, 'sine');
-  }, [playTone]);
+  }, [playTone, enabled]);
 
   // Victory — gentle ascending C-E-G-C, sine for warmth
   const playVictorySound = useCallback(() => {
+    if (!enabled) return;
     [
       [523, 0],
       [659, 0.16],
       [784, 0.32],
       [1047, 0.48],
     ].forEach(([freq, t]) => playTone(freq, t, 0.4, 0.18, 'sine'));
-  }, [playTone]);
+  }, [playTone, enabled]);
 
   // Defeat — soft descending C-A-F-C
   const playDefeatSound = useCallback(() => {
+    if (!enabled) return;
     [
       [523, 0],
       [440, 0.2],
       [349, 0.4],
       [262, 0.6],
     ].forEach(([freq, t]) => playTone(freq, t, 0.42, 0.14, 'sine'));
-  }, [playTone]);
+  }, [playTone, enabled]);
 
   // Discard — bright rising swoosh + soft body thump (cards swept off the table)
   const playDiscardSound = useCallback(() => {
+    if (!enabled) return;
     const ctx = getCtx();
     if (!ctx) return;
     const comp = getCompressor(ctx);
@@ -177,7 +184,7 @@ export const useAudio = () => {
     filter.connect(gain);
     gain.connect(comp);
     src.start();
-  }, [getCtx, getCompressor]);
+  }, [getCtx, getCompressor, enabled]);
 
   return {
     playDealSound,

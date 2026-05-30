@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
 import { BADGES } from '@durak/shared';
+import { useTranslation } from 'react-i18next';
 
 interface ProfileStats {
   gamesPlayed: number;
@@ -48,6 +49,7 @@ const API = '/api';
 export const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
   const { latestStats } = useGame();
+  const { t } = useTranslation('profile');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<MatchRecord[]>([]);
   const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
@@ -99,9 +101,7 @@ export const ProfilePage: React.FC = () => {
         >
           ♠
         </div>
-        <p className="text-[var(--ivory-200)] font-semibold tracking-wide">
-          Sign in to view your profile and stats.
-        </p>
+        <p className="text-[var(--ivory-200)] font-semibold tracking-wide">{t('signInPrompt')}</p>
       </div>
     );
   }
@@ -198,12 +198,12 @@ export const ProfilePage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex gap-1.5 p-1 mx-4 mt-6 rounded-xl bg-black/45 border border-[rgba(212,175,55,0.15)] shadow-inner">
-        {(['stats', 'history', 'leaderboard'] as const).map((t) => {
-          const active = tab === t;
+        {(['stats', 'history', 'leaderboard'] as const).map((tabKey) => {
+          const active = tab === tabKey;
           return (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={`flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition duration-150 border-none cursor-pointer ${
                 active
                   ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] shadow-md font-extrabold'
@@ -213,7 +213,7 @@ export const ProfilePage: React.FC = () => {
                 fontFamily: 'var(--font-display)',
               }}
             >
-              {t}
+              {t(`tabs.${tabKey}`)}
             </button>
           );
         })}
@@ -222,7 +222,7 @@ export const ProfilePage: React.FC = () => {
       <div className="px-4 pt-4">
         {loading ? (
           <div className="text-[var(--gold-400)] text-sm text-center py-12 animate-pulse font-bold tracking-widest">
-            LOADING PLAYER CARD…
+            {t('loading')}
           </div>
         ) : tab === 'stats' ? (
           stats ? (
@@ -262,18 +262,26 @@ export const ProfilePage: React.FC = () => {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
-                <StatCard label="Games" value={stats.gamesPlayed} />
-                <StatCard label="Win Rate" value={`${winRate}%`} highlight={winRate >= 50} />
-                <StatCard label="Wins" value={stats.wins} highlight />
-                <StatCard label="Durak Rate" value={`${durakRate}%`} dim={durakRate > 30} />
-                <StatCard label="Durak Count" value={stats.durakCount} dim />
-                <StatCard label="Losses" value={stats.losses} dim />
+                <StatCard label={t('stats.games')} value={stats.gamesPlayed} />
                 <StatCard
-                  label="Win Streak"
+                  label={t('stats.winRate')}
+                  value={`${winRate}%`}
+                  highlight={winRate >= 50}
+                />
+                <StatCard label={t('stats.wins')} value={stats.wins} highlight />
+                <StatCard
+                  label={t('stats.durakRate')}
+                  value={`${durakRate}%`}
+                  dim={durakRate > 30}
+                />
+                <StatCard label={t('stats.durakCount')} value={stats.durakCount} dim />
+                <StatCard label={t('stats.losses')} value={stats.losses} dim />
+                <StatCard
+                  label={t('stats.winStreak')}
                   value={stats.winStreak}
                   highlight={stats.winStreak >= 3}
                 />
-                <StatCard label="Clean Streak" value={stats.durakFreeStreak} />
+                <StatCard label={t('stats.cleanStreak')} value={stats.durakFreeStreak} />
               </div>
               <div className="casino-panel p-4 flex justify-between border-[rgba(212,175,55,0.22)]">
                 <div>
@@ -284,7 +292,7 @@ export const ProfilePage: React.FC = () => {
                     ★ {eloClassic}
                   </div>
                   <div className="text-[var(--ivory-300)] text-[10px] font-bold uppercase tracking-widest mt-1 opacity-75">
-                    Classic ELO
+                    {t('stats.eloClassic')}
                   </div>
                 </div>
                 <div className="text-right">
@@ -295,7 +303,7 @@ export const ProfilePage: React.FC = () => {
                     ★ {eloTeams}
                   </div>
                   <div className="text-[var(--ivory-300)] text-[10px] font-bold uppercase tracking-widest mt-1 opacity-75">
-                    Teams ELO
+                    {t('stats.eloTeams')}
                   </div>
                 </div>
               </div>
@@ -303,7 +311,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           ) : (
             <div className="text-[var(--ivory-300)] text-sm text-center py-12 italic opacity-60">
-              No stats yet — play a game to get started.
+              {t('stats.noStats')}
             </div>
           )
         ) : tab === 'history' ? (
@@ -322,7 +330,7 @@ export const ProfilePage: React.FC = () => {
                     }`}
                     style={{ fontFamily: 'var(--font-display)' }}
                   >
-                    {m === 'all' ? 'All Modes' : m}
+                    {m === 'all' ? t('history.filterMode.all') : t(`history.filterMode.${m}`)}
                   </button>
                 ))}
               </div>
@@ -344,12 +352,12 @@ export const ProfilePage: React.FC = () => {
                     }`}
                     style={{ fontFamily: 'var(--font-display)' }}
                   >
-                    {r === 'all' ? 'All Results' : r}
+                    {r === 'all' ? t('history.filterResult.all') : t(`history.filterResult.${r}`)}
                   </button>
                 ))}
               </div>
               <div className="text-[var(--ivory-300)] text-[10px] opacity-60 font-semibold tracking-wider">
-                {filteredHistory.length} of {history.length} games
+                {filteredHistory.length} {t('history.of', { total: history.length })}
               </div>
             </div>
             <HistoryList history={filteredHistory} playerId={id} />
@@ -389,6 +397,7 @@ const StatCard: React.FC<{
 );
 
 const BadgesSection: React.FC<{ earned: string[] }> = ({ earned }) => {
+  const { t } = useTranslation('profile');
   const earnedBadges = BADGES.filter((b) => earned.includes(b.id));
   if (earnedBadges.length === 0) return null;
   return (
@@ -397,7 +406,7 @@ const BadgesSection: React.FC<{ earned: string[] }> = ({ earned }) => {
         className="text-[var(--gold-400)] text-[10px] mb-3 font-bold uppercase tracking-widest"
         style={{ fontFamily: 'var(--font-display)' }}
       >
-        Earned Badges
+        {t('stats.badges')}
       </div>
       <div className="flex flex-wrap gap-2">
         {earnedBadges.map((b) => (
@@ -418,10 +427,11 @@ const HistoryList: React.FC<{
   history: MatchRecord[];
   playerId: string;
 }> = ({ history, playerId }) => {
+  const { t } = useTranslation('profile');
   if (history.length === 0) {
     return (
       <div className="text-[var(--ivory-300)] text-sm text-center py-12 italic opacity-60">
-        No match history yet.
+        {t('history.noHistory')}
       </div>
     );
   }
@@ -430,7 +440,11 @@ const HistoryList: React.FC<{
       {history.map((m) => {
         const won = m.winners.includes(playerId);
         const wasDurak = m.durak === playerId;
-        const result = won ? 'Win' : wasDurak ? 'Durak' : 'Loss';
+        const result = won
+          ? t('history.result.win')
+          : wasDurak
+            ? t('history.result.durak')
+            : t('history.result.loss');
         const color = won
           ? 'text-emerald-400'
           : wasDurak
@@ -450,7 +464,7 @@ const HistoryList: React.FC<{
                 {result}
               </span>
               <span className="text-[var(--ivory-200)] capitalize font-semibold">
-                {m.mode} Mode
+                {m.mode} {t('history.mode')}
               </span>
             </div>
             <span className="text-[var(--ivory-300)] text-xs opacity-75">{date}</span>
@@ -466,77 +480,80 @@ const LeaderboardSection: React.FC<{
   mode: 'classic' | 'teams';
   onModeChange: (m: 'classic' | 'teams') => void;
   myProfileId?: string;
-}> = ({ leaders, mode, onModeChange, myProfileId }) => (
-  <div>
-    <div className="flex gap-1.5 p-1 bg-black/45 border border-[rgba(212,175,55,0.15)] rounded-lg mb-4">
-      {(['classic', 'teams'] as const).map((m) => {
-        const active = mode === m;
-        return (
-          <button
-            key={m}
-            onClick={() => onModeChange(m)}
-            className={`flex-1 py-2 rounded text-xs font-bold uppercase tracking-wider transition border-none cursor-pointer ${
-              active
-                ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-extrabold shadow-sm'
-                : 'bg-transparent text-[var(--ivory-300)] hover:text-white'
-            }`}
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            {m}
-          </button>
-        );
-      })}
-    </div>
-    {leaders.length === 0 ? (
-      <div className="text-[var(--ivory-300)] text-sm text-center py-12 italic opacity-60">
-        No ranked players yet.
-      </div>
-    ) : (
-      <div className="space-y-1.5">
-        {leaders.map((p, i) => {
-          const elo = mode === 'classic' ? p.eloClassic : p.eloTeams;
-          const isMe = !!myProfileId && p._id === myProfileId;
+}> = ({ leaders, mode, onModeChange, myProfileId }) => {
+  const { t } = useTranslation('profile');
+  return (
+    <div>
+      <div className="flex gap-1.5 p-1 bg-black/45 border border-[rgba(212,175,55,0.15)] rounded-lg mb-4">
+        {(['classic', 'teams'] as const).map((m) => {
+          const active = mode === m;
           return (
-            <div
-              key={p._id}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition ${
-                isMe
-                  ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-black border border-[var(--gold-400)] shadow-[var(--gold-glow)]'
-                  : 'casino-panel border-[rgba(212,175,55,0.15)]'
+            <button
+              key={m}
+              onClick={() => onModeChange(m)}
+              className={`flex-1 py-2 rounded text-xs font-bold uppercase tracking-wider transition border-none cursor-pointer ${
+                active
+                  ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-extrabold shadow-sm'
+                  : 'bg-transparent text-[var(--ivory-300)] hover:text-white'
               }`}
+              style={{ fontFamily: 'var(--font-display)' }}
             >
-              <span
-                className={`w-5 text-right font-mono font-bold text-xs ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--gold-400)]'}`}
-              >
-                {i + 1}
-              </span>
-              {p.avatarUrl ? (
-                <img
-                  src={p.avatarUrl}
-                  alt={p.username}
-                  className="w-7 h-7 rounded-full object-cover border border-[rgba(212,175,55,0.22)]"
-                />
-              ) : (
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border border-[rgba(212,175,55,0.22)] ${isMe ? 'bg-black/20 text-[var(--ink-900)]' : 'bg-[var(--gradient-velvet)] text-[var(--gold-300)]'}`}
-                >
-                  {p.username.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <span
-                className={`flex-1 font-bold truncate ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--ivory-100)]'}`}
-              >
-                {p.username}
-              </span>
-              <span
-                className={`font-extrabold font-display ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--gold-300)]'}`}
-              >
-                ★ {elo}
-              </span>
-            </div>
+              {t(`leaderboard.mode.${m}`)}
+            </button>
           );
         })}
       </div>
-    )}
-  </div>
-);
+      {leaders.length === 0 ? (
+        <div className="text-[var(--ivory-300)] text-sm text-center py-12 italic opacity-60">
+          {t('leaderboard.noPlayers')}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {leaders.map((p, i) => {
+            const elo = mode === 'classic' ? p.eloClassic : p.eloTeams;
+            const isMe = !!myProfileId && p._id === myProfileId;
+            return (
+              <div
+                key={p._id}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition ${
+                  isMe
+                    ? 'bg-[var(--gradient-gold)] text-[var(--ink-900)] font-black border border-[var(--gold-400)] shadow-[var(--gold-glow)]'
+                    : 'casino-panel border-[rgba(212,175,55,0.15)]'
+                }`}
+              >
+                <span
+                  className={`w-5 text-right font-mono font-bold text-xs ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--gold-400)]'}`}
+                >
+                  {i + 1}
+                </span>
+                {p.avatarUrl ? (
+                  <img
+                    src={p.avatarUrl}
+                    alt={p.username}
+                    className="w-7 h-7 rounded-full object-cover border border-[rgba(212,175,55,0.22)]"
+                  />
+                ) : (
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border border-[rgba(212,175,55,0.22)] ${isMe ? 'bg-black/20 text-[var(--ink-900)]' : 'bg-[var(--gradient-velvet)] text-[var(--gold-300)]'}`}
+                  >
+                    {p.username.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span
+                  className={`flex-1 font-bold truncate ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--ivory-100)]'}`}
+                >
+                  {p.username}
+                </span>
+                <span
+                  className={`font-extrabold font-display ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--gold-300)]'}`}
+                >
+                  ★ {elo}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};

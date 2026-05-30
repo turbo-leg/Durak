@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "play": "Тоглох",
+    "rules": "Дүрэм",
+    "shop": "Дэлгүүр",
+    "profile": "Профайл",
+    "settings": "Тохиргоо"
+  },
+  "actions": {
+    "leave": "✕ Гарах",
+    "cancel": "Цуцлах",
+    "confirm": "Зөвшөөрөх",
+    "close": "Хаах",
+    "signOut": "Гарах",
+    "logOut": "Гарах",
+    "retry": "Дахин холбогдох",
+    "refresh": "↻ Шинэчлэх"
+  },
+  "status": {
+    "loading": "Уншиж байна…",
+    "connecting": "Discord-д холбогдож байна",
+    "reconnecting": "Дахин холбогдож байна",
+    "syncedAccount": "Таны бүртгэлтэй синхчилсан",
+    "savedLocally": "Локалд хадгалсан · Синхчилхийн тулд нэвтэрнэ үү"
+  },
+  "errors": {
+    "leaveGame": "Одоогийн тоглоомоос гарах уу?",
+    "discordActivityFailed": "Discord Activity-д холбогдоход алдаа гарлаа: {{message}}"
+  }
+}

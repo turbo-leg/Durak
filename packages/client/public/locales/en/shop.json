@@ -1,0 +1,51 @@
+{
+  "title": "♦ SHOP",
+  "subtitle": "WIN GAMES · EARN COINS · BUY ITEMS",
+  "loading": "Loading shop…",
+  "howToEarn": "HOW TO EARN COINS",
+  "earnWin": "Win a game",
+  "earnWinCoins": "+10",
+  "earnFinish": "Finish (not durak)",
+  "earnFinishCoins": "+5",
+  "earnDurak": "Be the durak",
+  "earnDurakCoins": "+3",
+  "getCoins": "+ Get Coins",
+  "yourCoins": "Your coins",
+  "tabs": {
+    "all": "ALL",
+    "cardBacks": "CARD BACKS",
+    "tables": "TABLES",
+    "emotes": "EMOTES"
+  },
+  "sections": {
+    "cardBacks": "CARD BACKS",
+    "tableSkins": "TABLE SKINS",
+    "emotes": "EMOTES"
+  },
+  "rarity": {
+    "common": "COMMON",
+    "rare": "RARE",
+    "epic": "EPIC",
+    "legendary": "LEGENDARY"
+  },
+  "button": {
+    "equip": "EQUIP",
+    "equipped": "✓ EQUIPPED",
+    "equipFree": "EQUIP FREE",
+    "equipNow": "EQUIP NOW",
+    "equipping": "Equipping…",
+    "buying": "Buying…",
+    "signInBuy": "Sign in to purchase",
+    "signInEquip": "Sign in to equip",
+    "needMore": "(need {{count}} more)",
+    "currentlyEquipped": "CURRENTLY EQUIPPED",
+    "hot": "HOT"
+  },
+  "toast": {
+    "purchaseFailed": "Purchase failed",
+    "purchased": "Purchased! ✓",
+    "signInBuy": "Sign in to buy",
+    "signInEquip": "Sign in to equip",
+    "equipFailed": "Equip failed"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "hero": {
+    "subtitle": "Тэнэгийн тоглоом"
+  },
+  "modes": {
+    "play": "ТОГЛОХ",
+    "ranked": "Эрэмбэт",
+    "rankedSub": "Эрэмбэнд өсөх",
+    "custom": "Захиалгат",
+    "customSub": "Хувийн ширээ эсвэл хайх",
+    "solo": "Ганцаар",
+    "soloSub": "Ботуудтай дасгал хийх"
+  },
+  "searching": {
+    "label": "Өрсөлдөгч хайж байна",
+    "cancel": "Цуцлах"
+  },
+  "ranked": {
+    "title": "Эрэмбэт тоглоом",
+    "playersAtTable": "Ширээний тоглогчид",
+    "gameBegins": "{{count}} суудал дүүрэхэд тоглоом автоматаар эхэлнэ.",
+    "cardsInHand": "Гарын картын тоо",
+    "cards": "карт",
+    "stakeRep": "Нэр хүндээ байрлуул",
+    "findMatch": "♛ Тоглоом хайх"
+  },
+  "solo": {
+    "title": "Ганцаар тоглох",
+    "chooseOpponent": "Өрсөлдөгчөө сонгоно уу",
+    "apprentice": "Шавь",
+    "apprenticeDesc": "Сул тоглодог, алдаа гаргадаг.",
+    "gentleman": "Жентлмен",
+    "gentlemanDesc": "Ухаалаг тоглодог, заримдаа алдаа гаргана.",
+    "highRoller": "Өндөр тоглогч",
+    "highRollerDesc": "Хайр найргүй. Бүх картыг тооцдог."
+  },
+  "custom": {
+    "title": "Захиалгат ширээ",
+    "create": "Үүсгэх",
+    "join": "Нэгдэх",
+    "browse": "Хайх",
+    "mode": "Горим",
+    "modeClassic": "Сонгодог (Чөлөөт)",
+    "modeTeams": "Баг (3v3 / 2v2)",
+    "players": "Тоглогчид",
+    "handSize": "Гарын хэмжээ",
+    "nPlayers": "{{count}} тоглогч",
+    "nCards": "{{count}} карт",
+    "teamAssignment": "Багийн хуваарилалт",
+    "randomTeams": "Санамсаргүй баг",
+    "manualSelection": "Гараар сонгох",
+    "openTable": "＋ Хувийн ширээ нээх",
+    "inviteCode": "Урилгын код",
+    "takeSeat": "✦ Суудал авах",
+    "lounge": "Лобби хоосон байна…",
+    "loungeHint": "Эхлэхийн тулд ширээ нээнэ үү.",
+    "tableLabel": "Ширээ {{id}}",
+    "seatedOf": "{{count}}/{{max}} суусан · {{mode}}",
+    "handLocked": "Энэ горим/тоглогчийн тоонд гарын хэмжээ {{size}} байна.",
+    "join": "Нэгдэх",
+    "watch": "Үзэх"
+  },
+  "login": {
+    "yourAccount": "Таны бүртгэл",
+    "logIn": "Нэвтрэх",
+    "register": "Бүртгүүлэх",
+    "continueDiscord": "Discord-оор үргэлжлүүлэх",
+    "or": "эсвэл",
+    "email": "Имэйл",
+    "password": "Нууц үг",
+    "username": "Хэрэглэгчийн нэр",
+    "createAccount": "Бүртгэл үүсгэх",
+    "guestNote": "Зочид бүртгэлгүйгээр тоглож болно — нэвтрэх нь заавал биш",
+    "usernameRequired": "Хэрэглэгчийн нэр шаардлагатай",
+    "passwordMinLength": "Нууц үг дор хаяж 8 тэмдэгт байх ёстой",
+    "account": "{{name}} бүртгэл",
+    "logOut": "Гарах"
+  }
+}

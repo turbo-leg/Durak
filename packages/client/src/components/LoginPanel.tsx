@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 const DiscordLogo = () => (
   <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current shrink-0" aria-hidden>
@@ -11,6 +12,7 @@ type Tab = 'login' | 'register';
 
 export const LoginPanel: React.FC = () => {
   const { user, isLoading, error, loginWithDiscord, loginWithEmail, register, logout } = useAuth();
+  const { t } = useTranslation('home');
   const [tab, setTab] = useState<Tab>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,14 +38,16 @@ export const LoginPanel: React.FC = () => {
             <div className="font-bold text-sm text-white truncate">
               {user.globalName || user.username}
             </div>
-            <div className="text-indigo-400 text-xs capitalize">{user.method} account</div>
+            <div className="text-indigo-400 text-xs capitalize">
+              {t('login.account', { name: user.method })}
+            </div>
           </div>
         </div>
         <button
           onClick={logout}
           className="text-indigo-400 hover:text-white text-xs px-2 py-1 rounded border border-indigo-700 hover:border-indigo-500 transition shrink-0"
         >
-          Log out
+          {t('login.logOut')}
         </button>
       </div>
     );
@@ -59,11 +63,11 @@ export const LoginPanel: React.FC = () => {
         await loginWithEmail(email, password);
       } else {
         if (!username.trim()) {
-          setLocalError('Username is required');
+          setLocalError(t('login.usernameRequired'));
           return;
         }
         if (password.length < 8) {
-          setLocalError('Password must be at least 8 characters');
+          setLocalError(t('login.passwordMinLength'));
           return;
         }
         await register(email, password, username);
@@ -75,24 +79,24 @@ export const LoginPanel: React.FC = () => {
 
   return (
     <div className="bg-indigo-950 border border-indigo-700 rounded-xl p-5">
-      <div className="text-white font-bold mb-3">Your Account</div>
+      <div className="text-white font-bold mb-3">{t('login.yourAccount')}</div>
 
       {/* Auth method tabs */}
       <div className="flex gap-2 mb-4">
-        {(['login', 'register'] as Tab[]).map((t) => (
+        {(['login', 'register'] as Tab[]).map((tabKey) => (
           <button
-            key={t}
+            key={tabKey}
             onClick={() => {
-              setTab(t);
+              setTab(tabKey);
               setLocalError(null);
             }}
             className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
-              tab === t
+              tab === tabKey
                 ? 'bg-indigo-600 text-white'
                 : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
             }`}
           >
-            {t === 'login' ? 'Log In' : 'Register'}
+            {tabKey === 'login' ? t('login.logIn') : t('login.register')}
           </button>
         ))}
       </div>
@@ -104,12 +108,12 @@ export const LoginPanel: React.FC = () => {
         className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition mb-3"
       >
         <DiscordLogo />
-        Continue with Discord
+        {t('login.continueDiscord')}
       </button>
 
       <div className="flex items-center gap-2 mb-3">
         <div className="flex-1 h-px bg-indigo-800" />
-        <span className="text-indigo-500 text-xs">or</span>
+        <span className="text-indigo-500 text-xs">{t('login.or')}</span>
         <div className="flex-1 h-px bg-indigo-800" />
       </div>
 
@@ -118,7 +122,7 @@ export const LoginPanel: React.FC = () => {
         {tab === 'register' && (
           <input
             type="text"
-            placeholder="Username"
+            placeholder={t('login.username')}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="w-full bg-indigo-900 border border-indigo-700 text-white placeholder-indigo-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
@@ -127,14 +131,14 @@ export const LoginPanel: React.FC = () => {
         )}
         <input
           type="email"
-          placeholder="Email"
+          placeholder={t('login.email')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full bg-indigo-900 border border-indigo-700 text-white placeholder-indigo-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
         />
         <input
           type="password"
-          placeholder="Password"
+          placeholder={t('login.password')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full bg-indigo-900 border border-indigo-700 text-white placeholder-indigo-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
@@ -147,13 +151,15 @@ export const LoginPanel: React.FC = () => {
           disabled={isLoading || !email || !password}
           className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition"
         >
-          {isLoading ? 'Loading…' : tab === 'login' ? 'Log In' : 'Create Account'}
+          {isLoading
+            ? t('common:status.loading')
+            : tab === 'login'
+              ? t('login.logIn')
+              : t('login.createAccount')}
         </button>
       </form>
 
-      <p className="text-indigo-500 text-xs mt-3 text-center">
-        Guests can play without an account — login is optional.
-      </p>
+      <p className="text-indigo-500 text-xs mt-3 text-center">{t('login.guestNote')}</p>
     </div>
   );
 };

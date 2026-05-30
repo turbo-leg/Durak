@@ -1,0 +1,40 @@
+{
+  "title": "Settings",
+  "syncedAccount": "Synced to your account",
+  "savedLocally": "Saved locally · Sign in to sync",
+  "sections": {
+    "language": "Language",
+    "soundVisual": "Sound & Visual",
+    "gameplay": "Gameplay",
+    "appearance": "Appearance",
+    "account": "Account",
+    "about": "About"
+  },
+  "toggles": {
+    "soundEffects": "Sound Effects",
+    "soundEffectsSub": "Card plays, victory, defeat sounds",
+    "animations": "Animations",
+    "animationsSub": "Card deal and UI motion effects",
+    "showTimer": "Show Turn Timer",
+    "showTimerSub": "Display countdown during your turn",
+    "confirmLeave": "Confirm Before Leaving",
+    "confirmLeaveSub": "Ask before leaving a game in progress"
+  },
+  "cardBack": "Card Back",
+  "cardBackSub": "Change your card back in the Shop",
+  "account": {
+    "signedInAs": "Signed in as",
+    "loginMethod": "Login method",
+    "discord": "Discord",
+    "email": "Email"
+  },
+  "about": {
+    "game": "Game",
+    "gameName": "Durak",
+    "version": "Version",
+    "versionValue": "1.0.0",
+    "engine": "Engine",
+    "engineValue": "Colyseus + React"
+  },
+  "footer": "\"The Fool's Game\" — made with ♠"
+}

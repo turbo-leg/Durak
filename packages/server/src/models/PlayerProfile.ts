@@ -1,5 +1,13 @@
 import mongoose from 'mongoose';
 
+export interface IPlayerSettings {
+  soundEffects: boolean;
+  animations: boolean;
+  showTimer: boolean;
+  confirmLeave: boolean;
+  language: string;
+}
+
 export interface IPlayerProfile extends mongoose.Document {
   discordId: string;
   userId: string;
@@ -21,6 +29,7 @@ export interface IPlayerProfile extends mongoose.Document {
   equippedCardBack: string;
   equippedTableSkin: string;
   equippedEmotes: string[];
+  settings: IPlayerSettings;
   updatedAt: Date;
 }
 
@@ -46,6 +55,13 @@ const PlayerProfileSchema = new mongoose.Schema(
     equippedCardBack: { type: String, default: '' },
     equippedTableSkin: { type: String, default: '' },
     equippedEmotes: { type: [String], default: [] },
+    settings: {
+      soundEffects: { type: Boolean, default: true },
+      animations: { type: Boolean, default: true },
+      showTimer: { type: Boolean, default: true },
+      confirmLeave: { type: Boolean, default: true },
+      language: { type: String, default: 'en', enum: ['en', 'mn'] },
+    },
   },
   { timestamps: true },
 );

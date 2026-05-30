@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 type ItemType = 'cardBack' | 'tableSkin' | 'emote';
 type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
@@ -417,6 +418,7 @@ function ShopCard({
   onEquip: () => void;
   onClick: () => void;
 }) {
+  const { t } = useTranslation('shop');
   const rarity = rarityFor(item.price);
   const r = RARITY[rarity];
   const free = item.price === 0;
@@ -521,7 +523,7 @@ function ShopCard({
               borderRadius: 999,
             }}
           >
-            HOT
+            {t('button.hot')}
           </div>
         )}
       </div>
@@ -573,7 +575,7 @@ function ShopCard({
               letterSpacing: 1.2,
             }}
           >
-            ✓ EQUIPPED
+            {t('button.equipped')}
           </div>
         ) : owned || free ? (
           <button
@@ -602,7 +604,7 @@ function ShopCard({
               transition: 'filter 0.1s',
             }}
           >
-            {busy ? '…' : free ? '+ EQUIP FREE' : 'EQUIP'}
+            {busy ? '…' : free ? t('button.equipFree') : t('button.equip')}
           </button>
         ) : (
           <button
@@ -715,6 +717,7 @@ function DetailSheet({
   onEquip: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('shop');
   const rarity = rarityFor(item.price);
   const r = RARITY[rarity];
   const free = item.price === 0;
@@ -795,7 +798,7 @@ function DetailSheet({
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                {r.label}
+                {t(`rarity.${rarity}`)}
               </div>
               <div
                 style={{
@@ -839,7 +842,7 @@ function DetailSheet({
               }}
             >
               <div style={{ fontSize: 13, color: 'var(--ivory-200)', fontWeight: 700 }}>
-                Your coins
+                {t('yourCoins')}
               </div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <img
@@ -880,7 +883,7 @@ function DetailSheet({
                 letterSpacing: 1.5,
               }}
             >
-              ✓ CURRENTLY EQUIPPED
+              {t('button.currentlyEquipped')}
             </div>
           ) : owned || free ? (
             <button
@@ -905,7 +908,7 @@ function DetailSheet({
                 boxShadow: '0 6px 20px rgba(19,92,63,0.5)',
               }}
             >
-              {busy ? 'Equipping…' : 'EQUIP NOW'}
+              {busy ? t('button.equipping') : t('button.equipNow')}
             </button>
           ) : !token ? (
             <div
@@ -920,7 +923,7 @@ function DetailSheet({
                 fontSize: 14,
               }}
             >
-              Sign in to purchase
+              {t('button.signInBuy')}
             </div>
           ) : (
             <button
@@ -953,7 +956,7 @@ function DetailSheet({
               }}
             >
               {busy ? (
-                'Buying…'
+                t('button.buying')
               ) : (
                 <>
                   <img
@@ -989,6 +992,7 @@ const SECTION_INFO: Record<ItemType, { label: string; icon: string }> = {
 
 export const ShopPage: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useTranslation('shop');
   const [items, setItems] = useState<ShopItem[]>([]);
   const [shopState, setShopState] = useState<ShopState | null>(null);
   const [tab, setTab] = useState<ItemType | 'all'>('all');
@@ -1023,7 +1027,7 @@ export const ShopPage: React.FC = () => {
   const buy = useCallback(
     async (itemId: string) => {
       if (!token) {
-        showToast('Sign in to buy', false);
+        showToast(t('toast.signInBuy'), false);
         return;
       }
       setBusy(itemId);
@@ -1034,12 +1038,12 @@ export const ShopPage: React.FC = () => {
           body: JSON.stringify({ itemId }),
         });
         const data = await res.json();
-        if (!res.ok) showToast(data.error ?? 'Purchase failed', false);
+        if (!res.ok) showToast(data.error ?? t('toast.purchaseFailed'), false);
         else {
           setShopState((prev) =>
             prev ? { ...prev, coins: data.coins, inventory: data.inventory } : prev,
           );
-          showToast('Purchased! ✓', true);
+          showToast(t('toast.purchased'), true);
           setSelected(null);
         }
       } finally {
@@ -1052,7 +1056,7 @@ export const ShopPage: React.FC = () => {
   const equip = useCallback(
     async (itemId: string) => {
       if (!token) {
-        showToast('Sign in to equip', false);
+        showToast(t('toast.signInEquip'), false);
         return;
       }
       setBusy(itemId);
@@ -1063,7 +1067,7 @@ export const ShopPage: React.FC = () => {
           body: JSON.stringify({ itemId }),
         });
         const data = await res.json();
-        if (!res.ok) showToast(data.error ?? 'Equip failed', false);
+        if (!res.ok) showToast(data.error ?? t('toast.equipFailed'), false);
         else {
           setShopState((prev) =>
             prev
@@ -1075,7 +1079,7 @@ export const ShopPage: React.FC = () => {
                 }
               : prev,
           );
-          showToast('Equipped! ✓', true);
+          showToast(t('toast.purchased'), true);
           setSelected(null);
         }
       } finally {
@@ -1151,7 +1155,7 @@ export const ShopPage: React.FC = () => {
                 textShadow: '0 2px 4px rgba(0,0,0,0.5)',
               }}
             >
-              ♦ SHOP
+              {t('title')}
             </div>
             <div
               style={{
@@ -1163,7 +1167,7 @@ export const ShopPage: React.FC = () => {
                 opacity: 0.7,
               }}
             >
-              WIN GAMES · EARN COINS · BUY ITEMS
+              {t('subtitle')}
             </div>
           </div>
 
@@ -1214,7 +1218,7 @@ export const ShopPage: React.FC = () => {
                 fontFamily: 'var(--font-display)',
               }}
             >
-              + Get Coins
+              {t('getCoins')}
             </button>
             {showEarnInfo && (
               <div
@@ -1241,13 +1245,13 @@ export const ShopPage: React.FC = () => {
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  HOW TO EARN COINS
+                  {t('howToEarn')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[
-                    { label: 'Win a game', reward: '+10' },
-                    { label: 'Finish (not durak)', reward: '+5' },
-                    { label: 'Be the durak', reward: '+3' },
+                    { label: t('earnWin'), reward: t('earnWinCoins') },
+                    { label: t('earnFinish'), reward: t('earnFinishCoins') },
+                    { label: t('earnDurak'), reward: t('earnDurakCoins') },
                   ].map(({ label, reward }) => (
                     <div
                       key={label}
@@ -1286,13 +1290,13 @@ export const ShopPage: React.FC = () => {
 
         {/* Tab strip */}
         <div style={{ display: 'flex', gap: 6, padding: '12px 16px', overflowX: 'auto' }}>
-          {SECTION_TABS.map((t) => {
-            const active = tab === t.key;
+          {SECTION_TABS.map((tabItem) => {
+            const active = tab === tabItem.key;
             return (
               <button
-                key={t.key}
+                key={tabItem.key}
                 className="shop-btn"
-                onClick={() => setTab(t.key)}
+                onClick={() => setTab(tabItem.key)}
                 style={{
                   flexShrink: 0,
                   padding: '8px 16px',
@@ -1315,8 +1319,12 @@ export const ShopPage: React.FC = () => {
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                <span style={{ fontSize: 13 }}>{t.icon}</span>
-                <span>{t.label}</span>
+                <span style={{ fontSize: 13 }}>{tabItem.icon}</span>
+                <span>
+                  {t(
+                    `tabs.${tabItem.key === 'all' ? 'all' : tabItem.key === 'cardBack' ? 'cardBacks' : tabItem.key === 'tableSkin' ? 'tables' : 'emotes'}`,
+                  )}
+                </span>
               </button>
             );
           })}
@@ -1346,7 +1354,7 @@ export const ShopPage: React.FC = () => {
             }}
           />
           <div style={{ color: 'var(--ivory-300)', fontSize: 13, fontWeight: 700 }}>
-            Loading shop…
+            {t('loading')}
           </div>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
@@ -1355,7 +1363,9 @@ export const ShopPage: React.FC = () => {
         grouped.map((group) => (
           <div key={group.type}>
             <SectionHeader
-              label={SECTION_INFO[group.type].label}
+              label={t(
+                `sections.${group.type === 'cardBack' ? 'cardBacks' : group.type === 'tableSkin' ? 'tableSkins' : 'emotes'}`,
+              )}
               icon={SECTION_INFO[group.type].icon}
             />
             <div

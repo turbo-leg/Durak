@@ -1,0 +1,79 @@
+{
+  "hero": {
+    "subtitle": "The Fool's Game"
+  },
+  "modes": {
+    "play": "PLAY",
+    "ranked": "Ranked",
+    "rankedSub": "Climb the leaderboard",
+    "custom": "Custom",
+    "customSub": "Private table or browse",
+    "solo": "Solo",
+    "soloSub": "Practice against bots"
+  },
+  "searching": {
+    "label": "Seeking Opponents",
+    "cancel": "Cancel"
+  },
+  "ranked": {
+    "title": "Ranked Match",
+    "playersAtTable": "Players at the Table",
+    "gameBegins": "Game begins automatically when {{count}} seats are filled.",
+    "cardsInHand": "Cards in Hand",
+    "cards": "cards",
+    "stakeRep": "Stake your reputation",
+    "findMatch": "♛ Find a Match"
+  },
+  "solo": {
+    "title": "Solo Play",
+    "chooseOpponent": "Choose your opponent",
+    "apprentice": "Apprentice",
+    "apprenticeDesc": "Plays loosely, makes mistakes.",
+    "gentleman": "Gentleman",
+    "gentlemanDesc": "Plays smart, occasional blunders.",
+    "highRoller": "High Roller",
+    "highRollerDesc": "Ruthless. Calculates every card."
+  },
+  "custom": {
+    "title": "Custom Table",
+    "create": "Create",
+    "join": "Join",
+    "browse": "Browse",
+    "mode": "Mode",
+    "modeClassic": "Classic (Free for All)",
+    "modeTeams": "Teams (3v3 / 2v2)",
+    "players": "Players",
+    "handSize": "Hand Size",
+    "nPlayers": "{{count}} Players",
+    "nCards": "{{count}} cards",
+    "teamAssignment": "Team Assignment",
+    "randomTeams": "Random Teams",
+    "manualSelection": "Manual Selection",
+    "openTable": "＋ Open Private Table",
+    "inviteCode": "Invitation Code",
+    "takeSeat": "✦ Take a Seat",
+    "lounge": "The lounge is quiet…",
+    "loungeHint": "Open a table to get things started.",
+    "tableLabel": "Table {{id}}",
+    "seatedOf": "{{count}}/{{max}} seated · {{mode}}",
+    "handLocked": "Hand size is locked to {{size}} for this mode/player count.",
+    "join": "Join",
+    "watch": "Watch"
+  },
+  "login": {
+    "yourAccount": "Your Account",
+    "logIn": "Log In",
+    "register": "Register",
+    "continueDiscord": "Continue with Discord",
+    "or": "or",
+    "email": "Email",
+    "password": "Password",
+    "username": "Username",
+    "createAccount": "Create Account",
+    "guestNote": "Guests can play without an account — login is optional",
+    "usernameRequired": "Username is required",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "account": "{{name}} account",
+    "logOut": "Log out"
+  }
+}

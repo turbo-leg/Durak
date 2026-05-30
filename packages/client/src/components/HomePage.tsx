@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useGame } from '../contexts/GameContext';
 import { LoginPanel } from './LoginPanel';
 import type { RoomAvailable } from 'colyseus.js';
@@ -118,10 +119,11 @@ const FLOATING_CARDS = [
 // ── Searching overlay ─────────────────────────────────────────────────────────
 
 function SearchingOverlay({ onCancel, label }: { onCancel: () => void; label: string }) {
+  const { t } = useTranslation('home');
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
+    const interval = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(interval);
   }, []);
   const fmt = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -201,7 +203,7 @@ function SearchingOverlay({ onCancel, label }: { onCancel: () => void; label: st
       </div>
 
       <GoldButton variant="burgundy" size="md" onClick={onCancel}>
-        Cancel
+        {t('searching.cancel')}
       </GoldButton>
     </motion.div>
   );
@@ -210,6 +212,7 @@ function SearchingOverlay({ onCancel, label }: { onCancel: () => void; label: st
 // ── Ranked config sheet ───────────────────────────────────────────────────────
 
 function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions) => void }) {
+  const { t } = useTranslation('home');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [handSize, setHandSize] = useState(5);
 
@@ -226,7 +229,7 @@ function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div>
-        <SectionLabel>Players at the Table</SectionLabel>
+        <SectionLabel>{t('ranked.playersAtTable')}</SectionLabel>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {playerOptions.map((n) => (
             <Pill key={n} active={maxPlayers === n} onClick={() => handlePlayerChange(n)}>
@@ -243,13 +246,13 @@ function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions)
             fontStyle: 'italic',
           }}
         >
-          Game begins automatically when {maxPlayers} seats are filled.
+          {t('ranked.gameBegins', { count: maxPlayers })}
         </div>
       </div>
 
       {handSizeOptions.length > 1 && (
         <div>
-          <SectionLabel>Cards in Hand</SectionLabel>
+          <SectionLabel>{t('ranked.cardsInHand')}</SectionLabel>
           <div style={{ display: 'flex', gap: 10 }}>
             {handSizeOptions.map((s) => (
               <button
@@ -287,7 +290,7 @@ function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions)
                     textTransform: 'uppercase',
                   }}
                 >
-                  cards
+                  {t('ranked.cards')}
                 </div>
               </button>
             ))}
@@ -295,14 +298,14 @@ function RankedConfigSheet({ onFindMatch }: { onFindMatch: (opts: RankedOptions)
         </div>
       )}
 
-      <Divider label="Stake your reputation" />
+      <Divider label={t('ranked.stakeRep')} />
 
       <GoldButton
         size="lg"
         block
         onClick={() => onFindMatch({ mode: 'classic', maxPlayers, handSize: effectiveHandSize })}
       >
-        ♛ Find a Match
+        {t('ranked.findMatch')}
       </GoldButton>
     </div>
   );
@@ -336,6 +339,7 @@ const DIFFICULTIES = [
 
 function SinglePlayerSheet() {
   const { createGame } = useGame();
+  const { t } = useTranslation('home');
   const [loading, setLoading] = useState<string | null>(null);
 
   const handlePick = async (difficulty: string) => {
@@ -353,7 +357,7 @@ function SinglePlayerSheet() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <SectionLabel>Choose your opponent</SectionLabel>
+      <SectionLabel>{t('solo.chooseOpponent')}</SectionLabel>
       {DIFFICULTIES.map((d) => (
         <button
           key={d.key}
@@ -410,7 +414,9 @@ function SinglePlayerSheet() {
                 color: colors.gold[300],
               }}
             >
-              {d.label}
+              {t(
+                `solo.${d.key === 'easy' ? 'apprentice' : d.key === 'medium' ? 'gentleman' : 'highRoller'}`,
+              )}
             </div>
             <div
               style={{
@@ -420,7 +426,9 @@ function SinglePlayerSheet() {
                 opacity: 0.85,
               }}
             >
-              {d.desc}
+              {t(
+                `solo.${d.key === 'easy' ? 'apprenticeDesc' : d.key === 'medium' ? 'gentlemanDesc' : 'highRollerDesc'}`,
+              )}
             </div>
           </div>
           <span style={{ color: d.accent, fontSize: 22 }}>›</span>
@@ -444,6 +452,7 @@ function CustomLobbySheet({
   avatarUrl?: string;
 }) {
   const { createGame, joinGame, spectateGame, findPublicGames } = useGame();
+  const { t } = useTranslation('home');
   const [tab, setTab] = useState<'create' | 'join' | 'browse'>('create');
   const [isLoading, setIsLoading] = useState(false);
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
@@ -482,12 +491,12 @@ function CustomLobbySheet({
           boxShadow: shadows.engrave,
         }}
       >
-        {(['create', 'join', 'browse'] as const).map((t) => {
-          const active = tab === t;
+        {(['create', 'join', 'browse'] as const).map((tabKey) => {
+          const active = tab === tabKey;
           return (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               style={{
                 flex: 1,
                 padding: '11px 0',
@@ -506,7 +515,7 @@ function CustomLobbySheet({
                 transition: 'all 0.18s',
               }}
             >
-              {t}
+              {t(`custom.${tabKey}`)}
             </button>
           );
         })}
@@ -515,7 +524,7 @@ function CustomLobbySheet({
       {tab === 'create' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <SectionLabel>Mode</SectionLabel>
+            <SectionLabel>{t('custom.mode')}</SectionLabel>
             <Select
               value={mode}
               onChange={(e) => {
@@ -528,12 +537,12 @@ function CustomLobbySheet({
                 if (!vh.includes(handSize)) setHandSize(vh[0]!);
               }}
             >
-              <option value="classic">Classic (Free for All)</option>
-              <option value="teams">Teams (3v3 / 2v2)</option>
+              <option value="classic">{t('custom.modeClassic')}</option>
+              <option value="teams">{t('custom.modeTeams')}</option>
             </Select>
           </div>
           <div>
-            <SectionLabel>Players</SectionLabel>
+            <SectionLabel>{t('custom.players')}</SectionLabel>
             <Select
               value={maxPlayers}
               onChange={(e) => {
@@ -545,13 +554,13 @@ function CustomLobbySheet({
             >
               {getAvailablePlayers(mode).map((n) => (
                 <option key={n} value={n}>
-                  {n} Players
+                  {t('custom.nPlayers', { count: n })}
                 </option>
               ))}
             </Select>
           </div>
           <div>
-            <SectionLabel>Hand Size</SectionLabel>
+            <SectionLabel>{t('custom.handSize')}</SectionLabel>
             <Select
               value={handSize}
               onChange={(e) => setHandSize(parseInt(e.target.value))}
@@ -559,20 +568,20 @@ function CustomLobbySheet({
             >
               {getAvailableHandSizes(mode, maxPlayers).map((s) => (
                 <option key={s} value={s}>
-                  {s} cards
+                  {t('custom.nCards', { count: s })}
                 </option>
               ))}
             </Select>
           </div>
           {mode === 'teams' && (
             <div>
-              <SectionLabel>Team Assignment</SectionLabel>
+              <SectionLabel>{t('custom.teamAssignment')}</SectionLabel>
               <Select
                 value={teamSelection}
                 onChange={(e) => setTeamSelection(e.target.value as 'random' | 'manual')}
               >
-                <option value="random">Random Teams</option>
-                <option value="manual">Manual Selection</option>
+                <option value="random">{t('custom.randomTeams')}</option>
+                <option value="manual">{t('custom.manualSelection')}</option>
               </Select>
             </div>
           )}
@@ -596,7 +605,7 @@ function CustomLobbySheet({
               setIsLoading(false);
             }}
           >
-            ＋ Open Private Table
+            {t('custom.openTable')}
           </GoldButton>
         </div>
       )}
@@ -604,7 +613,7 @@ function CustomLobbySheet({
       {tab === 'join' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <SectionLabel>Invitation Code</SectionLabel>
+            <SectionLabel>{t('custom.inviteCode')}</SectionLabel>
             <TextInput
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
@@ -632,7 +641,7 @@ function CustomLobbySheet({
               setIsLoading(false);
             }}
           >
-            ✦ Take a Seat
+            {t('custom.takeSeat')}
           </GoldButton>
         </div>
       )}
@@ -654,7 +663,7 @@ function CustomLobbySheet({
                 cursor: 'pointer',
               }}
             >
-              ↻ Refresh
+              {t('common:actions.refresh')}
             </button>
           </div>
           {rooms.length === 0 ? (
@@ -668,9 +677,9 @@ function CustomLobbySheet({
                 fontStyle: 'italic',
               }}
             >
-              The lounge is quiet…
+              {t('custom.lounge')}
               <br />
-              Open a table to get things started.
+              {t('custom.loungeHint')}
             </div>
           ) : (
             rooms.map((r) => {
@@ -703,7 +712,7 @@ function CustomLobbySheet({
                         letterSpacing: 1.5,
                       }}
                     >
-                      Table {r.roomId.slice(0, 6)}
+                      {t('custom.tableLabel', { id: r.roomId.slice(0, 6) })}
                     </div>
                     <div
                       style={{
@@ -714,7 +723,12 @@ function CustomLobbySheet({
                         letterSpacing: 0.3,
                       }}
                     >
-                      {pc}/{mx} seated · {meta?.mode === 'teams' ? 'Teams' : 'Classic'}
+                      {t('custom.seatedOf', {
+                        count: pc,
+                        max: mx,
+                        mode:
+                          meta?.mode === 'teams' ? t('custom.modeTeams') : t('custom.modeClassic'),
+                      })}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -724,7 +738,7 @@ function CustomLobbySheet({
                       disabled={isLoading || full}
                       onClick={() => joinGame(r.roomId, discordId, userId, username, avatarUrl)}
                     >
-                      Join
+                      {t('custom.join')}
                     </GoldButton>
                     <GoldButton
                       size="sm"
@@ -732,7 +746,7 @@ function CustomLobbySheet({
                       disabled={phase !== 'playing'}
                       onClick={() => spectateGame(r.roomId)}
                     >
-                      Watch
+                      {t('custom.watch')}
                     </GoldButton>
                   </div>
                 </div>
@@ -850,14 +864,15 @@ export const HomePage: React.FC<HomePageProps> = ({
   error,
 }) => {
   const { joinOrCreateGame, leaveGame } = useGame();
+  const { t } = useTranslation('home');
   const [phase, setPhase] = useState<'intro' | 'home'>('intro');
   const [homeState, setHomeState] = useState<HomeState>('home');
   const [sheet, setSheet] = useState<SheetKey>(null);
   const cancelRef = useRef(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setPhase('home'), 1300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setPhase('home'), 1300);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleFindMatch = async (opts: RankedOptions) => {
@@ -1026,7 +1041,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               opacity: 0.8,
             }}
           >
-            The Fool's Game
+            {t('hero.subtitle')}
           </span>
           <div
             style={{
@@ -1057,7 +1072,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         {homeState === 'searching' && (
           <SearchingOverlay
             key="searching"
-            label="Seeking Opponents"
+            label={t('searching.label')}
             onCancel={handleCancelMatch}
           />
         )}
@@ -1116,7 +1131,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 }}
               >
                 <span style={{ fontSize: 38, lineHeight: 1 }}>♠</span>
-                <span style={{ fontSize: 20, fontWeight: 900 }}>PLAY</span>
+                <span style={{ fontSize: 20, fontWeight: 900 }}>{t('modes.play')}</span>
                 <span
                   style={{
                     fontSize: 9,
@@ -1126,7 +1141,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     textTransform: 'uppercase',
                   }}
                 >
-                  Ranked
+                  {t('modes.ranked')}
                 </span>
               </div>
             </motion.button>
@@ -1143,24 +1158,24 @@ export const HomePage: React.FC<HomePageProps> = ({
             >
               <ModeCard
                 icon="home_ranked.png"
-                title="Ranked"
-                subtitle="Climb the leaderboard"
+                title={t('modes.ranked')}
+                subtitle={t('modes.rankedSub')}
                 accent="rgba(212,175,55,0.55)"
                 delay={0.1}
                 onClick={() => setSheet('ranked')}
               />
               <ModeCard
                 icon="home_custom.png"
-                title="Custom"
-                subtitle="Private table or browse"
+                title={t('modes.custom')}
+                subtitle={t('modes.customSub')}
                 accent="rgba(139,33,33,0.6)"
                 delay={0.17}
                 onClick={() => setSheet('custom')}
               />
               <ModeCard
                 icon="home_solo.png"
-                title="Solo"
-                subtitle="Practice against bots"
+                title={t('modes.solo')}
+                subtitle={t('modes.soloSub')}
                 accent="rgba(63,138,74,0.55)"
                 delay={0.24}
                 onClick={() => setSheet('solo')}
@@ -1173,7 +1188,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       <AnimatePresence>
         {sheet === 'ranked' && (
           <Sheet
-            title="Ranked Match"
+            title={t('ranked.title')}
             icon={
               <img
                 src="/assets/home/home_ranked.png"
@@ -1187,7 +1202,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         )}
         {sheet === 'custom' && (
           <Sheet
-            title="Custom Table"
+            title={t('custom.title')}
             icon={
               <img
                 src="/assets/home/home_custom.png"
@@ -1206,7 +1221,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         )}
         {sheet === 'solo' && (
           <Sheet
-            title="Solo Play"
+            title={t('solo.title')}
             icon={
               <img
                 src="/assets/home/home_solo.png"
