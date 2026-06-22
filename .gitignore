@@ -1,5 +1,35 @@
 node_modules/
 dist/
+
+# Env files — never commit secrets. .env.example is the tracked template.
 .env
+.env.*
+!.env.example
+
 .DS_Store
+
+# AI / agent tooling (local only)
 GEMINI.md
+CLAUDE.md
+.claude/
+.claude-flow/
+.swarm/
+.agents/
+.mcp.json
+graphify-out/
+ruvector.db
+
+# Editor / workspace
+*.code-workspace
+
+# Unrelated personal/scratch files
+*.docx
+/climate-lab.html
+/presentation.html
+/week3-lab.html
+/make_doc.py
+
+# Python (trainer)
+__pycache__/
+*.pyc
+packages/trainer/checkpoints/

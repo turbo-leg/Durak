@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { Panel, Pill, TextInput, GoldButton, Divider, SectionLabel } from './ui';
+import { colors, radii, shadows, fonts } from '../theme';
+import {
+  isAppleAvailable,
+  isGoogleAvailable,
+  renderGoogleButton,
+  signInWithApple,
+} from '../utils/socialAuth';
 
 const DiscordLogo = () => (
   <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current shrink-0" aria-hidden>
@@ -8,48 +16,125 @@ const DiscordLogo = () => (
   </svg>
 );
 
+const AppleLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current shrink-0" aria-hidden>
+    <path d="M16.365 1.43c0 1.14-.42 2.21-1.12 3.01-.84.95-2.21 1.69-3.39 1.6-.14-1.12.42-2.3 1.07-3.02.79-.89 2.24-1.56 3.44-1.59zM20.5 17.2c-.6 1.38-.88 1.99-1.65 3.21-1.08 1.7-2.6 3.82-4.48 3.84-1.67.02-2.1-1.09-4.37-1.08-2.27.01-2.74 1.1-4.41 1.08-1.88-.02-3.32-1.93-4.4-3.63C-1.3 15.66-1.95 9.34.58 6.06c1.13-1.49 2.91-2.43 4.59-2.43 1.71 0 2.78 1.09 4.19 1.09 1.37 0 2.2-1.09 4.18-1.09 1.49 0 3.07.81 4.2 2.21-3.69 2.02-3.09 7.29.76 8.36-.18.54-.34 1-.5 1z" />
+  </svg>
+);
+
 type Tab = 'login' | 'register';
 
+const DISCORD_BLURPLE = '#5865F2';
+
 export const LoginPanel: React.FC = () => {
-  const { user, isLoading, error, loginWithDiscord, loginWithEmail, register, logout } = useAuth();
+  const {
+    user,
+    isLoading,
+    error,
+    loginWithDiscord,
+    loginWithEmail,
+    loginWithGoogle,
+    loginWithApple,
+    register,
+    logout,
+  } = useAuth();
   const { t } = useTranslation('home');
   const [tab, setTab] = useState<Tab>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  const showGoogle = isGoogleAvailable();
+  const showApple = isAppleAvailable();
+
+  // Render Google's official button once its container is mounted.
+  useEffect(() => {
+    if (!showGoogle || user || !googleBtnRef.current) return;
+    void renderGoogleButton(googleBtnRef.current, (credential) => {
+      void loginWithGoogle(credential).catch(() => {});
+    });
+  }, [showGoogle, user, loginWithGoogle]);
+
+  const handleAppleSignIn = async () => {
+    setLocalError(null);
+    try {
+      const result = await signInWithApple();
+      await loginWithApple(result);
+    } catch {
+      // error surfaced via context, or user cancelled
+    }
+  };
 
   if (user) {
     return (
-      <div className="bg-indigo-950 border border-indigo-700 rounded-xl p-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      <Panel
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {user.avatarUrl ? (
             <img
               src={user.avatarUrl}
               alt={user.username}
-              className="w-9 h-9 rounded-full border-2 border-indigo-400 shrink-0"
+              width={40}
+              height={40}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                border: `2px solid ${colors.gold[500]}`,
+                flexShrink: 0,
+                objectFit: 'cover',
+              }}
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-indigo-700 flex items-center justify-center font-bold text-sm border-2 border-indigo-400 shrink-0">
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: colors.felt[600],
+                border: `2px solid ${colors.gold[500]}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                color: colors.ivory[100],
+                flexShrink: 0,
+              }}
+            >
               {user.username.charAt(0).toUpperCase()}
             </div>
           )}
-          <div className="min-w-0">
-            <div className="font-bold text-sm text-white truncate">
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontFamily: fonts.display,
+                fontWeight: 700,
+                color: colors.ivory[100],
+                fontSize: 15,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {user.globalName || user.username}
             </div>
-            <div className="text-indigo-400 text-xs capitalize">
+            <div style={{ color: colors.gold[400], fontSize: 12, textTransform: 'capitalize' }}>
               {t('login.account', { name: user.method })}
             </div>
           </div>
         </div>
-        <button
-          onClick={logout}
-          className="text-indigo-400 hover:text-white text-xs px-2 py-1 rounded border border-indigo-700 hover:border-indigo-500 transition shrink-0"
-        >
+        <GoldButton variant="ghost" size="sm" onClick={logout} style={{ flexShrink: 0 }}>
           {t('login.logOut')}
-        </button>
-      </div>
+        </GoldButton>
+      </Panel>
     );
   }
 
@@ -78,88 +163,144 @@ export const LoginPanel: React.FC = () => {
   };
 
   return (
-    <div className="bg-indigo-950 border border-indigo-700 rounded-xl p-5">
-      <div className="text-white font-bold mb-3">{t('login.yourAccount')}</div>
+    <Panel>
+      <SectionLabel>{t('login.yourAccount')}</SectionLabel>
 
       {/* Auth method tabs */}
-      <div className="flex gap-2 mb-4">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {(['login', 'register'] as Tab[]).map((tabKey) => (
-          <button
+          <Pill
             key={tabKey}
+            active={tab === tabKey}
             onClick={() => {
               setTab(tabKey);
               setLocalError(null);
             }}
-            className={`px-3 py-1 rounded text-xs font-semibold capitalize transition ${
-              tab === tabKey
-                ? 'bg-indigo-600 text-white'
-                : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'
-            }`}
           >
             {tabKey === 'login' ? t('login.logIn') : t('login.register')}
-          </button>
+          </Pill>
         ))}
       </div>
 
-      {/* Discord button */}
+      {/* Discord button — keeps Discord brand color by design */}
       <button
         onClick={loginWithDiscord}
         disabled={isLoading}
-        className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition mb-3"
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          background: DISCORD_BLURPLE,
+          color: '#fff',
+          fontWeight: 700,
+          fontFamily: fonts.body,
+          padding: '11px 16px',
+          borderRadius: radii.md,
+          border: 'none',
+          boxShadow: shadows.low,
+          cursor: isLoading ? 'not-allowed' : 'pointer',
+          opacity: isLoading ? 0.55 : 1,
+          marginBottom: 14,
+          transition: 'opacity 0.15s',
+        }}
       >
         <DiscordLogo />
         {t('login.continueDiscord')}
       </button>
 
-      <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1 h-px bg-indigo-800" />
-        <span className="text-indigo-500 text-xs">{t('login.or')}</span>
-        <div className="flex-1 h-px bg-indigo-800" />
-      </div>
+      {/* Google — official GIS button renders into this container */}
+      {showGoogle && (
+        <div
+          ref={googleBtnRef}
+          style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}
+        />
+      )}
+
+      {/* Apple — web popup or native iOS Sign in with Apple */}
+      {showApple && (
+        <button
+          onClick={handleAppleSignIn}
+          disabled={isLoading}
+          style={{
+            width: '100%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            background: '#000',
+            color: '#fff',
+            fontWeight: 700,
+            fontFamily: fonts.body,
+            padding: '11px 16px',
+            borderRadius: radii.md,
+            border: 'none',
+            boxShadow: shadows.low,
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            opacity: isLoading ? 0.55 : 1,
+            marginBottom: 14,
+            transition: 'opacity 0.15s',
+          }}
+        >
+          <AppleLogo />
+          {t('login.continueApple')}
+        </button>
+      )}
+
+      <Divider label={t('login.or')} />
 
       {/* Email/password form */}
-      <form onSubmit={handleEmailSubmit} className="space-y-2">
+      <form
+        onSubmit={handleEmailSubmit}
+        style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}
+      >
         {tab === 'register' && (
-          <input
+          <TextInput
             type="text"
             placeholder={t('login.username')}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full bg-indigo-900 border border-indigo-700 text-white placeholder-indigo-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
             maxLength={32}
           />
         )}
-        <input
+        <TextInput
           type="email"
           placeholder={t('login.email')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full bg-indigo-900 border border-indigo-700 text-white placeholder-indigo-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
         />
-        <input
+        <TextInput
           type="password"
           placeholder={t('login.password')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full bg-indigo-900 border border-indigo-700 text-white placeholder-indigo-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
         />
 
-        {displayError && <p className="text-red-400 text-xs">{displayError}</p>}
+        {displayError && (
+          <p style={{ color: '#e98a8a', fontSize: 12, margin: 0 }}>{displayError}</p>
+        )}
 
-        <button
-          type="submit"
-          disabled={isLoading || !email || !password}
-          className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition"
-        >
+        <GoldButton type="submit" block disabled={isLoading || !email || !password}>
           {isLoading
             ? t('common:status.loading')
             : tab === 'login'
               ? t('login.logIn')
               : t('login.createAccount')}
-        </button>
+        </GoldButton>
       </form>
 
-      <p className="text-indigo-500 text-xs mt-3 text-center">{t('login.guestNote')}</p>
-    </div>
+      <p
+        style={{
+          color: colors.ivory[300],
+          fontSize: 12,
+          marginTop: 14,
+          marginBottom: 0,
+          textAlign: 'center',
+        }}
+      >
+        {t('login.guestNote')}
+      </p>
+    </Panel>
   );
 };

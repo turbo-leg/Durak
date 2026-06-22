@@ -1,0 +1,10 @@
+Vector Playing Cards
+====================
+
+These 52 playing-card SVGs are from the "Vectorized Playing Cards" deck by
+Chris Aguilar (https://code.google.com/archive/p/vector-playing-cards/).
+
+License: LGPL 3.0
+Attribution: Chris Aguilar — conjurenation@gmail.com
+
+Used in Durak Online for in-game and home-screen card rendering.

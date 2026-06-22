@@ -1,7 +1,4 @@
 {
-  "hero": {
-    "subtitle": "The Fool's Game"
-  },
   "modes": {
     "play": "PLAY",
     "ranked": "Ranked",
@@ -65,6 +62,8 @@
     "logIn": "Log In",
     "register": "Register",
     "continueDiscord": "Continue with Discord",
+    "continueGoogle": "Continue with Google",
+    "continueApple": "Continue with Apple",
     "or": "or",
     "email": "Email",
     "password": "Password",
