@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame, type RevealPair } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
+import { PlayingCard } from './PlayingCard';
 import { Card as SharedCard, Player } from '@durak/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { ScreenOrientation } from '@capacitor/screen-orientation';
+import { Capacitor } from '@capacitor/core';
 import { useAudio } from '../utils/audio';
 import { useIsDesktop } from '../utils/useIsDesktop';
+import { useIsShortViewport } from '../utils/useIsShortViewport';
 import { SuhuhReveal } from './SuhuhReveal';
-import { CardBack } from './CardBack';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 import { useSettings } from '../contexts/SettingsContext';
 import { useTranslation } from 'react-i18next';
@@ -62,10 +65,20 @@ export const GameBoard: React.FC = () => {
     playDiscardSound,
   } = useAudio(settings.soundEffects);
   const isDesktop = useIsDesktop();
+  const isShort = useIsShortViewport();
   const warningPlayedRef = React.useRef(false);
   const gameResultKeyRef = React.useRef<string | null>(null);
 
   // Update timer smoothly using requestAnimationFrame
+  // Lock to landscape while in a game; restore on leave
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    ScreenOrientation.lock({ orientation: 'landscape' }).catch(() => {});
+    return () => {
+      ScreenOrientation.unlock().catch(() => {});
+    };
+  }, []);
+
   useEffect(() => {
     if (!gameState || gameState.phase !== 'playing') {
       return;
@@ -946,6 +959,18 @@ export const GameBoard: React.FC = () => {
                           >
                             {p.username || id.slice(0, 8)}
                           </span>
+                          {p.isPremium && (
+                            <span
+                              style={{
+                                fontSize: 12,
+                                lineHeight: 1,
+                                filter: 'drop-shadow(0 0 6px rgba(192,132,252,0.8))',
+                              }}
+                              title="Premium member"
+                            >
+                              ♛
+                            </span>
+                          )}
                           {isHostP && (
                             <span
                               style={{
@@ -1362,7 +1387,7 @@ export const GameBoard: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '8px 14px',
+          padding: isShort ? '4px 14px' : '8px 14px',
           background: 'linear-gradient(180deg, rgba(7,38,26,0.92), rgba(4,21,14,0.96))',
           borderBottom: '1px solid rgba(212,175,55,0.35)',
           boxShadow: '0 2px 10px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(0,0,0,0.4)',
@@ -1394,15 +1419,21 @@ export const GameBoard: React.FC = () => {
           </span>
           {gameState.huzurCard && (
             <span
+              title={`Trump: ${gameState.huzurSuit}`}
               style={{
-                color: '#f4d774',
-                fontWeight: 700,
-                fontFamily: "'Cinzel', Georgia, serif",
-                letterSpacing: 1.5,
-                textShadow: '0 0 8px rgba(212,175,55,0.4)',
+                display: 'inline-flex',
+                borderRadius: 4,
+                padding: 1,
+                background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 45%, #8b6914 100%)',
+                boxShadow: '0 0 8px rgba(212,175,55,0.45)',
               }}
             >
-              ♦ {gameState.huzurSuit}
+              <PlayingCard
+                suit={gameState.huzurCard.suit}
+                rank={gameState.huzurCard.rank}
+                width={22}
+              />
+              <span className="sr-only">{gameState.huzurSuit}</span>
             </span>
           )}
         </div>
@@ -1565,36 +1596,6 @@ export const GameBoard: React.FC = () => {
                 : 'inset 0 0 80px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(212,175,55,0.18), 0 8px 24px rgba(0,0,0,0.55)',
           }}
         >
-          {/* Deck + Trump — pinned to the oval's left edge so played cards never collide with it */}
-          {gameState.phase === 'playing' && gameState.huzurCard && (
-            <div className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 pointer-events-none">
-              <div className="relative w-8 h-12 md:w-10 md:h-14">
-                {(gameState.deck?.length || 0) > 0 ? (
-                  <>
-                    <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rounded border border-white/10 bg-black/40 -z-10" />
-                    <div className="absolute inset-0">
-                      <CardBack />
-                    </div>
-                    <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[10px] md:text-xs drop-shadow z-10">
-                      {gameState.deck?.length}
-                    </span>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
-                )}
-              </div>
-              <div
-                style={{
-                  borderRadius: 8,
-                  padding: 1,
-                  background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 45%, #8b6914 100%)',
-                  boxShadow: '0 0 16px rgba(212,175,55,0.55)',
-                }}
-              >
-                <UICard card={gameState.huzurCard} compact />
-              </div>
-            </div>
-          )}
 
           {/* Center: Table Cards (played pairs) — kept clear of the deck/trump cluster */}
           <div className="absolute inset-0 flex items-center justify-center px-24 md:px-32 pointer-events-none">
@@ -1773,7 +1774,7 @@ export const GameBoard: React.FC = () => {
                                   initial={{ opacity: 0, x: -6, y: -6, rotate: -8 }}
                                   animate={{ opacity: 1, x: 0, y: 0, rotate: 8 }}
                                   transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-                                  className="absolute left-3 top-3 ring-1 ring-green-400/50 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
+                                  className="absolute left-3 top-3"
                                 >
                                   <UICard card={p.def} compact />
                                 </motion.div>
@@ -1810,7 +1811,7 @@ export const GameBoard: React.FC = () => {
                               delay: i * 0.1,
                             }}
                             style={{ transformPerspective: 900, rotate: 8 }}
-                            className="absolute left-3 top-3 ring-1 ring-green-400/60 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                            className="absolute left-3 top-3"
                           >
                             <UICard card={pair.def as unknown as SharedCard} compact />
                           </motion.div>
@@ -1944,13 +1945,14 @@ export const GameBoard: React.FC = () => {
                 </span>
                 <span
                   style={{
-                    marginTop: 3,
+                    marginTop: 4,
                     fontSize: 10,
                     fontWeight: 800,
-                    color: '#f5ead0',
-                    background: 'rgba(0,0,0,0.55)',
-                    border: '1px solid rgba(212,175,55,0.3)',
-                    padding: '1px 8px',
+                    color: '#1b150a',
+                    background: 'linear-gradient(180deg, #f4d774, #d4af37)',
+                    border: '1px solid rgba(139,105,20,0.7)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                    padding: '1px 9px',
                     borderRadius: 999,
                     fontVariantNumeric: 'tabular-nums',
                   }}
@@ -2053,14 +2055,14 @@ export const GameBoard: React.FC = () => {
       {gameState.phase === 'playing' && !viewAsSpectator && (
         <div
           className="flex flex-wrap justify-center gap-2 shrink-0 z-20 touch-manipulation"
-          style={{ padding: '6px 10px 4px' }}
+          style={{ padding: isShort ? '2px 10px 2px' : '6px 10px 4px' }}
         >
           {(() => {
             const btnBase: React.CSSProperties = {
-              padding: '9px 22px',
+              padding: isShort ? '6px 16px' : '9px 22px',
               borderRadius: 999,
               fontFamily: "'Cinzel', Georgia, serif",
-              fontSize: 13,
+              fontSize: isShort ? 11 : 13,
               fontWeight: 700,
               letterSpacing: 1.5,
               textTransform: 'uppercase',
@@ -2180,7 +2182,7 @@ export const GameBoard: React.FC = () => {
         <div
           className={`shrink-0 transition-all duration-300 ${
             draggingCardKey ? 'overflow-visible' : 'overflow-hidden'
-          } ${isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5'}`}
+          } ${isShort ? (isMyTurn ? 'pb-1 pt-0.5' : 'pb-0.5 pt-0') : (isMyTurn ? 'pb-2 pt-1' : 'pb-1 pt-0.5')}`}
           style={{
             background:
               'linear-gradient(180deg, rgba(4,21,14,0.45) 0%, rgba(4,21,14,0.85) 60%, rgba(4,21,14,0.95) 100%)',
@@ -2192,7 +2194,7 @@ export const GameBoard: React.FC = () => {
             className={`flex flex-row items-end md:justify-center w-full px-1 md:px-4 custom-scrollbar ${
               draggingCardKey ? 'overflow-visible' : 'overflow-x-auto md:overflow-x-visible'
             }`}
-            style={{ minHeight: isMyTurn ? '80px' : '64px' }}
+            style={{ minHeight: isShort ? (isMyTurn ? '60px' : '48px') : (isMyTurn ? '80px' : '64px') }}
           >
             <div className="flex flex-row w-max md:w-auto md:max-w-full md:justify-center gap-1 md:gap-0 px-1 md:px-0">
               <AnimatePresence>
@@ -2686,7 +2688,10 @@ export const GameBoard: React.FC = () => {
                       </button>
                     ))}
                   <button
-                    onClick={leaveGame}
+                    onClick={() => {
+                      if (settings.confirmLeave && !window.confirm(t('common:errors.leaveGame'))) return;
+                      leaveGame();
+                    }}
                     style={{
                       flex: isSpectator ? 1 : undefined,
                       padding: '13px 20px',

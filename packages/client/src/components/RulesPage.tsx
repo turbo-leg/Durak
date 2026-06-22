@@ -378,7 +378,7 @@ export const RulesPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ minHeight: '100dvh', paddingBottom: 96, paddingTop: 20 }}>
+    <div style={{ minHeight: '100dvh', paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))', paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
       <div style={{ textAlign: 'center', marginBottom: 28, padding: '0 20px' }}>
         <div
           style={{

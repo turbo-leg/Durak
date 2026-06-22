@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
 import { BADGES } from '@durak/shared';
 import { useTranslation } from 'react-i18next';
+import { LoginPanel } from './LoginPanel';
 
 interface ProfileStats {
   gamesPlayed: number;
@@ -22,6 +23,7 @@ interface Profile {
   eloTeams: number;
   badges: string[];
   coins: number;
+  premium?: { active: boolean };
 }
 
 interface MatchRecord {
@@ -42,6 +44,7 @@ interface LeaderEntry {
   eloClassic: number;
   eloTeams: number;
   stats: { gamesPlayed: number };
+  premium?: { active: boolean };
 }
 
 const API = '/api';
@@ -94,14 +97,32 @@ export const ProfilePage: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center gap-4 p-8 text-center">
-        <div
-          className="text-6xl font-display text-[var(--gold-400)] drop-shadow-[0_2px_8px_rgba(212,175,55,0.4)]"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          ♠
+      <div
+        className="min-h-screen bg-transparent flex flex-col items-center justify-center p-6 text-center"
+        style={{ paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <div className="w-full max-w-sm flex flex-col items-center gap-5">
+          <div className="flex flex-col items-center gap-3">
+            <div
+              className="text-5xl text-[var(--gold-400)] drop-shadow-[0_2px_8px_rgba(212,175,55,0.4)]"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              ♠
+            </div>
+            <div className="flex items-center gap-2 w-48 justify-center">
+              <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[rgba(212,175,55,0.4)]" />
+              <span className="text-[var(--gold-500)] text-[8px]">◆</span>
+              <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[rgba(212,175,55,0.4)]" />
+            </div>
+            <p className="text-[var(--ivory-200)] font-semibold tracking-wide leading-relaxed">
+              {t('signInPrompt')}
+            </p>
+          </div>
+          {/* Sign in / register directly from the profile screen */}
+          <div className="w-full text-left">
+            <LoginPanel />
+          </div>
         </div>
-        <p className="text-[var(--ivory-200)] font-semibold tracking-wide">{t('signInPrompt')}</p>
       </div>
     );
   }
@@ -113,6 +134,7 @@ export const ProfilePage: React.FC = () => {
   const eloTeams = latestStats?.eloTeams ?? profile?.eloTeams ?? 1000;
   const coins = latestStats?.coins ?? profile?.coins ?? 0;
   const badges = latestStats?.badges ?? profile?.badges ?? [];
+  const isPremium = profile?.premium?.active ?? false;
   const winRate = stats?.gamesPlayed ? Math.round((stats.wins / stats.gamesPlayed) * 100) : 0;
   const durakRate = stats?.gamesPlayed
     ? Math.round((stats.durakCount / stats.gamesPlayed) * 100)
@@ -147,11 +169,32 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div
-              className="font-black text-xl leading-tight truncate text-[var(--ivory-50)] tracking-wide font-display"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              {user.username}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div
+                className="font-black text-xl leading-tight truncate text-[var(--ivory-50)] tracking-wide font-display"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {user.username}
+              </div>
+              {isPremium && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 900,
+                    letterSpacing: 1.5,
+                    textTransform: 'uppercase',
+                    color: '#c084fc',
+                    background: 'linear-gradient(135deg, rgba(106,13,173,0.3), rgba(106,13,173,0.15))',
+                    border: '1px solid rgba(106,13,173,0.6)',
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    boxShadow: '0 0 10px rgba(192,132,252,0.3)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ♛ Premium
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <span className="text-[var(--gold-400)] text-sm font-bold tracking-wider">
@@ -540,8 +583,11 @@ const LeaderboardSection: React.FC<{
                   </div>
                 )}
                 <span
-                  className={`flex-1 font-bold truncate ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--ivory-100)]'}`}
+                  className={`flex-1 font-bold truncate flex items-center gap-1.5 ${isMe ? 'text-[var(--ink-900)]' : 'text-[var(--ivory-100)]'}`}
                 >
+                  {p.premium?.active && (
+                    <span style={{ fontSize: 11, filter: 'drop-shadow(0 0 5px rgba(192,132,252,0.7))' }}>♛</span>
+                  )}
                   {p.username}
                 </span>
                 <span

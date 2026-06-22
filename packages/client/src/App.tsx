@@ -10,8 +10,10 @@ import { ProfilePage } from './components/ProfilePage';
 import { RulesPage } from './components/RulesPage';
 import { SettingsPage } from './components/SettingsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { SpringScroll } from './components/SpringScroll';
 import { isEmbedded, setupDiscordSdk, discordSdk, type DiscordAuthInfo } from './discordAuth';
 import { useAuth } from './contexts/AuthContext';
+import { initPushNotifications } from './utils/pushService';
 import './App.css';
 
 type NavTab = 'home' | 'shop' | 'profile' | 'rules' | 'settings';
@@ -63,6 +65,11 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { t } = useTranslation('common');
   const [navTab, setNavTab] = useState<NavTab>('home');
 
+  // Sync animations setting to a body class so CSS @keyframes are also suppressed
+  useEffect(() => {
+    document.body.classList.toggle('no-animations', !settings.animations);
+  }, [settings.animations]);
+
   const handleLeave = () => {
     if (settings.confirmLeave && !window.confirm(t('errors.leaveGame'))) return;
     leaveGame();
@@ -82,6 +89,14 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
       void handleOAuthCallback(code);
     }
   }, [handleOAuthCallback]);
+
+  // Init push notifications once the user is authenticated (email JWT or Discord session)
+  useEffect(() => {
+    const token = browserAuth?.token;
+    if (token) {
+      void initPushNotifications(token);
+    }
+  }, [browserAuth?.token]);
 
   // Issue #69: Auto-join the Discord Instance Lobby
   useEffect(() => {
@@ -156,7 +171,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
       <div
         style={{ minHeight: '100dvh', color: '#f5ead0', display: 'flex', flexDirection: 'column' }}
       >
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <SpringScroll style={{ flex: 1 }}>
           {isReconnecting ? (
             <ConnectingSplash label={t('status.reconnecting')} />
           ) : navTab === 'shop' ? (
@@ -178,7 +193,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
               error={error && !isConnected ? error : null}
             />
           )}
-        </div>
+        </SpringScroll>
 
         {/* Casino bottom nav */}
         <nav

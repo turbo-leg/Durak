@@ -623,7 +623,7 @@ describe('GameBoard component', () => {
         disconnectedOpponent: 'Alice',
       });
       render(<GameBoard />);
-      expect(screen.getByText('Alice')).toBeDefined();
+      expect(screen.getByText(/Alice/)).toBeDefined();
       expect(screen.getByText(/Waiting for/i)).toBeDefined();
     });
 

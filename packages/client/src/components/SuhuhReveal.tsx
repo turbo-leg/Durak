@@ -150,16 +150,18 @@ export const SuhuhReveal: React.FC<SuhuhRevealProps> = ({
                       <img
                         src={player.avatarUrl}
                         alt={player.username}
-                        className={`w-10 h-10 rounded-full border-2 transition-all duration-300 ${
+                        width={40}
+                        height={40}
+                        className={`w-10 h-10 rounded-full border-2 object-cover transition-all duration-300 ${
                           highlighted
-                            ? 'border-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.7)]'
+                            ? 'border-[#e6c258] shadow-[0_0_12px_rgba(212,175,55,0.7)]'
                             : 'border-white/30'
                         }`}
                       />
                     ) : (
                       <div
-                        className={`w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm border-2 transition-all duration-300 ${
-                          highlighted ? 'border-yellow-400' : 'border-white/20'
+                        className={`w-10 h-10 rounded-full bg-[#0d4630] flex items-center justify-center text-white font-bold text-sm border-2 transition-all duration-300 ${
+                          highlighted ? 'border-[#e6c258]' : 'border-white/20'
                         }`}
                       >
                         {(player?.username || draw.playerId).slice(0, 2).toUpperCase()}

@@ -301,7 +301,11 @@ export class DurakEngine {
 
     let handIndex = -1;
     if (isJokerTrump) {
-      handIndex = player.hand.findIndex((c) => c.suit === 'Spades' && c.rank === Rank.Ace);
+      if (state.huzurCard.rank === Rank.RedJoker) {
+        handIndex = player.hand.findIndex((c) => c.suit === Suit.Hearts && c.rank === Rank.Ace);
+      } else {
+        handIndex = player.hand.findIndex((c) => c.suit === Suit.Spades && c.rank === Rank.Ace);
+      }
     } else {
       handIndex = player.hand.findIndex((c) => c.suit === state.huzurSuit && c.rank === Rank.Seven);
     }
@@ -313,7 +317,11 @@ export class DurakEngine {
     const pickedUpKeys = player.pickedUpCardKeys;
 
     if (isJokerTrump) {
-      if (pickedUpKeys.includes(`Spades:${Rank.Ace}:0`)) return false;
+      if (state.huzurCard.rank === Rank.RedJoker) {
+        if (pickedUpKeys.includes(`${Suit.Hearts}:${Rank.Ace}:0`)) return false;
+      } else {
+        if (pickedUpKeys.includes(`${Suit.Spades}:${Rank.Ace}:0`)) return false;
+      }
     } else {
       if (pickedUpKeys.includes(`${state.huzurSuit}:${Rank.Seven}:0`)) return false;
     }

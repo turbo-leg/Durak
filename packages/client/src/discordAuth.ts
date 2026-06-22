@@ -1,8 +1,10 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
+import { Capacitor } from '@capacitor/core';
 
 const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined;
 
 export const isEmbedded =
+  !Capacitor.isNativePlatform() &&
   !!clientId &&
   (window.location.search.includes('frame_id') || document.referrer.includes('discord.com'));
 

@@ -24,7 +24,9 @@ function fromStorage(): GameSettings {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {}
+  } catch {
+    /* ignore malformed stored settings */
+  }
   return DEFAULTS;
 }
 
@@ -58,6 +60,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     if (!user?.token) {
       const s = fromStorage();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettings(s);
       void i18n.changeLanguage(s.language);
       return;
@@ -107,7 +110,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }, 600);
       }
     },
-    [user?.token, flushToDb],
+    [user, flushToDb],
   );
 
   return (

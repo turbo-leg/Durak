@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useRef 
 import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
+import { Capacitor } from '@capacitor/core';
 import { discordSdk } from '../discordAuth';
 import i18n from '../i18n/index';
 
@@ -136,6 +137,10 @@ export const useGame = () => useContext(GameContext);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const defaultServerUrl = useMemo(() => {
+    // Native iOS/Android: always connect to the production server
+    if (Capacitor.isNativePlatform()) {
+      return 'wss://durak-discord-activity.fly.dev';
+    }
     if (typeof window === 'undefined') return 'ws://localhost:2567';
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -404,7 +409,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(message || 'Unknown room error');
     });
     roomInstance.onLeave(async (code) => {
-      console.log('Left room:', code);
       setIsConnected(false);
       setRoom(null);
       setSuhuhResult(null);

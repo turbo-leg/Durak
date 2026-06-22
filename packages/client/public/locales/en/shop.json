@@ -39,7 +39,10 @@
     "signInEquip": "Sign in to equip",
     "needMore": "(need {{count}} more)",
     "currentlyEquipped": "CURRENTLY EQUIPPED",
-    "hot": "HOT"
+    "hot": "HOT",
+    "on": "✓ ON",
+    "premium": "♛ Premium",
+    "premiumMembersOnly": "♛ Premium Members Only"
   },
   "toast": {
     "purchaseFailed": "Purchase failed",

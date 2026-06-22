@@ -8,6 +8,7 @@ export interface ShopItem {
   price: number;
   preview: string; // emoji or hex color or url key
   image?: string; // path relative to /assets/ for image previews
+  premiumOnly?: boolean; // exclusive to premium members
 }
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -182,5 +183,36 @@ export const SHOP_ITEMS: ShopItem[] = [
     preview: '💯',
     image: 'emotes/emote_100.png',
   },
+
+  // ── Premium exclusives (free for premium members, locked otherwise) ──────────
+  {
+    id: 'cardback_royal',
+    type: 'cardBack',
+    name: 'Royal Purple',
+    description: 'Exclusive deep violet card back for premium members',
+    price: 0,
+    preview: '#6a0dad',
+    premiumOnly: true,
+  },
+  {
+    id: 'table_velvet',
+    type: 'tableSkin',
+    name: 'Black Velvet',
+    description: 'Ultra-premium black velvet table surface',
+    price: 0,
+    preview: '#0a0a0a',
+    premiumOnly: true,
+  },
+  {
+    id: 'emote_diamond',
+    type: 'emote',
+    name: 'Diamond',
+    description: 'Flex your premium status',
+    price: 0,
+    preview: '💎',
+    premiumOnly: true,
+  },
 ];
-export const FREE_ITEM_IDS = new Set(SHOP_ITEMS.filter((i) => i.price === 0).map((i) => i.id));
+
+export const FREE_ITEM_IDS = new Set(SHOP_ITEMS.filter((i) => i.price === 0 && !i.premiumOnly).map((i) => i.id));
+export const PREMIUM_ITEM_IDS = new Set(SHOP_ITEMS.filter((i) => i.premiumOnly).map((i) => i.id));

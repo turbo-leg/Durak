@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGame } from '../contexts/GameContext';
 import type { RoomAvailable } from 'colyseus.js';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 import { LoginPanel } from './LoginPanel';
+import { Panel, GoldButton, TextInput, Select, SectionLabel } from './ui';
+import { colors, radii, fonts } from '../theme';
 
 const getAvailablePlayers = (mode: string) => {
   return mode === 'teams' ? [4, 6] : [2, 3, 4, 5, 6];
@@ -33,6 +36,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   defaultPrivate = false,
   defaultVsBot = false,
 }) => {
+  const { t } = useTranslation('game');
   const { createGame, joinGame, spectateGame, findPublicGames, error } = useGame();
 
   const [rooms, setRooms] = useState<RoomAvailable[]>([]);
@@ -79,16 +83,18 @@ export const Lobby: React.FC<LobbyProps> = ({
     setIsLoading(false);
   };
 
-  return (
-    <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 text-black relative z-20">
-      {/* Create Room Panel */}
-      <div className="bg-green-100 p-8 rounded-xl shadow-lg border border-green-300">
-        <h2 className="text-2xl font-bold text-green-900 mb-6">Create New Game</h2>
+  const handSizeLocked = getAvailableHandSizes(mode, maxPlayers).length <= 1;
 
-        <form onSubmit={handleCreate} className="space-y-4">
+  return (
+    <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 relative z-20">
+      {/* Create Room Panel */}
+      <Panel>
+        <SectionLabel>{t('lobby.createNewGame')}</SectionLabel>
+
+        <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label className="block text-sm font-bold text-green-800 mb-1">Game Mode</label>
-            <select
+            <FieldLabel>{t('lobby.gameMode')}</FieldLabel>
+            <Select
               value={mode}
               onChange={(e) => {
                 const newMode = e.target.value;
@@ -104,16 +110,15 @@ export const Lobby: React.FC<LobbyProps> = ({
                   setHandSize(validHandSizes[0]);
                 }
               }}
-              className="w-full p-2 border border-green-400 rounded-md bg-white"
             >
-              <option value="classic">Classic (Free for All)</option>
-              <option value="teams">Teams (3v3 / 2v2)</option>
-            </select>
+              <option value="classic">{t('lobby.modeClassic')}</option>
+              <option value="teams">{t('lobby.modeTeams')}</option>
+            </Select>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-green-800 mb-1">Max Players</label>
-            <select
+            <FieldLabel>{t('lobby.playersAtTable')}</FieldLabel>
+            <Select
               value={maxPlayers}
               onChange={(e) => {
                 const num = parseInt(e.target.value);
@@ -123,77 +128,78 @@ export const Lobby: React.FC<LobbyProps> = ({
                   setHandSize(validHandSizes[0]);
                 }
               }}
-              className="w-full p-2 border border-green-400 rounded-md bg-white"
             >
               {getAvailablePlayers(mode).map((num) => (
                 <option key={num} value={num}>
-                  {num} Players
+                  {t('lobby.nPlayers', { count: num })}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-green-800 mb-1">Cards in Hand</label>
-            <select
+            <FieldLabel>{t('lobby.cardsInHand')}</FieldLabel>
+            <Select
               value={handSize}
               onChange={(e) => setHandSize(parseInt(e.target.value))}
-              className="w-full p-2 border border-green-400 rounded-md bg-white"
-              disabled={getAvailableHandSizes(mode, maxPlayers).length <= 1}
+              disabled={handSizeLocked}
             >
               {getAvailableHandSizes(mode, maxPlayers).map((size) => (
                 <option key={size} value={size}>
-                  {size} Cards
+                  {t('lobby.nCards', { count: size })}
                 </option>
               ))}
-            </select>
-            {getAvailableHandSizes(mode, maxPlayers).length <= 1 && (
-              <p className="text-xs text-green-700 mt-1">
-                Hand size is locked to {getAvailableHandSizes(mode, maxPlayers)[0]} for this
-                mode/player count.
+            </Select>
+            {handSizeLocked && (
+              <p style={{ fontSize: 12, color: colors.ivory[300], marginTop: 6 }}>
+                {t('lobby.handLocked', { size: getAvailableHandSizes(mode, maxPlayers)[0] })}
               </p>
             )}
           </div>
 
           {mode === 'teams' && (
             <div>
-              <label className="block text-sm font-bold text-green-800 mb-1">Team Assignment</label>
-              <select
+              <FieldLabel>{t('lobby.teamSelection')}</FieldLabel>
+              <Select
                 value={teamSelection}
                 onChange={(e) => setTeamSelection(e.target.value as 'random' | 'manual')}
-                className="w-full p-2 border border-green-400 rounded-md bg-white"
               >
-                <option value="random">Randomize Teams</option>
-                <option value="manual">Manual Selection</option>
-              </select>
+                <option value="random">{t('lobby.randomAssignment')}</option>
+                <option value="manual">{t('lobby.manualSelection')}</option>
+              </Select>
             </div>
           )}
 
-          <div className="flex items-center space-x-2 pt-2">
+          <label
+            htmlFor="isPrivate"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              color: colors.ivory[100],
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
             <input
               type="checkbox"
               id="isPrivate"
               checked={isPrivate}
               onChange={(e) => setIsPrivate(e.target.checked)}
-              className="w-5 h-5 text-green-600 border-green-400 rounded focus:ring-green-500"
+              style={{ width: 18, height: 18, accentColor: colors.gold[500], cursor: 'pointer' }}
             />
-            <label htmlFor="isPrivate" className="font-bold text-green-900 cursor-pointer">
-              Private Game (Hidden from Lobby)
-            </label>
-          </div>
+            {t('lobby.privateGame')}
+          </label>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow disabled:opacity-50 transition"
-          >
-            {isLoading ? 'Creating...' : 'Create & Join Game'}
-          </button>
+          <GoldButton type="submit" block disabled={isLoading}>
+            {isLoading ? t('lobby.creating') : t('lobby.createAndJoin')}
+          </GoldButton>
         </form>
-      </div>
+      </Panel>
 
       {/* Right column: auth/profile + join + public rooms */}
-      <div className="flex flex-col space-y-6">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* Login / profile panel — always shown in browser mode */}
         <LoginPanel />
 
@@ -208,45 +214,81 @@ export const Lobby: React.FC<LobbyProps> = ({
         )}
 
         {/* Join by Code */}
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Join Private Game</h2>
-          <form onSubmit={handleJoinById} className="flex space-x-2">
-            <input
+        <Panel>
+          <SectionLabel>{t('lobby.joinPrivate')}</SectionLabel>
+          <form onSubmit={handleJoinById} style={{ display: 'flex', gap: 8 }}>
+            <TextInput
               type="text"
-              placeholder="Enter Room Code (e.g. A1B2)"
+              placeholder={t('lobby.roomCodePlaceholder')}
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
-              className="flex-1 p-2 border border-gray-300 rounded-md focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
             />
-            <button
-              type="submit"
-              disabled={isLoading || !joinCode.trim()}
-              className="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-6 rounded-md disabled:opacity-50 transition"
-            >
-              Join
-            </button>
+            <GoldButton type="submit" variant="burgundy" disabled={isLoading || !joinCode.trim()}>
+              {t('lobby.join')}
+            </GoldButton>
           </form>
-          {error && <p className="mt-2 text-sm text-red-600 font-semibold">{error}</p>}
-        </div>
+          {error && (
+            <p style={{ marginTop: 8, fontSize: 13, color: '#e98a8a', fontWeight: 600 }}>{error}</p>
+          )}
+        </Panel>
 
         {/* Public Rooms */}
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 flex-1 flex flex-col">
-          <div className="flex justify-between items-end mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Public Lobbies</h2>
-            <button onClick={fetchRooms} className="text-sm text-green-600 hover:underline">
-              ↻ Refresh
+        <Panel style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end',
+              marginBottom: 14,
+            }}
+          >
+            <SectionLabel>{t('lobby.publicLobbies')}</SectionLabel>
+            <button
+              onClick={fetchRooms}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: colors.gold[400],
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 0.5,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+              }}
+            >
+              ↻ {t('lobby.refresh')}
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[300px] border border-gray-100 rounded-lg">
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              maxHeight: 300,
+              borderRadius: radii.sm,
+              border: '1px solid rgba(212,175,55,0.15)',
+              background: 'rgba(0,0,0,0.25)',
+            }}
+          >
             {rooms.length === 0 ? (
-              <div className="h-full flex items-center justify-center p-8 text-gray-500 text-center">
-                No public games available.
-                <br />
-                Create one to get started!
+              <div
+                style={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 32,
+                  textAlign: 'center',
+                  color: colors.ivory[300],
+                  fontSize: 14,
+                }}
+              >
+                <span>{t('lobby.noPublicGamesLine1')}</span>
+                <span>{t('lobby.noPublicGamesLine2')}</span>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                 {rooms.map((r) => {
                   const meta = r.metadata as Record<string, unknown> | null;
                   const playerCount = (meta?.playerCount as number) ?? r.clients;
@@ -255,39 +297,61 @@ export const Lobby: React.FC<LobbyProps> = ({
                   const phase = (meta?.phase as string) ?? 'waiting';
                   const isFull = playerCount >= maxPlayers;
                   const canWatch = phase === 'playing';
+                  const modeLabel =
+                    meta?.mode === 'teams' ? t('lobby.teams') : t('lobby.classic');
                   return (
                     <li
                       key={r.roomId}
-                      className="p-4 hover:bg-green-50 transition flex justify-between items-center"
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '12px 14px',
+                        borderBottom: '1px solid rgba(212,175,55,0.1)',
+                      }}
                     >
-                      <div>
-                        <div className="font-bold text-gray-800">
-                          Room {r.roomId.substring(0, 6)}...
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontFamily: fonts.display,
+                            fontWeight: 700,
+                            color: colors.ivory[100],
+                            fontSize: 15,
+                          }}
+                        >
+                          {t('lobby.roomName', { id: r.roomId.substring(0, 6) })}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {playerCount} / {maxPlayers} Players •{' '}
-                          {meta?.mode === 'teams' ? 'Teams' : 'Classic'}
+                        <div style={{ fontSize: 12, color: colors.ivory[300], marginTop: 2 }}>
+                          {t('lobby.roomMeta', {
+                            count: playerCount,
+                            max: maxPlayers,
+                            mode: modeLabel,
+                          })}
                           {spectatorCount > 0 && (
-                            <span className="ml-2 text-purple-500">👁 {spectatorCount}</span>
+                            <span style={{ marginLeft: 8, color: colors.gold[400] }}>
+                              👁 {spectatorCount}
+                            </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
+                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <GoldButton
+                          size="sm"
                           onClick={() => joinGame(r.roomId, discordId, userId)}
                           disabled={isLoading || isFull}
-                          className="bg-green-100 text-green-800 hover:bg-green-200 font-bold px-4 py-2 rounded text-sm transition disabled:opacity-50"
                         >
-                          Join
-                        </button>
-                        <button
+                          {t('lobby.join')}
+                        </GoldButton>
+                        <GoldButton
+                          size="sm"
+                          variant="ghost"
                           onClick={() => spectateGame(r.roomId)}
                           disabled={isLoading || !canWatch}
-                          title={!canWatch ? 'Game has not started yet' : undefined}
-                          className="bg-purple-100 text-purple-800 hover:bg-purple-200 font-bold px-3 py-2 rounded text-sm transition disabled:opacity-50"
+                          title={!canWatch ? t('lobby.watchDisabled') : undefined}
                         >
-                          Watch
-                        </button>
+                          {t('lobby.watch')}
+                        </GoldButton>
                       </div>
                     </li>
                   );
@@ -295,8 +359,25 @@ export const Lobby: React.FC<LobbyProps> = ({
               </ul>
             )}
           </div>
-        </div>
+        </Panel>
       </div>
     </div>
   );
 };
+
+// Small uppercase gold field label, lighter than SectionLabel for form rows.
+const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <label
+    style={{
+      display: 'block',
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: 700,
+      letterSpacing: 0.5,
+      color: colors.gold[300],
+      marginBottom: 6,
+    }}
+  >
+    {children}
+  </label>
+);

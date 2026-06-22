@@ -69,11 +69,22 @@ body,
   min-height: 100dvh;
   font-family: var(--font-body);
   color: var(--ivory-100);
-  background: var(--gradient-felt);
-  background-attachment: fixed;
+  /* Solid felt base; the gradient is painted by a fixed layer below so it stays
+     put during scroll and the iOS rubber-band overscroll never shows a black bar. */
+  background: var(--felt-900);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Fixed felt gradient layer — viewport-anchored, behind all content. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--gradient-felt);
 }
 
 /* Subtle felt grain overlay applied via body::after so it sits behind content but above bg */
@@ -203,4 +214,15 @@ button {
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* Animations toggle — suppress all CSS keyframe animations when disabled.
+   Uses near-zero duration (not 'none') so animationend events still fire. */
+body.no-animations *,
+body.no-animations *::before,
+body.no-animations *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
 }

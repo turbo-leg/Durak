@@ -437,7 +437,7 @@ describe('DurakEngine - Custom Rules', () => {
       expect(DurakEngine.getTrumpSuit(clubsQueen)).toBe(Suit.Clubs);
     });
 
-    test('swapHuzur - Updates huzurSuit when swapping with Joker trump', () => {
+    test('swapHuzur - Red Joker trump is swapped with Ace of Hearts', () => {
       const state = new GameState();
       const playerIds = ['p1', 'p2'];
 
@@ -459,7 +459,42 @@ describe('DurakEngine - Custom Rules', () => {
         bottomCard.isJoker = redJoker.isJoker;
       }
 
-      // To swap a Joker trump, according to engine logic, player needs Spades Ace
+      // According to new rules, player needs Hearts Ace to swap Red Joker
+      const heartsAce = new Card(Suit.Hearts, Rank.Ace);
+      if (!player.hand.some((c) => c.suit === Suit.Hearts && c.rank === Rank.Ace)) {
+        player.hand.push(heartsAce);
+      }
+
+      const swapSuccessful = DurakEngine.swapHuzur(player, state);
+
+      expect(swapSuccessful).toBe(true);
+      // Hearts Ace goes to the table. The trump suit should update to Hearts.
+      expect(state.huzurSuit).toBe(Suit.Hearts);
+    });
+
+    test('swapHuzur - Black Joker trump is swapped with Ace of Spades', () => {
+      const state = new GameState();
+      const playerIds = ['p1', 'p2'];
+
+      DurakEngine.initializeGame(state, playerIds, 5);
+
+      const player = state.players.get(playerIds[0])!;
+
+      // Setup a BLACK JOKER on the table
+      const blackJoker = new Card(Suit.None, Rank.BlackJoker, true);
+      state.huzurCard.suit = blackJoker.suit;
+      state.huzurCard.rank = blackJoker.rank;
+      state.huzurCard.isJoker = blackJoker.isJoker;
+      state.huzurSuit = Suit.Spades; // Black Joker acts as Spades trump
+
+      if (state.deck.length > 0) {
+        const bottomCard = state.deck[0]!;
+        bottomCard.suit = blackJoker.suit;
+        bottomCard.rank = blackJoker.rank;
+        bottomCard.isJoker = blackJoker.isJoker;
+      }
+
+      // According to new rules, player needs Spades Ace to swap Black Joker
       const spadesAce = new Card(Suit.Spades, Rank.Ace);
       if (!player.hand.some((c) => c.suit === Suit.Spades && c.rank === Rank.Ace)) {
         player.hand.push(spadesAce);
@@ -470,6 +505,116 @@ describe('DurakEngine - Custom Rules', () => {
       expect(swapSuccessful).toBe(true);
       // Spades Ace goes to the table. The trump suit should update to Spades.
       expect(state.huzurSuit).toBe(Suit.Spades);
+    });
+
+    test('swapHuzur - Disallowed if Ace of Hearts (for Red Joker) was picked up', () => {
+      const state = new GameState();
+      const playerIds = ['p1', 'p2'];
+
+      DurakEngine.initializeGame(state, playerIds, 5);
+
+      const player = state.players.get(playerIds[0])!;
+
+      // Setup a RED JOKER on the table
+      const redJoker = new Card(Suit.None, Rank.RedJoker, true);
+      state.huzurCard.suit = redJoker.suit;
+      state.huzurCard.rank = redJoker.rank;
+      state.huzurCard.isJoker = redJoker.isJoker;
+      state.huzurSuit = Suit.Hearts;
+
+      if (state.deck.length > 0) {
+        const bottomCard = state.deck[0]!;
+        bottomCard.suit = redJoker.suit;
+        bottomCard.rank = redJoker.rank;
+        bottomCard.isJoker = redJoker.isJoker;
+      }
+
+      const heartsAce = new Card(Suit.Hearts, Rank.Ace);
+      player.hand.push(heartsAce);
+
+      // Simulate player picked up this Ace of Hearts
+      player.pickedUpCardKeys.push(`${Suit.Hearts}:${Rank.Ace}:0`);
+
+      const swapSuccessful = DurakEngine.swapHuzur(player, state);
+      expect(swapSuccessful).toBe(false);
+    });
+
+    test('swapHuzur - Disallowed if Ace of Spades (for Black Joker) was picked up', () => {
+      const state = new GameState();
+      const playerIds = ['p1', 'p2'];
+
+      DurakEngine.initializeGame(state, playerIds, 5);
+
+      const player = state.players.get(playerIds[0])!;
+
+      // Setup a BLACK JOKER on the table
+      const blackJoker = new Card(Suit.None, Rank.BlackJoker, true);
+      state.huzurCard.suit = blackJoker.suit;
+      state.huzurCard.rank = blackJoker.rank;
+      state.huzurCard.isJoker = blackJoker.isJoker;
+      state.huzurSuit = Suit.Spades;
+
+      if (state.deck.length > 0) {
+        const bottomCard = state.deck[0]!;
+        bottomCard.suit = blackJoker.suit;
+        bottomCard.rank = blackJoker.rank;
+        bottomCard.isJoker = blackJoker.isJoker;
+      }
+
+      const spadesAce = new Card(Suit.Spades, Rank.Ace);
+      player.hand.push(spadesAce);
+
+      // Simulate player picked up this Ace of Spades
+      player.pickedUpCardKeys.push(`${Suit.Spades}:${Rank.Ace}:0`);
+
+      const swapSuccessful = DurakEngine.swapHuzur(player, state);
+      expect(swapSuccessful).toBe(false);
+    });
+
+    test('swapHuzur - Swapped Ace of Hearts can be swapped by the 7 of Hearts', () => {
+      const state = new GameState();
+      const playerIds = ['p1', 'p2'];
+
+      DurakEngine.initializeGame(state, playerIds, 5);
+
+      const player = state.players.get(playerIds[0])!;
+
+      // Setup a RED JOKER on the table
+      const redJoker = new Card(Suit.None, Rank.RedJoker, true);
+      state.huzurCard.suit = redJoker.suit;
+      state.huzurCard.rank = redJoker.rank;
+      state.huzurCard.isJoker = redJoker.isJoker;
+      state.huzurSuit = Suit.Hearts;
+
+      if (state.deck.length > 0) {
+        const bottomCard = state.deck[0]!;
+        bottomCard.suit = redJoker.suit;
+        bottomCard.rank = redJoker.rank;
+        bottomCard.isJoker = redJoker.isJoker;
+      }
+
+      // First swap: Red Joker swapped with Ace of Hearts
+      const heartsAce = new Card(Suit.Hearts, Rank.Ace);
+      player.hand.push(heartsAce);
+
+      const firstSwapSuccessful = DurakEngine.swapHuzur(player, state);
+      expect(firstSwapSuccessful).toBe(true);
+      expect(state.huzurCard.rank).toBe(Rank.Ace);
+      expect(state.huzurCard.suit).toBe(Suit.Hearts);
+      expect(state.huzurCard.isJoker).toBe(false);
+
+      // Second swap: The Ace of Hearts is now on the table/bottom of deck.
+      // The player has the 7 of Hearts in hand and wants to swap it with the Ace of Hearts.
+      const heartsSeven = new Card(Suit.Hearts, Rank.Seven);
+      player.hand.push(heartsSeven);
+
+      const secondSwapSuccessful = DurakEngine.swapHuzur(player, state);
+      expect(secondSwapSuccessful).toBe(true);
+
+      // Now the bottom of the deck should be the 7 of Hearts, and the player has the Ace of Hearts back
+      expect(state.huzurCard.rank).toBe(Rank.Seven);
+      expect(state.huzurCard.suit).toBe(Suit.Hearts);
+      expect(player.hand.some((c) => c.suit === Suit.Hearts && c.rank === Rank.Ace)).toBe(true);
     });
   });
 });

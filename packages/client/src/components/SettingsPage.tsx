@@ -138,7 +138,7 @@ export const SettingsPage: React.FC<{ onNavigate?: (tab: string) => void }> = ({
     updateSetting(key, !settings[key] as GameSettings[K]);
 
   return (
-    <div style={{ minHeight: '100dvh', paddingBottom: 96, paddingTop: 20 }}>
+    <div style={{ minHeight: '100dvh', paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))', paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 28, padding: '0 20px' }}>
         <div

@@ -8,6 +8,13 @@ export interface IPlayerSettings {
   language: string;
 }
 
+export interface IPlayerPremium {
+  active: boolean;
+  grantedAt: Date | null;
+  source: string; // 'qpay' | 'promo' | 'admin'
+  orderId: string;
+}
+
 export interface IPlayerProfile extends mongoose.Document {
   discordId: string;
   userId: string;
@@ -30,6 +37,8 @@ export interface IPlayerProfile extends mongoose.Document {
   equippedTableSkin: string;
   equippedEmotes: string[];
   settings: IPlayerSettings;
+  premium: IPlayerPremium;
+  deviceTokens: string[];
   updatedAt: Date;
 }
 
@@ -55,6 +64,12 @@ const PlayerProfileSchema = new mongoose.Schema(
     equippedCardBack: { type: String, default: '' },
     equippedTableSkin: { type: String, default: '' },
     equippedEmotes: { type: [String], default: [] },
+    premium: {
+      active:    { type: Boolean, default: false },
+      grantedAt: { type: Date, default: null },
+      source:    { type: String, default: '' },
+      orderId:   { type: String, default: '' },
+    },
     settings: {
       soundEffects: { type: Boolean, default: true },
       animations: { type: Boolean, default: true },
@@ -62,6 +77,7 @@ const PlayerProfileSchema = new mongoose.Schema(
       confirmLeave: { type: Boolean, default: true },
       language: { type: String, default: 'en', enum: ['en', 'mn'] },
     },
+    deviceTokens: { type: [String], default: [] },
   },
   { timestamps: true },
 );

@@ -39,7 +39,10 @@
     "signInEquip": "Зүүхийн тулд нэвтэрнэ үү",
     "needMore": "({{count}} зоос дутуу байна)",
     "currentlyEquipped": "ОДОО ЗҮҮСЭН",
-    "hot": "ХИТ"
+    "hot": "ХИТ",
+    "on": "✓ ИДЭВХТЭЙ",
+    "premium": "♛ Премиум",
+    "premiumMembersOnly": "♛ Зөвхөн Премиум гишүүдэд"
   },
   "toast": {
     "purchaseFailed": "Худалдан авалт амжилтгүй боллоо",

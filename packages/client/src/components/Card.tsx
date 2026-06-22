@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card as CardType } from '@durak/shared';
+import { cardImageSrc } from '../utils/cardAssets';
 
 interface CardProps {
   card: CardType;
@@ -16,8 +17,6 @@ const suitSymbols: Record<string, string> = {
   Clubs: '♣',
   None: '',
 };
-
-const isRed = (suit: string) => suit === 'Hearts' || suit === 'Diamonds';
 
 const rankNames: Record<number, string> = {
   7: '7',
@@ -41,33 +40,48 @@ export const Card: React.FC<CardProps> = ({
   isPlayable = false,
   compact = false,
 }) => {
-  const red = !card.isJoker && isRed(card.suit);
   const symbol = card.isJoker ? '★' : suitSymbols[card.suit];
   const name = rankNames[card.rank] || String(card.rank);
 
   const cardLabel = card.isJoker ? `${name} Joker` : `${name} of ${card.suit}`;
   const ariaLabel = onClick ? (isPlayable ? `Play ${cardLabel}` : cardLabel) : cardLabel;
 
-  const inkColor = red ? '#a01818' : '#1b150a';
-  const watermark = red ? '#a01818' : '#3a2a14';
+  // Real card art from the bundled SVG deck. Jokers fall back to the deck's joker faces.
+  const imgSrc = card.isJoker
+    ? card.rank === 18
+      ? '/assets/cards/red_joker.svg'
+      : '/assets/cards/black_joker.svg'
+    : cardImageSrc(card.suit, card.rank);
 
-  // Shared visual styles
+  // Accessible rank/suit text kept in the DOM (visually hidden) — the SVG carries the visuals.
+  const a11yText = (
+    <>
+      <span className="sr-only">{name}</span>
+      <span className="sr-only">{symbol}</span>
+    </>
+  );
+
+  const faceStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain',
+    display: 'block',
+    userSelect: 'none',
+    pointerEvents: 'none',
+  };
+
+  // drop-shadow follows the card SVG's rounded alpha shape, so there are no stray
+  // rectangular edges when cards overlap (e.g. after a mass defense).
   const baseStyle: React.CSSProperties = {
     position: 'relative',
-    background: 'linear-gradient(170deg, #faf3dd 0%, #ebe0c4 60%, #d8c89c 100%)',
-    color: inkColor,
-    boxShadow: isPlayable
-      ? '0 8px 20px rgba(0,0,0,0.45), 0 0 0 2px rgba(212,175,55,0.55), inset 0 0 0 1px rgba(255,255,255,0.6)'
-      : '0 4px 12px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.4)',
-    border: '1px solid rgba(139,105,20,0.55)',
-    fontFamily: "'Cinzel', Georgia, serif",
+    filter: isPlayable
+      ? 'drop-shadow(0 8px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 5px rgba(212,175,55,0.8))'
+      : 'drop-shadow(0 4px 9px rgba(0,0,0,0.45))',
     cursor: isPlayable ? 'pointer' : 'default',
-    transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    userSelect: 'none',
+    transition: 'transform 0.18s ease, filter 0.18s ease',
+    padding: 0,
+    border: 'none',
+    background: 'transparent',
   };
 
   if (compact) {
@@ -84,36 +98,12 @@ export const Card: React.FC<CardProps> = ({
           width: 48,
           height: 72,
           borderRadius: 6,
-          padding: '3px 4px',
-          fontSize: 11,
-          fontWeight: 800,
           opacity: isPlayable ? 1 : 0.92,
         }}
         onClick={() => isPlayable && onClick?.(card)}
       >
-        <div
-          style={{
-            lineHeight: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-          }}
-        >
-          <span>{name}</span>
-          <span style={{ fontSize: 12, marginTop: -1 }}>{symbol}</span>
-        </div>
-        <div
-          style={{
-            lineHeight: 1,
-            transform: 'rotate(180deg)',
-            alignSelf: 'flex-end',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <span>{name}</span>
-          <span style={{ fontSize: 12, marginTop: -1 }}>{symbol}</span>
-        </div>
+        {imgSrc && <img src={imgSrc} alt="" draggable={false} style={faceStyle} />}
+        {a11yText}
       </button>
     );
   }
@@ -128,11 +118,9 @@ export const Card: React.FC<CardProps> = ({
       className={`${isPlayable ? 'cursor-pointer' : ''}${className ? ` ${className}` : ''}`}
       style={{
         ...baseStyle,
-        width: 'clamp(64px, 8vw, 96px)',
-        height: 'clamp(94px, 12vw, 142px)',
+        width: 'clamp(48px, 6vw, 76px)',
+        height: 'clamp(70px, 8.7vw, 110px)',
         borderRadius: 10,
-        padding: '8px 9px',
-        transform: isPlayable ? undefined : undefined,
         opacity: isPlayable ? 1 : 0.94,
       }}
       onClick={() => isPlayable && onClick?.(card)}
@@ -143,63 +131,8 @@ export const Card: React.FC<CardProps> = ({
         e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
-      {/* Top-left rank/suit */}
-      <div
-        style={{
-          fontSize: 16,
-          fontWeight: 700,
-          lineHeight: 1,
-          textShadow: '0 1px 0 rgba(255,255,255,0.6)',
-        }}
-      >
-        <div>{name}</div>
-        <div style={{ fontSize: 18, marginTop: 2 }}>{symbol}</div>
-      </div>
-
-      {/* Centre embossed watermark suit */}
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          fontSize: 56,
-          color: watermark,
-          opacity: 0.16,
-          textShadow: '0 2px 0 rgba(255,255,255,0.4)',
-          pointerEvents: 'none',
-        }}
-      >
-        {symbol}
-      </div>
-
-      {/* Gold inset frame */}
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 4,
-          border: '1px solid rgba(139,105,20,0.35)',
-          borderRadius: 7,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Bottom-right rank/suit (rotated) */}
-      <div
-        style={{
-          fontSize: 16,
-          fontWeight: 700,
-          lineHeight: 1,
-          transform: 'rotate(180deg)',
-          alignSelf: 'flex-end',
-          textShadow: '0 1px 0 rgba(255,255,255,0.6)',
-        }}
-      >
-        <div>{name}</div>
-        <div style={{ fontSize: 18, marginTop: 2 }}>{symbol}</div>
-      </div>
+      {imgSrc && <img src={imgSrc} alt="" draggable={false} style={faceStyle} />}
+      {a11yText}
     </button>
   );
 };
