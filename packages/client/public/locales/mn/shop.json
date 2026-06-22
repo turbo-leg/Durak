@@ -1,0 +1,51 @@
+{
+  "title": "♦ ДЭЛГҮҮР",
+  "subtitle": "ТОГЛООМД ЯЛ · ЗООС ОЛЖ АВ · БАРАА ХУД АЛ",
+  "loading": "Дэлгүүр уншиж байна…",
+  "howToEarn": "ЗООС ХЭРХЭН ОЛЖ АВАХ",
+  "earnWin": "Тоглоомд ялах",
+  "earnWinCoins": "+10",
+  "earnFinish": "Дурак болохгүйгээр дуусгах",
+  "earnFinishCoins": "+5",
+  "earnDurak": "Дурак болох",
+  "earnDurakCoins": "+3",
+  "getCoins": "+ Зоос авах",
+  "yourCoins": "Таны зоос",
+  "tabs": {
+    "all": "БҮГД",
+    "cardBacks": "КАРТЫН АР ТАЛ",
+    "tables": "ШИРЭЭ",
+    "emotes": "ЭМОТ"
+  },
+  "sections": {
+    "cardBacks": "КАРТЫН АР ТАЛ",
+    "tableSkins": "ШИРЭЭНИЙ ДИЗАЙН",
+    "emotes": "ЭМОТУУД"
+  },
+  "rarity": {
+    "common": "ЭНГИЙН",
+    "rare": "ХОВОР",
+    "epic": "ЭПИК",
+    "legendary": "ДОМОГТ"
+  },
+  "button": {
+    "equip": "ЗҮҮХ",
+    "equipped": "✓ ЗҮҮСЭН",
+    "equipFree": "ҮНЭГҮЙ ЗҮҮХ",
+    "equipNow": "ОДОО ЗҮҮХ",
+    "equipping": "Зүүж байна…",
+    "buying": "Худалдаж авч байна…",
+    "signInBuy": "Худалдаж авахын тулд нэвтэрнэ үү",
+    "signInEquip": "Зүүхийн тулд нэвтэрнэ үү",
+    "needMore": "({{count}} зоос дутуу байна)",
+    "currentlyEquipped": "ОДОО ЗҮҮСЭН",
+    "hot": "ХИТ"
+  },
+  "toast": {
+    "purchaseFailed": "Худалдан авалт амжилтгүй боллоо",
+    "purchased": "Амжилттай худалдаж авлаа! ✓",
+    "signInBuy": "Худалдаж авахын тулд нэвтэрнэ үү",
+    "signInEquip": "Зүүхийн тулд нэвтэрнэ үү",
+    "equipFailed": "Зүүхэд алдаа гарлаа"
+  }
+}

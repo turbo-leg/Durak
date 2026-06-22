@@ -1,0 +1,40 @@
+{
+  "title": "Тохиргоо",
+  "syncedAccount": "Таны бүртгэлтэй синхчилсан",
+  "savedLocally": "Локалд хадгалсан · Синхчилхийн тулд нэвтэрнэ үү",
+  "sections": {
+    "language": "Хэл",
+    "soundVisual": "Дуу & Дүрслэл",
+    "gameplay": "Тоглоом",
+    "appearance": "Гадаад төрх",
+    "account": "Бүртгэл",
+    "about": "Тухай"
+  },
+  "toggles": {
+    "soundEffects": "Дуу эффект",
+    "soundEffectsSub": "Картын дуу, ялалт, ялагдлын дуу",
+    "animations": "Анимаци",
+    "animationsSub": "Картын тараалт болон UI хөдөлгөөн",
+    "showTimer": "Ээлжийн тоолуур харуулах",
+    "showTimerSub": "Таны ээлжид тоолуур харуулах",
+    "confirmLeave": "Гарахаас өмнө баталгаажуулах",
+    "confirmLeaveSub": "Тоглоомоос гарахаас өмнө асуух"
+  },
+  "cardBack": "Картын ар тал",
+  "cardBackSub": "Картын ар талыг Дэлгүүрт өөрчлөх",
+  "account": {
+    "signedInAs": "Нэвтэрсэн хэрэглэгч",
+    "loginMethod": "Нэвтрэх арга",
+    "discord": "Discord",
+    "email": "Имэйл"
+  },
+  "about": {
+    "game": "Тоглоом",
+    "gameName": "Дурак",
+    "version": "Хувилбар",
+    "versionValue": "1.0.0",
+    "engine": "Систем",
+    "engineValue": "Colyseus + React"
+  },
+  "footer": "\"Тэнэгийн тоглоом\" — ♠-р хийгдсэн"
+}

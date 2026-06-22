@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "play": "Play",
+    "rules": "Rules",
+    "shop": "Shop",
+    "profile": "Profile",
+    "settings": "Settings"
+  },
+  "actions": {
+    "leave": "✕ Leave",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "signOut": "Sign Out",
+    "logOut": "Log out",
+    "retry": "Retry Connection",
+    "refresh": "↻ Refresh"
+  },
+  "status": {
+    "loading": "Loading…",
+    "connecting": "Connecting to Discord",
+    "reconnecting": "Reconnecting",
+    "syncedAccount": "Synced to your account",
+    "savedLocally": "Saved locally · Sign in to sync"
+  },
+  "errors": {
+    "leaveGame": "Leave the current game?",
+    "discordActivityFailed": "Failed to connect to Discord Activity: {{message}}"
+  }
+}

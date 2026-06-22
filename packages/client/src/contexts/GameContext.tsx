@@ -3,6 +3,7 @@ import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
 import { discordSdk } from '../discordAuth';
+import i18n from '../i18n/index';
 
 type DefenseSnapshot = {
   at: number;
@@ -318,22 +319,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     roomInstance.onMessage('error', (message: string) => {
-      setGameMessage(`Error: ${message}`);
+      setGameMessage(i18n.t('game:messages.error', { message }));
       setTimeout(() => setGameMessage(null), 4000);
     });
     roomInstance.onMessage('playerWon', (playerId: string) => {
       setGameMessage(
-        playerId === roomInstance.sessionId ? '🎉 You won!' : `🎉 Player ${playerId} has won!`,
+        playerId === roomInstance.sessionId
+          ? i18n.t('game:messages.youWon')
+          : i18n.t('game:messages.playerWon', { playerId }),
       );
       setTimeout(() => setGameMessage(null), 4000);
     });
     roomInstance.onMessage('gameOver', (data: { loser?: string; draw?: boolean }) => {
-      if (data.draw) setGameMessage('Game Over! It is a draw.');
+      if (data.draw) setGameMessage(i18n.t('game:messages.gameOverDraw'));
       else
         setGameMessage(
           data.loser === roomInstance.sessionId
-            ? '😭 Game Over. You are the Durak (Fool)!'
-            : `🎉 Game Over! ${data.loser} is the Durak.`,
+            ? i18n.t('game:messages.youAreDurak')
+            : i18n.t('game:messages.opponentDurak', { loser: data.loser }),
         );
       // Game is over — no reconnection needed after this point
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
@@ -380,7 +383,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
     );
     roomInstance.onMessage('rematchDeclined', (data: { username: string }) => {
-      setGameMessage(`${data.username} declined the rematch.`);
+      setGameMessage(i18n.t('game:messages.rematchDeclined', { username: data.username }));
       setRematchState(null);
       setTimeout(() => setGameMessage(null), 4000);
     });
@@ -391,8 +394,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
       setGameMessage(
         data.playerId === roomInstance.sessionId
-          ? '⏰ Your time ran out! Skipping your turn...'
-          : '⏰ Turn time expired!',
+          ? i18n.t('game:messages.turnExpiredYou')
+          : i18n.t('game:messages.turnExpiredOther'),
       );
       setTimeout(() => setGameMessage(null), 3000);
     });

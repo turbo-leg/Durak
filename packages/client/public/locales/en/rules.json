@@ -1,0 +1,75 @@
+{
+  "title": "Rules",
+  "subtitle": "How to Play Durak",
+  "sections": {
+    "objective": "Objective",
+    "deck": "The Deck",
+    "trump": "Trump (Huzur)",
+    "turn": "Turn Flow",
+    "stacking": "Stacking (Throw-In)",
+    "modes": "Game Modes",
+    "jokers": "Jokers",
+    "tips": "Strategy Tips"
+  },
+  "objective": {
+    "p1": "Durak means \"Fool\" in Russian. The last player left holding cards at the end of the game is the Durak — the loser. Everyone else wins by emptying their hand before the deck runs out.",
+    "p2": "There is no single winner — only one loser. First players to empty their hands leave the game safely; the final player holding cards takes the title."
+  },
+  "deck": {
+    "p1": "The game uses a 42-card deck: four suits (♠ ♥ ♦ ♣) with ranks 7 8 9 10 J Q K A, plus 2 Jokers.",
+    "p2": "Cards 2–6 are removed. The remaining 10 ranks per suit (7 through Ace) form the standard hand, with Ace being the highest.",
+    "rankOrder": "Rank Order (low → high)",
+    "jokerNote": "Jokers beat everything — including trump cards."
+  },
+  "trump": {
+    "p1": "Before the game, the bottom card of the deck is revealed face-up to determine the trump suit (Huzur). This card stays visible until the deck is exhausted, at which point it is drawn last.",
+    "rules": "Trump Rules",
+    "rule1": "Any trump card beats any non-trump card, regardless of rank.",
+    "rule2": "To beat a trump card, you must play a higher trump card.",
+    "rule3": "Jokers beat everything, including the highest trump.",
+    "rule4": "If you have no valid defense card, you must pick up all table cards."
+  },
+  "turn": {
+    "title": "Each Round",
+    "step1": "Attacker plays one or more cards of the same rank onto the table. Other players (co-attackers) may add cards matching any rank already on the table.",
+    "step2": "Defender must beat each attacking card: play a higher card of the same suit, or any trump card to beat a non-trump attack.",
+    "step3": "If the defender beats all cards, the round ends. All table cards are discarded from the game. The next player to the left becomes attacker.",
+    "step4": "If the defender cannot or chooses not to beat a card, they pick up all cards on the table. The attacker to their left becomes the next attacker.",
+    "step5": "After each round, all players draw back up to their starting hand size (attacker first, then defenders, then others), until the deck is empty.",
+    "attacker": "Attacker",
+    "defender": "Defender",
+    "discarded": "discarded",
+    "cannotOrChooses": "cannot or chooses not to"
+  },
+  "stacking": {
+    "p1": "Co-attackers can throw in additional cards to the table as long as their rank matches a rank already on the table (either attacking cards or defending cards).",
+    "p2": "The total number of cards the defender must beat cannot exceed their hand size. Once the limit is reached, no more cards can be added.",
+    "limit": "Limit",
+    "limitDesc": "If the defender picks up, they must take ALL cards on the table — including any throw-ins. This is a common strategy to load up a struggling defender."
+  },
+  "modes": {
+    "classicTitle": "Classic (Free for All)",
+    "classicDesc": "2–6 players. Everyone plays for themselves. Players who empty their hand leave the game safely. The last remaining player is the Durak.",
+    "classicRule1": "2–4 players: 5 or 7 cards in hand",
+    "classicRule2": "5–6 players: 5 cards in hand",
+    "teamsTitle": "Teams",
+    "teamsDesc": "4 or 6 players split into two teams (alternating seats). Your team wins if none of your teammates are the final Durak.",
+    "teamsRule1": "4 players (2v2): 7 cards in hand",
+    "teamsRule2": "6 players (3v3): 5 cards in hand",
+    "teamsRule3": "Teammates cannot attack each other",
+    "rankedTitle": "Ranked",
+    "rankedDesc": "Ranked games use Elo matchmaking — you're matched against players near your rating. Winning earns Elo; being the Durak costs Elo. Starting Elo is 1000."
+  },
+  "jokers": {
+    "p1": "The deck contains 2 Jokers. A Joker beats any card — including the highest trump — and can be used to defend against any attack or as an attacking card of any rank.",
+    "p2": "Jokers are extremely rare and powerful. Use them wisely: they are most valuable when you need to survive a dangerous round or guarantee a safe exit from the game."
+  },
+  "tips": {
+    "tip1": "Save your trump cards — use non-trump to defend when possible.",
+    "tip2": "Attack with cards whose rank already appears on the table to enable teammates to throw in.",
+    "tip3": "When you have few cards, aim to make the current Durak pick up, not clear the table.",
+    "tip4": "Watch the Huzur suit — everyone's counting trump cards.",
+    "tip5": "If you can empty your hand in one shot, do it — don't hold back.",
+    "tip6": "Jokers are lifesavers: use them when you're about to be forced to pick up."
+  }
+}

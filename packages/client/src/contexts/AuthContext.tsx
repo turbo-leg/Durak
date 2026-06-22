@@ -4,7 +4,7 @@ const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678'
 const STORAGE_KEY = 'durak_auth';
 const REDIRECT_URI = `${window.location.origin}/auth/callback`;
 
-export type AuthMethod = 'discord' | 'email';
+export type AuthMethod = 'discord' | 'email' | 'google' | 'apple';
 
 export interface AuthUser {
   id: string; // discordId for Discord users, MongoDB _id for email users
@@ -22,6 +22,8 @@ interface AuthContextState {
   error: string | null;
   loginWithDiscord: () => void;
   loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
+  loginWithApple: (payload: { identityToken: string; fullName?: string }) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => void;
   handleOAuthCallback: (code: string) => Promise<void>;
@@ -33,6 +35,8 @@ const AuthContext = createContext<AuthContextState>({
   error: null,
   loginWithDiscord: () => {},
   loginWithEmail: async () => {},
+  loginWithGoogle: async () => {},
+  loginWithApple: async () => {},
   register: async () => {},
   logout: () => {},
   handleOAuthCallback: async () => {},
@@ -190,6 +194,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Shared handler for provider sign-in endpoints that return { token, user }.
+  const loginWithProvider = useCallback(
+    async (method: AuthMethod, endpoint: string, body: Record<string, unknown>) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Sign-in failed');
+
+        persist({
+          id: data.user.id,
+          method,
+          username: data.user.username,
+          globalName: null,
+          avatarUrl: data.user.avatarUrl || '',
+          email: data.user.email ?? undefined,
+          token: data.token,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Sign-in failed');
+        throw e;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const loginWithGoogle = useCallback(
+    (credential: string) => loginWithProvider('google', '/api/auth/google', { credential }),
+    [loginWithProvider],
+  );
+
+  const loginWithApple = useCallback(
+    (payload: { identityToken: string; fullName?: string }) =>
+      loginWithProvider('apple', '/api/auth/apple', payload),
+    [loginWithProvider],
+  );
+
   const logout = useCallback(() => {
     persist(null);
     setError(null);
@@ -203,6 +251,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         loginWithDiscord,
         loginWithEmail,
+        loginWithGoogle,
+        loginWithApple,
         register,
         logout,
         handleOAuthCallback,
