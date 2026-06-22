@@ -1,5 +1,5 @@
 import { Room, Client } from 'colyseus';
-import { GameState, DurakEngine, Card, Player } from '@durak/shared';
+import { GameState, DurakEngine, Card, Player, Rank } from '@durak/shared';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 
@@ -9,6 +9,8 @@ import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import { evaluateBadges, BADGES } from '../utils/Badges';
 import mongoose from 'mongoose';
 import { botEngine, BotDifficulty } from '../ai/BotEngine';
+import { sendTurnNotification } from '../utils/PushService';
+import { formatCard, parseCards, playerOwnsCards, cardBeats } from './durakRoomHelpers';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -354,7 +356,7 @@ export class DurakRoom extends Room<GameState> {
     return true;
   }
 
-  onJoin(client: Client, options: any) {
+  async onJoin(client: Client, options: any) {
     logger.info({ sessionId: client.sessionId }, 'client joined');
 
     if (options?.spectator) {
@@ -372,6 +374,19 @@ export class DurakRoom extends Room<GameState> {
     if (options.discordId)
       player.discordId = String(options.discordId).trim().slice(0, MAX_SHORT_STRING_LEN);
     if (options.userId) player.userId = String(options.userId).trim().slice(0, 64);
+
+    // Look up premium status so the lobby can show the crown badge
+    if (options.discordId || options.userId) {
+      try {
+        const filter = options.discordId
+          ? { discordId: options.discordId }
+          : { userId: options.userId };
+        const profile = await PlayerProfile.findOne(filter).select('premium.active').lean();
+        player.isPremium = profile?.premium?.active ?? false;
+      } catch {
+        // non-fatal — badge just won't show
+      }
+    }
 
     // First player is host
     if (this.state.players.size === 0) {
@@ -490,17 +505,6 @@ export class DurakRoom extends Room<GameState> {
     this.updateLobbyMetadata();
   }
 
-  private formatCard(c: Card): string {
-    if (c.isJoker) return c.rank === 15 ? 'BJ' : 'RJ';
-    const suits: any = { Clubs: 'c', Diamonds: 'd', Hearts: 'h', Spades: 's' };
-    let r = c.rank.toString();
-    if (c.rank === 11) r = 'J';
-    else if (c.rank === 12) r = 'Q';
-    else if (c.rank === 13) r = 'K';
-    else if (c.rank === 14) r = 'A';
-    return `${r}${suits[c.suit] || c.suit.charAt(0).toLowerCase()}`;
-  }
-
   private startGame() {
     const playerCount = Array.from(this.state.players.values()).length;
     if (playerCount < 2) return; // Guard: never start with fewer than 2 players
@@ -568,7 +572,7 @@ export class DurakRoom extends Room<GameState> {
     }
 
     // Initial Deal (Dynamic targetHandSize cards each)
-    this.state.actionLog.push(`ground huzur: ${this.formatCard(this.state.huzurCard)}`);
+    this.state.actionLog.push(`ground huzur: ${formatCard(this.state.huzurCard)}`);
 
     this.state.players.forEach((player, id) => {
       const drawnCards: string[] = [];
@@ -576,7 +580,7 @@ export class DurakRoom extends Room<GameState> {
         const card = this.state.deck.pop();
         if (card) {
           player.hand.push(new Card(card.suit, card.rank, card.isJoker));
-          drawnCards.push(`+${this.formatCard(card)}`);
+          drawnCards.push(`+${formatCard(card)}`);
         }
       }
       this.state.actionLog.push(`turn 0: ${id}: ${drawnCards.join(', ')}`);
@@ -594,39 +598,6 @@ export class DurakRoom extends Room<GameState> {
     // Start turn timeout enforcement
     this.startTurnTimer();
     this.scheduleBotTurn(firstId);
-  }
-
-  /** Returns true if card `a` outranks card `b` for the suhuh draw. */
-  private cardBeats(a: Card, b: Card): boolean {
-    if (a.isJoker && !b.isJoker) return true;
-    if (!a.isJoker && b.isJoker) return false;
-    if (a.isJoker && b.isJoker) return a.rank > b.rank;
-
-    const huzur = this.state.huzurSuit.toLowerCase();
-    const aSuit = a.suit.toLowerCase();
-    const bSuit = b.suit.toLowerCase();
-
-    // 1. Trump vs Non-Trump
-    if (aSuit === huzur && bSuit !== huzur) return true;
-    if (aSuit !== huzur && bSuit === huzur) return false;
-
-    // 2. Rank Comparison (if different ranks)
-    if (a.rank !== b.rank) {
-      return a.rank > b.rank;
-    }
-
-    // 3. Suit Hierarchy Tie-breaker (if equal ranks)
-    // Strength: Trump > Spades > Hearts > Clubs > Diamonds
-    const getSuitStrength = (suit: string): number => {
-      if (suit === huzur) return 4;
-      if (suit === 'spades') return 3;
-      if (suit === 'hearts') return 2;
-      if (suit === 'clubs') return 1;
-      if (suit === 'diamonds') return 0;
-      return -1;
-    };
-
-    return getSuitStrength(aSuit) > getSuitStrength(bSuit);
   }
 
   /**
@@ -679,9 +650,9 @@ export class DurakRoom extends Room<GameState> {
         const drawn = this.state.deck.pop()!;
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
         drawnForReturn.push(card);
-        this.state.actionLog.push(`suhuh ${repId}: ${this.formatCard(card)}`);
+        this.state.actionLog.push(`suhuh ${repId}: ${formatCard(card)}`);
         draws.push({ playerId: repId, suit: card.suit, rank: card.rank, isJoker: card.isJoker });
-        if (!winningCard || this.cardBeats(card, winningCard)) {
+        if (!winningCard || cardBeats(card, winningCard, this.state.huzurSuit)) {
           winningCard = card;
           winningTeam = team;
         }
@@ -703,9 +674,9 @@ export class DurakRoom extends Room<GameState> {
         const drawn = this.state.deck.pop()!;
         const card = new Card(drawn.suit, drawn.rank, drawn.isJoker);
         drawnForReturn.push(card);
-        this.state.actionLog.push(`suhuh ${id}: ${this.formatCard(card)}`);
+        this.state.actionLog.push(`suhuh ${id}: ${formatCard(card)}`);
         draws.push({ playerId: id, suit: card.suit, rank: card.rank, isJoker: card.isJoker });
-        if (!highCard || this.cardBeats(card, highCard)) {
+        if (!highCard || cardBeats(card, highCard, this.state.huzurSuit)) {
           highCard = card;
           firstId = id;
         }
@@ -834,8 +805,33 @@ export class DurakRoom extends Room<GameState> {
       this.state.turnStartTime = Date.now();
       this.startTurnTimer();
       this.scheduleBotTurn(candidateId);
+      // Notify the new current player if their app is backgrounded
+      if (!this.botIds.has(candidateId)) {
+        this.notifyTurnPlayer(candidateId).catch(() => {});
+      }
       return;
     }
+  }
+
+  private async notifyTurnPlayer(sessionId: string): Promise<void> {
+    // Skip if the client is currently connected — they see the state patch in real-time
+    const client = this.clients.find((c) => c.sessionId === sessionId);
+    if (client) return;
+
+    const player = this.state.players.get(sessionId);
+    if (!player) return;
+
+    const filter = player.discordId
+      ? { discordId: player.discordId }
+      : player.userId
+        ? { userId: player.userId }
+        : null;
+    if (!filter) return;
+
+    const profile = await PlayerProfile.findOne(filter).select('deviceTokens').lean();
+    if (!profile?.deviceTokens?.length) return;
+
+    await sendTurnNotification(profile.deviceTokens, player.username, this.roomId);
   }
 
   private scheduleBotTurn(playerId: string) {
@@ -957,42 +953,10 @@ export class DurakRoom extends Room<GameState> {
       if (amount > 0) {
         const drawnRaw = this.state.deck.slice(-amount).reverse();
         this.state.actionLog.push(
-          `${p.id} drew: ${drawnRaw.map((c) => `+${this.formatCard(c)}`).join(', ')}`,
+          `${p.id} drew: ${drawnRaw.map((c) => `+${formatCard(c)}`).join(', ')}`,
         );
       }
     });
-  }
-
-  private parseCards(raw: any): Card[] | null {
-    if (!Array.isArray(raw) || raw.length === 0) return null;
-    const cards: Card[] = [];
-    for (const c of raw) {
-      if (
-        typeof c?.suit !== 'string' ||
-        typeof c?.rank !== 'number' ||
-        typeof c?.isJoker !== 'boolean'
-      )
-        return null;
-      cards.push(new Card(c.suit, c.rank, c.isJoker));
-    }
-    return cards;
-  }
-
-  /** Returns true iff every card in `cards` is present in the player's hand (deduplication-aware). */
-  private playerOwnsCards(player: Player, cards: Card[]): boolean {
-    const counts = new Map<string, number>();
-    for (const c of player.hand) {
-      if (!c) continue;
-      const key = `${c.suit}:${c.rank}`;
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    for (const c of cards) {
-      const key = `${c.suit}:${c.rank}`;
-      const count = counts.get(key) || 0;
-      if (count <= 0) return false;
-      counts.set(key, count - 1);
-    }
-    return true;
   }
 
   private handleAttack(client: Client, message: { cards: any[] }) {
@@ -1002,13 +966,13 @@ export class DurakRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    const cardsToPlay = this.parseCards(message.cards);
+    const cardsToPlay = parseCards(message.cards);
     if (!cardsToPlay) {
       client.send('error', 'Invalid card format.');
       return;
     }
 
-    if (!this.playerOwnsCards(player, cardsToPlay)) {
+    if (!playerOwnsCards(player, cardsToPlay)) {
       client.send('error', 'You do not have those cards.');
       return;
     }
@@ -1058,7 +1022,7 @@ export class DurakRoom extends Room<GameState> {
       }
     }
 
-    const playedLog = cardsToPlay.map((c) => `-${this.formatCard(c)}`).join(', ');
+    const playedLog = cardsToPlay.map((c) => `-${formatCard(c)}`).join(', ');
     this.state.actionLog.push(`${client.sessionId} attacked: ${playedLog}`);
 
     this.checkGameOver();
@@ -1082,7 +1046,7 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    const defendingCards = this.parseCards(message.cards);
+    const defendingCards = parseCards(message.cards);
     if (!defendingCards) {
       client.send('error', 'Invalid card format.');
       return;
@@ -1093,7 +1057,7 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    if (!this.playerOwnsCards(player, defendingCards)) {
+    if (!playerOwnsCards(player, defendingCards)) {
       client.send('error', 'You do not have those cards.');
       return;
     }
@@ -1161,7 +1125,7 @@ export class DurakRoom extends Room<GameState> {
       }
     }
 
-    const defLog = defendingCards.map((c) => `-${this.formatCard(c)}`).join(', ');
+    const defLog = defendingCards.map((c) => `-${formatCard(c)}`).join(', ');
     this.state.actionLog.push(`${client.sessionId} defended: ${defLog}`);
 
     this.logPendingDraws();
@@ -1214,8 +1178,8 @@ export class DurakRoom extends Room<GameState> {
 
     // Track cards BEFORE they are moved to hand by endRound
     const pickedUpCards: string[] = [];
-    this.state.table.forEach((c) => pickedUpCards.push(`+${this.formatCard(c)}`));
-    this.state.activeAttackCards.forEach((c) => pickedUpCards.push(`+${this.formatCard(c)}`));
+    this.state.table.forEach((c) => pickedUpCards.push(`+${formatCard(c)}`));
+    this.state.activeAttackCards.forEach((c) => pickedUpCards.push(`+${formatCard(c)}`));
 
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
@@ -1235,10 +1199,18 @@ export class DurakRoom extends Room<GameState> {
     if (!player) return;
     const success = DurakEngine.swapHuzur(player, this.state);
     if (!success) {
-      client.send(
-        'error',
-        'Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.',
-      );
+      let errorMessage =
+        'Cannot swap Huzur. You need the 7 of trump, and the deck cannot be empty.';
+      if (this.state.huzurCard.isJoker) {
+        if (this.state.huzurCard.rank === Rank.RedJoker) {
+          errorMessage =
+            'Cannot swap Huzur. You need the Ace of Hearts, and the deck cannot be empty.';
+        } else {
+          errorMessage =
+            'Cannot swap Huzur. You need the Ace of Spades, and the deck cannot be empty.';
+        }
+      }
+      client.send('error', errorMessage);
     }
   }
 
@@ -1488,11 +1460,12 @@ export class DurakRoom extends Room<GameState> {
         this.notifyBadgeUnlocks(playerName, newBadges);
       }
 
-      // Award coins: winner = +10, durak = +3, others = +5
+      // Award coins: winner = +10, durak = +3, others = +5; premium earns 1.5×
       const coinOps = authedPlayers.map((p) => {
         const isWinner = winnerSessions.includes(p.id);
         const isDurak = this.state.loser === p.id;
-        const award = isWinner ? 10 : isDurak ? 3 : 5;
+        const base = isWinner ? 10 : isDurak ? 3 : 5;
+        const award = p.isPremium ? Math.round(base * 1.5) : base;
         const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
         return PlayerProfile.findOneAndUpdate(filter, { $inc: { coins: award } });
       });
