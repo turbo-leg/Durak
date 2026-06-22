@@ -25,7 +25,6 @@ export class GrandmasterBot {
     // If I attack with a card I KNOW they cannot beat, prioritze it immediately.
     const checkmate = this.findCheckmate(state, legalMoves);
     if (checkmate) {
-      console.log(`🧠 [Grandmaster] Detected Checkmate! Applying strategic pressure.`);
       return checkmate;
     }
 
