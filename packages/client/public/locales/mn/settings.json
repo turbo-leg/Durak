@@ -1,6 +1,6 @@
 {
   "title": "Тохиргоо",
-  "syncedAccount": "Таны бүртгэлтэй синхчилсан",
+  "syncedAccount": "Таны бүртгэлтэй синхчилсэн",
   "savedLocally": "Локалд хадгалсан · Синхчилхийн тулд нэвтэрнэ үү",
   "sections": {
     "language": "Хэл",
@@ -30,11 +30,28 @@
   },
   "about": {
     "game": "Тоглоом",
-    "gameName": "Дурак",
+    "gameName": "Мүүшиг",
     "version": "Хувилбар",
     "versionValue": "1.0.0",
     "engine": "Систем",
     "engineValue": "Colyseus + React"
   },
-  "footer": "♠-р хийгдсэн"
+  "footer": "♠-р хийгдсэн",
+  "tabs": {
+    "profile": "Профайл",
+    "security": "Аюулгүй байдал",
+    "preferences": "Тохиргоо",
+    "subscriptions": "Захиалга",
+    "history": "Түүх",
+    "support": "Тусламж"
+  },
+  "preferences": {
+    "title": "Хэрэглэгчийн тохиргоо",
+    "soundAudio": "Дуу & Чимээ",
+    "masterVolume": "Ерөнхий дуу",
+    "musicVolume": "Хөгжмийн дуу",
+    "sfxVolume": "Эффект дуу",
+    "language": "Хэл",
+    "subscriptionManagement": "Захиалгын удирдлага"
+  }
 }

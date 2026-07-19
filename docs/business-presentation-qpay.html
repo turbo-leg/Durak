@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Бизнес Танилцуулга — Durak Online</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mongolian&family=Inter:wght@400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Noto Sans Mongolian', sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1a1a2e;
+      background: #fff;
+    }
+
+    .page {
+      max-width: 794px;
+      margin: 0 auto;
+      padding: 48px 56px;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid #5865F2;
+      padding-bottom: 20px;
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-mark {
+      width: 52px;
+      height: 52px;
+      background: linear-gradient(135deg, #5865F2 0%, #3ba55d 100%);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+    }
+
+    .brand-text h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #5865F2;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    .doc-meta {
+      text-align: right;
+      font-size: 11px;
+      color: #888;
+    }
+
+    .doc-meta strong {
+      display: block;
+      font-size: 13px;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin-bottom: 28px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5865F2;
+      border-left: 3px solid #5865F2;
+      padding-left: 8px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Info grid ── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 24px;
+    }
+
+    .info-item label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #999;
+      margin-bottom: 2px;
+    }
+
+    .info-item span {
+      font-size: 13px;
+      color: #1a1a2e;
+      font-weight: 500;
+    }
+
+    /* ── Summary box ── */
+    .summary-box {
+      background: #f4f5ff;
+      border-left: 4px solid #5865F2;
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.7;
+    }
+
+    /* ── Feature list ── */
+    .feature-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      color: #333;
+    }
+
+    .feature-list li::before {
+      content: '✓';
+      color: #3ba55d;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── Revenue table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th {
+      background: #5865F2;
+      color: #fff;
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #eee;
+      color: #333;
+    }
+
+    tr:nth-child(even) td {
+      background: #f9f9ff;
+    }
+
+    /* ── QPay integration block ── */
+    .qpay-block {
+      background: #fff8e1;
+      border: 1px solid #ffd54f;
+      border-radius: 8px;
+      padding: 14px 18px;
+    }
+
+    .qpay-block h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e65100;
+      margin-bottom: 8px;
+    }
+
+    .qpay-block ul {
+      list-style: none;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .qpay-block ul li {
+      padding: 3px 0;
+      display: flex;
+      gap: 8px;
+    }
+
+    .qpay-block ul li::before {
+      content: '→';
+      color: #f57c00;
+      font-weight: 700;
+    }
+
+    /* ── Contact ── */
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .contact-card {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .contact-card label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #999;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .contact-card span {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 36px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #aaa;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #5865F2;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .badge-green {
+      background: #3ba55d;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { padding: 32px 40px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="logo-mark">🃏</div>
+      <div class="brand-text">
+        <h1>Durak Online</h1>
+        <p>Discord Activity · Дижитал тоглоомын платформ</p>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <strong>Бизнес Танилцуулга</strong>
+      QPay Мерчант Бүртгэл<br/>
+      2026 оны 6-р сар
+    </div>
+  </div>
+
+  <!-- Business Overview -->
+  <div class="section">
+    <div class="section-title">Бизнесийн танилцуулга</div>
+    <div class="summary-box">
+      <strong>Durak Online</strong> нь Discord платформ дээр суурилсан олон тоглогчтой картын тоглоом бөгөөд Discord-ийн дуу хоолойн сувгийн дотор шууд ажилладаг "Discord Activity" юм. Хэрэглэгчид апп татаж суулгахгүйгээр, Discord-оос гарахгүйгээр найзуудтайгаа 2–6 хүртэлх тоглогчоор Дурак тоглоомыг тоглох боломжтой. Тоглоом нь байнгын профайл, ELO эрэмблэл, дүрс загварчлалын систем (coin economy), мөн Premium захиалгатай.
+    </div>
+  </div>
+
+  <!-- Business Details -->
+  <div class="section">
+    <div class="section-title">Үндсэн мэдээлэл</div>
+    <div class="info-grid">
+      <div class="info-item">
+        <label>Бизнесийн нэр</label>
+        <span>Durak Online</span>
+      </div>
+      <div class="info-item">
+        <label>Платформ</label>
+        <span>Discord Activity (Вебсайт / Мобайл апп)</span>
+      </div>
+      <div class="info-item">
+        <label>Үйл ажиллагааны чиглэл</label>
+        <span>Дижитал тоглоом, Програм хангамж</span>
+      </div>
+      <div class="info-item">
+        <label>Байршил</label>
+        <span>Онлайн (Discord App Directory)</span>
+      </div>
+      <div class="info-item">
+        <label>Технологийн стек</label>
+        <span>Node.js · React · Colyseus · MongoDB</span>
+      </div>
+      <div class="info-item">
+        <label>Серверийн байршил</label>
+        <span>Fly.io (durak-discord-activity.fly.dev)</span>
+      </div>
+      <div class="info-item">
+        <label>Хэрэглэгчийн тоо (зорилт)</label>
+        <span>Discord-ийн 259 сая+ сарын идэвхтэй хэрэглэгч</span>
+      </div>
+      <div class="info-item">
+        <label>Статус</label>
+        <span><span class="badge badge-green">Discord App Directory — Нийтлэгдсэн ✓</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Features -->
+  <div class="section">
+    <div class="section-title">Бүтээгдэхүүний онцлог</div>
+    <ul class="feature-list">
+      <li>2–6 тоглогчтой бодит цагийн тоглоом</li>
+      <li>Серверт баталгаажсан — хуурамчлах боломжгүй</li>
+      <li>ELO эрэмблэлийн систем (Classic + Teams)</li>
+      <li>5 Badge шагнал (first_win, veteran, champion…)</li>
+      <li>42 картын дэк, Joker карт, Hot Potato дүрэм</li>
+      <li>Гар хэмжээний сонголт (5 эсвэл 7 карт)</li>
+      <li>Холболт тасарсан ч 30 секундэд дахин нэгдэх</li>
+      <li>Coin economy — карт загвар, ширээний арьс</li>
+      <li>Discord OAuth нэвтрэлт — бүртгэлгүйгээр тоглоно</li>
+      <li>Вебсайт болон мобайл хувилбар хоёулаа дэмжигдсэн</li>
+    </ul>
+  </div>
+
+  <!-- Revenue Model -->
+  <div class="section">
+    <div class="section-title">Орлогын загвар</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Орлогын эх үүсвэр</th>
+          <th>Тайлбар</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Coin худалдан авалт</strong></td>
+          <td>Дотоод валют — карт загвар, ширээний арьс, эмот</td>
+          <td><span class="badge badge-green">Хэрэгжүүлэгдсэн</span></td>
+        </tr>
+        <tr>
+          <td><strong>Premium захиалга</strong></td>
+          <td>Coin олголтыг 1.5x нэмэгдүүлэх, онцгой загварууд</td>
+          <td><span class="badge badge-green">Хэрэгжүүлэгдсэн</span></td>
+        </tr>
+        <tr>
+          <td><strong>Discord App Directory</strong></td>
+          <td>Орлогын 85% хүртэл хөгжүүлэгчид (1M USD хүртэл)</td>
+          <td><span class="badge badge-green">Идэвхтэй</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- QPay Integration -->
+  <div class="section">
+    <div class="section-title">QPay интеграцийн зорилго</div>
+    <div class="qpay-block">
+      <h4>QPay төлбөрийн системийг яагаад нэгтгэх вэ?</h4>
+      <ul>
+        <li>Монгол хэрэглэгчид Coin болон Premium захиалгыг QPay-ээр шууд төлөх боломжтой болгох</li>
+        <li>Монголын банкны карт, QPay QR кодоор хялбар, найдвартай төлбөр хийх</li>
+        <li>Хилийн гадаад төлбөрийн системд найдалгүй, дотоод хэрэглэгчдэд оновчтой туршлага</li>
+        <li>Мобайл Discord апп дотор QPay deep link болон QR нэгтгэлт</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Market -->
+  <div class="section">
+    <div class="section-title">Зах зээлийн боломж</div>
+    <div class="info-grid">
+      <div class="info-item">
+        <label>Discord сарын идэвхтэй хэрэглэгч</label>
+        <span>259 сая+</span>
+      </div>
+      <div class="info-item">
+        <label>Discord серверийн 90%</label>
+        <span>15-аас цөөн гишүүн — найзуудын нийгэмлэг</span>
+      </div>
+      <div class="info-item">
+        <label>Үндсэн нас</label>
+        <span>18–34 (Discord хэрэглэгчдийн 70%)</span>
+      </div>
+      <div class="info-item">
+        <label>Өрсөлдөгчид</label>
+        <span>Poker Night, Blazing 8s — Дурак тоглоом дутмаг</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact -->
+  <div class="section">
+    <div class="section-title">Холбоо барих</div>
+    <div class="contact-grid">
+      <div class="contact-card">
+        <label>Хөгжүүлэгч</label>
+        <span>Төрбилэг</span>
+      </div>
+      <div class="contact-card">
+        <label>Утасны дугаар</label>
+        <span>98268888</span>
+      </div>
+      <div class="contact-card">
+        <label>Имэйл</label>
+        <span>turbileg@student.ubc.ca</span>
+      </div>
+      <div class="contact-card">
+        <label>Вебсайт</label>
+        <span>durak-discord-activity.fly.dev</span>
+      </div>
+      <div class="contact-card">
+        <label>GitHub</label>
+        <span>github.com/turbo-leg/Durak</span>
+      </div>
+      <div class="contact-card">
+        <label>Дэмжлэг имэйл</label>
+        <span>tubulol12345@gmail.com</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Durak Online · Бизнес Танилцуулга · 2026-06-01</span>
+    <span>QPay Мерчант Бүртгэлд зориулсан баримт бичиг</span>
+  </div>
+
+</div>
+</body>
+</html>

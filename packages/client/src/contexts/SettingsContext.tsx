@@ -8,6 +8,11 @@ export interface GameSettings {
   showTimer: boolean;
   confirmLeave: boolean;
   language: 'en' | 'mn';
+  masterVolume: number;
+  musicVolume: number;
+  sfxVolume: number;
+  muteAll: boolean;
+  musicEnabled: boolean;
 }
 
 const DEFAULTS: GameSettings = {
@@ -16,6 +21,11 @@ const DEFAULTS: GameSettings = {
   showTimer: true,
   confirmLeave: true,
   language: 'en',
+  masterVolume: 30,
+  musicVolume: 10,
+  sfxVolume: 25,
+  muteAll: false,
+  musicEnabled: true,
 };
 
 const LS_KEY = 'durak_settings';

@@ -30,11 +30,28 @@
   },
   "about": {
     "game": "Game",
-    "gameName": "Durak",
+    "gameName": "Muushig",
     "version": "Version",
     "versionValue": "1.0.0",
     "engine": "Engine",
     "engineValue": "Colyseus + React"
   },
-  "footer": "Made with ♠"
+  "footer": "Made with ♠",
+  "tabs": {
+    "profile": "Profile",
+    "security": "Account Security",
+    "preferences": "Preferences",
+    "subscriptions": "Subscriptions",
+    "history": "History",
+    "support": "Support"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "soundAudio": "Sound & Audio",
+    "masterVolume": "Master Volume",
+    "musicVolume": "Music Volume",
+    "sfxVolume": "Sound Effects Volume",
+    "language": "Language",
+    "subscriptionManagement": "Subscription Management"
+  }
 }

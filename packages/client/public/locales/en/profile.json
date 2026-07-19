@@ -2,9 +2,10 @@
   "signInPrompt": "Sign in to view your profile and stats",
   "loading": "LOADING PLAYER CARD…",
   "tabs": {
-    "stats": "stats",
-    "history": "history",
-    "leaderboard": "leaderboard"
+    "stats": "Stats",
+    "achievements": "Achievements",
+    "history": "Game History",
+    "leaderboard": "Leaderboard"
   },
   "stats": {
     "games": "Games",
@@ -18,7 +19,12 @@
     "eloClassic": "Classic ELO",
     "eloTeams": "Teams ELO",
     "noStats": "No stats yet — play a game to get started",
-    "badges": "Earned Badges"
+    "badges": "Earned Badges",
+    "totalGames": "Total Games",
+    "totalWins": "Total Wins",
+    "coins": "Coins",
+    "highestScore": "Highest Score (Classic)",
+    "skillRating": "Skill Rating"
   },
   "history": {
     "filterMode": {

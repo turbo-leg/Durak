@@ -1,8 +1,10 @@
 import { useGame } from './contexts/GameContext';
 import { useEffect, useState } from 'react';
-import { motion, MotionConfig } from 'framer-motion';
+import { motion, MotionConfig, AnimatePresence } from 'framer-motion';
 import { useSettings } from './contexts/SettingsContext';
 import { useTranslation } from 'react-i18next';
+import { useIsDesktop } from './utils/useIsDesktop';
+import { colors, gradients, shadows } from './theme';
 import { GameBoard } from './components/GameBoard';
 import { ShopPage } from './components/ShopPage';
 import { HomePage } from './components/HomePage';
@@ -64,6 +66,8 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
   const { settings } = useSettings();
   const { t } = useTranslation('common');
   const [navTab, setNavTab] = useState<NavTab>('home');
+  const isDesktop = useIsDesktop();
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   // Sync animations setting to a body class so CSS @keyframes are also suppressed
   useEffect(() => {
@@ -171,6 +175,134 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
       <div
         style={{ minHeight: '100dvh', color: '#f5ead0', display: 'flex', flexDirection: 'column' }}
       >
+        {/* Global Desktop Header */}
+        {isDesktop && (
+          <header
+            className="px-8 py-4 border-b flex items-center justify-between backdrop-blur-md sticky top-0 z-40 select-none"
+            style={{
+              background: 'linear-gradient(180deg, rgba(42,10,10,0.92), rgba(20,5,5,0.96))',
+              borderColor: 'rgba(212,175,55,0.22)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            }}
+          >
+            {/* Logo */}
+            <div className="flex items-center gap-2.5">
+              <img src="/assets/logo.png" alt="Muushig Logo" className="w-9 h-9 object-contain" />
+              <span
+                className="text-2xl font-black font-display uppercase tracking-widest"
+                style={{
+                  backgroundImage: 'linear-gradient(180deg, #fce28a 0%, #d4af37 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Muushig
+              </span>
+            </div>
+
+            {/* Links */}
+            <div className="flex items-center gap-8 font-display font-bold text-sm tracking-wider">
+              <button
+                onClick={() => setNavTab('home')}
+                className="bg-transparent border-none cursor-pointer transition uppercase"
+                style={{ color: navTab === 'home' ? colors.gold[300] : 'rgba(216,200,156,0.8)' }}
+              >
+                Home
+              </button>
+              <button
+                onClick={() => setNavTab('profile')}
+                className="bg-transparent border-none cursor-pointer transition uppercase"
+                style={{ color: navTab === 'profile' ? colors.gold[300] : 'rgba(216,200,156,0.8)' }}
+              >
+                Stats
+              </button>
+              <button
+                onClick={() => setNavTab('shop')}
+                className="bg-transparent border-none cursor-pointer transition uppercase"
+                style={{ color: navTab === 'shop' ? colors.gold[300] : 'rgba(216,200,156,0.8)' }}
+              >
+                Shop
+              </button>
+              <button
+                onClick={() => setNavTab('settings')}
+                className="bg-transparent border-none cursor-pointer transition uppercase"
+                style={{
+                  color: navTab === 'settings' ? colors.gold[300] : 'rgba(216,200,156,0.8)',
+                }}
+              >
+                Settings
+              </button>
+            </div>
+
+            {/* Profile badge */}
+            <div className="flex items-center gap-2 bg-black/35 px-4 py-1.5 rounded-full border border-[rgba(212,175,55,0.22)] select-none">
+              <img
+                src={browserAuth?.avatarUrl || '/assets/mongolian_boy.png'}
+                alt=""
+                className="w-5.5 h-5.5 rounded-full object-cover border border-[#d4af37]"
+              />
+              <span className="text-white text-xs font-semibold">
+                {browserAuth?.username || 'Guest'}
+              </span>
+            </div>
+          </header>
+        )}
+
+        {/* Floating circular gold How to Play button */}
+        {isDesktop && (
+          <button
+            onClick={() => setShowRulesModal(true)}
+            className="fixed top-22 left-6 z-40 w-10 h-10 rounded-full border-2 bg-black/40 flex items-center justify-center font-bold text-lg cursor-pointer transition hover:scale-105 active:scale-95"
+            style={{
+              borderColor: colors.gold[500],
+              color: colors.gold[300],
+              boxShadow: shadows.low,
+            }}
+            title="How to Play"
+          >
+            ?
+          </button>
+        )}
+
+        {/* Rules Modal Overlay */}
+        <AnimatePresence>
+          {showRulesModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="relative w-full max-w-3xl rounded-3xl border p-6 overflow-hidden flex flex-col"
+                style={{
+                  background: gradients.velvet,
+                  borderColor: colors.gold[500],
+                  boxShadow: shadows.deep,
+                  maxHeight: '80vh',
+                }}
+              >
+                {/* Header inside modal */}
+                <div className="flex items-center justify-between pb-3 border-b border-[rgba(212,175,55,0.22)] mb-4">
+                  <h2 className="text-xl font-black font-display text-[rgba(216,200,156,0.9)] uppercase tracking-wider m-0">
+                    How to Play
+                  </h2>
+                  <button
+                    onClick={() => setShowRulesModal(false)}
+                    className="w-8 h-8 rounded-full border border-[rgba(212,175,55,0.3)] bg-transparent hover:bg-white/10 text-white flex items-center justify-center cursor-pointer text-sm font-semibold transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Scrollable rules list */}
+                <div className="overflow-y-auto pr-2 flex-1">
+                  <RulesPage />
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         <SpringScroll style={{ flex: 1 }}>
           {isReconnecting ? (
             <ConnectingSplash label={t('status.reconnecting')} />
@@ -181,7 +313,10 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
           ) : navTab === 'rules' ? (
             <RulesPage />
           ) : navTab === 'settings' ? (
-            <SettingsPage onNavigate={(tab) => setNavTab(tab as NavTab)} />
+            <SettingsPage
+              onNavigate={(tab) => setNavTab(tab as NavTab)}
+              onShowRules={() => setShowRulesModal(true)}
+            />
           ) : isEmbedded ? (
             <ConnectingSplash label={t('status.connecting')} />
           ) : (
@@ -204,7 +339,7 @@ function Game({ discordAuth }: { discordAuth?: DiscordAuthInfo | null }) {
             left: 0,
             right: 0,
             zIndex: 40,
-            display: 'flex',
+            display: isDesktop ? 'none' : 'flex',
             background: 'linear-gradient(180deg, rgba(7,38,26,0.92), rgba(4,21,14,0.98))',
             borderTop: '1px solid rgba(212,175,55,0.4)',
             backdropFilter: 'blur(14px)',

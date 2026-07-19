@@ -8,6 +8,11 @@ const DEFAULT_SETTINGS = {
   showTimer: true,
   confirmLeave: true,
   language: 'en',
+  masterVolume: 30,
+  musicVolume: 10,
+  sfxVolume: 25,
+  muteAll: false,
+  musicEnabled: true,
 };
 
 export function createSettingsRouter({ profileFromToken }: AuthHelpers): Router {
@@ -28,10 +33,21 @@ export function createSettingsRouter({ profileFromToken }: AuthHelpers): Router 
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    const boolFields = ['soundEffects', 'animations', 'showTimer', 'confirmLeave'] as const;
-    const update: Record<string, boolean | string> = {};
+    const boolFields = [
+      'soundEffects',
+      'animations',
+      'showTimer',
+      'confirmLeave',
+      'muteAll',
+      'musicEnabled',
+    ] as const;
+    const numFields = ['masterVolume', 'musicVolume', 'sfxVolume'] as const;
+    const update: Record<string, boolean | string | number> = {};
     for (const key of boolFields) {
       if (typeof req.body[key] === 'boolean') update[`settings.${key}`] = req.body[key];
+    }
+    for (const key of numFields) {
+      if (typeof req.body[key] === 'number') update[`settings.${key}`] = req.body[key];
     }
     if (typeof req.body.language === 'string' && ['en', 'mn'].includes(req.body.language)) {
       update['settings.language'] = req.body.language;

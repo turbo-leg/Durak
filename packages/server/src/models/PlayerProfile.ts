@@ -6,6 +6,11 @@ export interface IPlayerSettings {
   showTimer: boolean;
   confirmLeave: boolean;
   language: string;
+  masterVolume: number;
+  musicVolume: number;
+  sfxVolume: number;
+  muteAll: boolean;
+  musicEnabled: boolean;
 }
 
 export interface IPlayerPremium {
@@ -65,10 +70,10 @@ const PlayerProfileSchema = new mongoose.Schema(
     equippedTableSkin: { type: String, default: '' },
     equippedEmotes: { type: [String], default: [] },
     premium: {
-      active:    { type: Boolean, default: false },
+      active: { type: Boolean, default: false },
       grantedAt: { type: Date, default: null },
-      source:    { type: String, default: '' },
-      orderId:   { type: String, default: '' },
+      source: { type: String, default: '' },
+      orderId: { type: String, default: '' },
     },
     settings: {
       soundEffects: { type: Boolean, default: true },
@@ -76,6 +81,11 @@ const PlayerProfileSchema = new mongoose.Schema(
       showTimer: { type: Boolean, default: true },
       confirmLeave: { type: Boolean, default: true },
       language: { type: String, default: 'en', enum: ['en', 'mn'] },
+      masterVolume: { type: Number, default: 30 },
+      musicVolume: { type: Number, default: 10 },
+      sfxVolume: { type: Number, default: 25 },
+      muteAll: { type: Boolean, default: false },
+      musicEnabled: { type: Boolean, default: true },
     },
     deviceTokens: { type: [String], default: [] },
   },
