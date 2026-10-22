@@ -59,10 +59,14 @@ share one asset. Weights are normalized, four influences at most.
 
 1. **Look:** the spine and head share the player's yaw and pitch; the camera sits at `Eyes`.
 2. **Lean:** additive spine, head and shoulder rotations from active clips.
-3. **Hold:** each holding hand pinches the outer card of the fan. The card's bottom-outer
-   corner sits on the radial side of the index finger (`GRIP.anchor`); the hand is moved
-   back behind every card it covers; the thumb turns at its base until its pad rests on
-   the frontmost face. One card is held in the right hand alone. Empty hands rest.
+3. **Hold:** the right hand holds the whole fan by the lower corner of its front card, like
+   a hand of cards held in one hand: the fan's base rests in the palm, the fingers wrap
+   behind it and the thumb lies across the front card's face (`GRIP`, measured in that
+   card's frame so the grip follows the fan as it widens). The hand is moved back behind
+   every card it covers, and the thumb turns at its base until it rests on the frontmost
+   face. The left hand rests and does the card actions and most gestures; when a gesture
+   needs the right hand (touching the right ear) the left takes the fan over, arriving
+   from below so the cards pass between thumb and fingers.
 4. **Clips:** arm keys are reach targets solved with two-bone IK (limbs never stretch; far
    targets stop at a natural extension), blended over the hold by the clip's fade.
 

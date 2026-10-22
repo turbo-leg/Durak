@@ -30,19 +30,21 @@ const CARD_HALF_THICKNESS = HELD_CARD.thickness / 2;
  * mirrors it): fingers along +Z, thumb side +Y, palm +X.
  */
 export const GRIP = {
-  /** Fingers lean in from the outer card's upright: base, per radian of fan, limit. */
-  lean: [0, 0.6, 0.45],
-  /** Where the outer card's bottom-outer corner sits in the hand: on the radial side of
-   * the index finger, beyond the thumb web. */
-  anchor: [-0.012, 0.066, 0.115] as Vec3,
-  /** Nearly straight fingers: curl at each joint, and a slight fan. */
-  curl: [0.1, 0.08, 0.05],
-  spread: 0.03,
-  /** Thumb segment directions for the pinch: the pad comes to rest on the card face. */
+  /** One hand holds the fan by the lower corner of its outer card: the palm side of the
+   * index knuckle sits here, from the card's bottom centre (outward, up), in carry units. */
+  at: [0.2, 0.25] as [number, number],
+  /** Fingers point across behind the fan's base: radians from the card's upright, inward. */
+  angle: 1.4,
+  /** Fingertips recede behind the cards. */
+  pitch: 0.5,
+  /** Fingers wrap the back of the fan: curl at each joint, and a slight fan. */
+  curl: [0.55, 0.7, 0.45],
+  spread: 0.04,
+  /** Thumb segment directions; the pad then settles on the front card's face. */
   thumb: [
-    [0.05, 0.74, 0.67],
-    [-0.05, 0, 1],
-    [-0.05, -0.05, 1],
+    [0.8, 0.5, 0.4],
+    [0.35, 0.4, 0.85],
+    [0.1, 0.3, 0.95],
   ] as Vec3[],
 };
 
@@ -327,31 +329,43 @@ export class CharacterPose {
   }
 
   /** Thumb pad on the outer card's face, index finger along its back, fingers behind. */
-  private grip(side: Side, cards: THREE.Matrix4[], half: number) {
-    const card = side === 'R' ? cards.at(-1)! : cards[0]!;
+  /** `slide` lowers the whole grip along the card, so a hand can arrive from below. */
+  private grip(side: Side, cards: THREE.Matrix4[], frame: THREE.Matrix4, slide = 0) {
     const outward = side === 'R' ? 1 : -1;
-    // Card frame: up toward its top, out of its face, inward toward the fan's centre.
+    // The hand holds the lower corner of the outer card, so the grip follows the fan as it
+    // widens: the right hand's card is the front one, the left hand's the back one.
+    const card = side === 'R' ? cards.at(-1)! : cards[0]!;
+    const unit = V().setFromMatrixColumn(frame, 0).length();
     const up = V(0, 0, -1).transformDirection(card);
-    const face = V(0, 1, 0).transformDirection(card);
+    const face = V(0, 0, 1).transformDirection(frame);
     const inward = V(-outward, 0, 0).transformDirection(card);
-    const lean = Math.min(GRIP.lean[2]!, GRIP.lean[0]! + GRIP.lean[1]! * half);
     const finger = up
       .clone()
-      .multiplyScalar(Math.cos(lean))
-      .addScaledVector(inward, Math.sin(lean));
-    const rotation = handBasis(finger, face);
+      .multiplyScalar(Math.cos(GRIP.angle))
+      .addScaledVector(inward, Math.sin(GRIP.angle))
+      .multiplyScalar(Math.cos(GRIP.pitch))
+      .addScaledVector(face, -Math.sin(GRIP.pitch))
+      .normalize();
+    // The palm faces the card backs; the thumb side follows from the hand's chirality.
+    const thumbSide = side === 'R' ? finger.clone().cross(face) : face.clone().cross(finger);
+    const rotation = handBasis(finger, thumbSide);
     this.gripShape(side);
-    const corner = V(outward * CARD_HALF_WIDTH, 0, CARD_HALF_HEIGHT).applyMatrix4(card);
-    const anchor = mirror(side, GRIP.anchor).multiplyScalar(this.scale()).applyQuaternion(rotation);
+    const base = V(0, 0, CARD_HALF_HEIGHT)
+      .applyMatrix4(card)
+      .addScaledVector(inward, -GRIP.at[0] * unit)
+      .addScaledVector(up, GRIP.at[1] * unit);
+    const knuckle = mirror(side, [HAND.palmThickness / 2, 0.045, HAND.palm])
+      .multiplyScalar(this.scale())
+      .applyQuaternion(rotation);
     const hand = this.bone(`Hand${side}`);
-    this.arm(side, corner.sub(anchor), rotation);
-    // Inner cards overlap the outer one near the pivot, each a little further back: the
-    // index finger and palm sit behind the deepest card they cover.
-    const unit = this.scale();
+    this.arm(side, base.sub(knuckle), rotation);
+    // Every card meets at the base, each a little further back: fingers and palm sit
+    // behind the deepest card they cover.
+    const scale = this.scale();
     let back = 0;
-    for (const finger of FINGERS) {
-      const radius = HAND.fingerRadius * unit;
-      const joints = [1, 2, 3, 'Tip'].map((j) => world(this.bone(`${finger}${j}${side}`)));
+    for (const digit of FINGERS) {
+      const radius = HAND.fingerRadius * scale;
+      const joints = [1, 2, 3, 'Tip'].map((j) => world(this.bone(`${digit}${j}${side}`)));
       for (let j = 0; j + 1 < joints.length; j++)
         for (const t of [0, 0.5])
           back = Math.max(
@@ -359,15 +373,22 @@ export class CharacterPose {
             this.clearance(cards, joints[j]!.clone().lerp(joints[j + 1]!, t), radius * 1.25),
           );
     }
-    for (let z = 0.02; z <= 0.17; z += 0.03) {
-      const edge = mirror(side, [0, HAND.palmWidth / 2, z]).multiplyScalar(unit);
-      back = Math.max(
-        back,
-        this.clearance(cards, world(hand).add(edge.applyQuaternion(rotation)), 0.004 * unit),
-      );
-    }
-    if (back > 0) this.arm(side, world(hand).addScaledVector(face, -back - 0.001 * unit), rotation);
+    // The palm's surface and its edges.
+    for (let z = 0.02; z <= 0.17; z += 0.03)
+      for (const [x, y] of [
+        [HAND.palmThickness / 2, -0.04],
+        [HAND.palmThickness / 2, 0],
+        [HAND.palmThickness / 2, 0.04],
+        [0, HAND.palmWidth / 2],
+        [0, -HAND.palmWidth / 2],
+      ] as const) {
+        const point = mirror(side, [x, y, z]).multiplyScalar(scale).applyQuaternion(rotation);
+        back = Math.max(back, this.clearance(cards, world(hand).add(point), 0.006 * scale));
+      }
+    if (back > 0)
+      this.arm(side, world(hand).addScaledVector(face, -back - 0.001 * scale), rotation);
     this.settleThumb(side, cards, face);
+    if (slide > 0) this.arm(side, world(hand).addScaledVector(up, -slide), rotation);
   }
 
   /** Rotate the thumb at its base until its pad rests on the frontmost face beneath it. */
@@ -375,15 +396,20 @@ export class CharacterPose {
     const base = this.bone(`Thumb1${side}`);
     const unit = this.scale();
     // The thumb's two phalanges as tapering tubes, matching the generated skin.
-    const joints = [2, 3, 'Tip'].map((j) => this.bone(`Thumb${j}${side}`));
+    // The whole thumb, from its metacarpal (the base of the web) to the tip.
+    const joints = [1, 2, 3, 'Tip'].map((j) => this.bone(`Thumb${j}${side}`));
     // Eight-sided rings: the flats sit a little inside the joint radius.
-    const radii = [1.05, 0.95, 0.85].map((k) => (k * HAND.thumbRadius * 0.95 + 0.0003) * unit);
-    for (let i = 0; i < 4; i++) {
+    const radii = [1.25, 1.05, 0.95, 0.85].map(
+      (k) => (k * HAND.thumbRadius * 0.95 + 0.0012) * unit,
+    );
+    for (let i = 0; i < 12; i++) {
       // The lowest point of the thumb over any card, measured to the frontmost face.
       let lift = -Infinity;
       let lowest = world(this.socket(`Grip${side}`));
       for (let j = 0; j + 1 < joints.length; j++)
-        for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        for (const t of j === 0
+          ? [0.5, 0.625, 0.75, 0.875]
+          : [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]) {
           const point = world(joints[j]!).lerp(world(joints[j + 1]!), t);
           const radius = THREE.MathUtils.lerp(radii[j]!, radii[j + 1]!, t);
           const need = this.clearance(cards, point, radius, true);
@@ -537,10 +563,30 @@ export class CharacterPose {
     this.shoulders.L.copy(this.bone('ShoulderL').quaternion);
     this.shoulders.R.copy(this.bone('ShoulderR').quaternion);
     this.root.updateWorldMatrix(true, true);
+    // The right hand holds the fan; while a clip needs it, the left takes the fan over,
+    // blending in with that clip so the cards are never let go.
+    const needs = (side: Side) =>
+      Math.max(
+        0,
+        ...active.filter(({ clip }) => sidesOf(clip).includes(side)).map((a) => a.weight),
+      );
+    const holder = holdingHand(input.count, needs('R') > 0, needs('L') > 0);
     for (const side of ['L', 'R'] as const) {
-      // A single card is held in the right hand; two hands would meet over it.
-      if (holds(side, input.count)) this.grip(side, cards, half);
-      else this.perform(side, side === 'R' ? RESTING : RESTING_LEFT, 0, {});
+      this.perform(side, side === 'R' ? RESTING : RESTING_LEFT, 0, {});
+      if (side !== holder) continue;
+      const blend = side === 'L' ? needs('R') : 1;
+      const names = [...ARM, ...DIGIT_BONES].map((name) => `${name}${side}`);
+      const resting = names.map((name) => this.bone(name).quaternion.clone());
+      // A hand taking the fan over first comes to just below it, then slides up into the
+      // grip with its thumb already in front: the cards pass between thumb and fingers.
+      this.grip(side, cards, frame, (1 - blend) * 0.35 * this.scale());
+      const approach = Math.min(1, blend * 2.5);
+      if (approach < 1)
+        names.forEach((name, i) => {
+          const bone = this.bone(name);
+          bone.quaternion.copy(resting[i]!.slerp(bone.quaternion, approach));
+        });
+      this.root.updateWorldMatrix(true, true);
     }
     let moving = false;
     for (const { clip, at, weight, targets } of active) {
@@ -570,5 +616,9 @@ export class CharacterPose {
   }
 }
 
-/** Which hands hold the fan: both for two or more cards, the right alone for one. */
-export const holds = (side: Side, count: number) => count > 1 || (count === 1 && side === 'R');
+/** The hand holding the fan: the right, unless a clip is using it; none for no cards. */
+export function holdingHand(count: number, rightBusy = false, leftBusy = false): Side | undefined {
+  if (count === 0) return undefined;
+  if (!rightBusy) return 'R';
+  return leftBusy ? undefined : 'L';
+}

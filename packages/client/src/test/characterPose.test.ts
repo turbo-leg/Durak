@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
-import { ACTIONS, EMOTES, REACTIONS } from '../character/animations/registry';
-import { holds } from '../character/CharacterPose';
+import { ACTIONS, EMOTES, FREE_HAND_EMOTES, REACTIONS } from '../character/animations/registry';
+import { holdingHand } from '../character/CharacterPose';
 import {
   FirstPersonCharacter,
   SeatedCharacter,
@@ -64,13 +64,13 @@ describe('Character card grip', () => {
           expect(cardIntersections(sample, cards), label).toEqual([]);
           const sides = cardSides(sample, cards);
           for (const side of ['L', 'R'] as const) {
-            if (!holds(side, count)) continue;
+            if (side !== holdingHand(count)) continue;
             // Thumb pads rest on the faces; every other part stays behind the fan.
             const thumb = sides.get(`${side}:Thumb`);
             expect(thumb, `${label} ${side} thumb over a card`).toBeDefined();
             if (!thumb) continue;
             expect(thumb.front, label).toBeGreaterThan(0);
-            expect(thumb.gap, label).toBeLessThan(0.02);
+            expect(thumb.gap, label).toBeLessThan(0.045);
             for (const part of ['Palm', 'Index', 'Middle', 'Ring', 'Pinky'])
               expect(sides.get(`${side}:${part}`)?.front ?? 0, `${label} ${side} ${part}`).toBe(0);
             // Fingers keep their natural spacing: none folds into a neighbour.
@@ -86,16 +86,16 @@ describe('Character card grip', () => {
     120000,
   );
 
-  it('keeps the four fingers nearly straight', async () => {
+  it('wraps the holding fingers around the fan without closing a fist', async () => {
     const { scene, pose } = await loadCharacter(false);
     pose.pose({ yaw: 0, pitch: 0, reduced: true, count: 5 });
-    for (const side of ['L', 'R'])
-      for (const finger of ['Index', 'Middle', 'Ring', 'Pinky']) {
-        const joints = [1, 2, 3, 'Tip'].map((j) => at(scene, `${finger}${j}${side}`));
-        const direct = joints[0]!.distanceTo(joints[3]!);
-        const along = joints.slice(1).reduce((sum, p, i) => sum + p.distanceTo(joints[i]!), 0);
-        expect(direct / along, `${side} ${finger}`).toBeGreaterThan(0.98);
-      }
+    for (const finger of ['Index', 'Middle', 'Ring', 'Pinky']) {
+      const joints = [1, 2, 3, 'Tip'].map((j) => at(scene, `${finger}${j}R`));
+      const direct = joints[0]!.distanceTo(joints[3]!);
+      const along = joints.slice(1).reduce((sum, p, i) => sum + p.distanceTo(joints[i]!), 0);
+      expect(direct / along, finger).toBeGreaterThan(0.75);
+      expect(direct / along, finger).toBeLessThan(0.98);
+    }
   });
 
   it('preserves limb lengths in every pose', async () => {
@@ -128,31 +128,51 @@ describe('Character gestures', () => {
     expect(Object.keys(EMOTES).sort()).toEqual(GESTURES.map((g) => g.id).sort());
   });
 
-  it('puts the index fingertip on its face socket as the head turns, while the other hand holds the fan', async () => {
+  it('touches each face socket with the right hand while the fan stays held, as the head turns', async () => {
     const { scene, pose } = await loadCharacter(false);
     for (const yaw of [-LOOK_YAW_LIMIT, -0.5, 0, 0.5, LOOK_YAW_LIMIT])
-      for (const [id, socket, side] of [
-        ['nose', 'Nose', 'R'],
-        ['ear-right', 'EarR', 'R'],
-        ['ear-left', 'EarL', 'L'],
+      for (const [id, socket] of [
+        ['nose', 'Nose'],
+        ['ear-right', 'EarR'],
+        ['ear-left', 'EarL'],
       ] as const) {
-        const other = side === 'R' ? 'L' : 'R';
-        pose.pose({ yaw, pitch: 0.1, reduced: true, count: 5 });
-        const holding = at(scene, `Grip${other}`.replace('Grip', 'SocketGrip'));
+        // While holding cards, the free hand gestures; touching the right ear borrows the
+        // right hand and the left takes the fan for the moment.
+        const clip = FREE_HAND_EMOTES[id] ?? EMOTES[id]!;
+        const side = clip.keys[0]!.R ? 'R' : 'L';
+        const holder = holdingHand(5, side === 'R', side === 'L')!;
+        const label = `${id} yaw ${yaw}`;
+        const frame = viewFrame(pose, yaw, 0.1);
+        pose.pose({ yaw, pitch: 0.1, reduced: true, count: 5, frame });
+        const before = at(scene, `SocketGrip${holder}`);
+        for (const time of [0, 100, 200, 300, 1000, 1800, 1950]) {
+          pose.pose({ yaw, pitch: 0.1, reduced: false, count: 5, frame, clips: [{ clip, time }] });
+          // Nothing passes through the fan at any moment, including the hand-over.
+          expect(cardIntersections(skin(scene), fanCards(frame, 5)), `${label} ${time} ms`).toEqual(
+            [],
+          );
+        }
         pose.pose({
           yaw,
           pitch: 0.1,
           reduced: true,
           count: 5,
-          clips: [{ clip: EMOTES[id]!, time: 1000 }],
+          frame,
+          clips: [{ clip, time: 1000 }],
         });
         expect(
           at(scene, `IndexTip${side}`).distanceTo(at(scene, `Socket${socket}`)),
-          `${id} yaw ${yaw}`,
+          label,
         ).toBeLessThan(0.02);
-        expect(at(scene, `SocketGrip${other}`).distanceTo(holding)).toBeLessThan(1e-4);
+        if (holder === 'R')
+          expect(at(scene, 'SocketGripR').distanceTo(before), label).toBeLessThan(1e-4);
+        else
+          expect(
+            cardSides(skin(scene), fanCards(frame, 5)).get('L:Thumb')?.gap,
+            label,
+          ).toBeLessThan(0.045);
       }
-  });
+  }, 120000);
 
   it('shows distinct finger counts', async () => {
     const { scene, pose } = await loadCharacter(false);
@@ -230,8 +250,9 @@ describe('Character card actions', () => {
       const target = new THREE.Matrix4().makeTranslation(-0.6, 1.5, 2.4);
       const targets = { table: target, deck: target };
       for (const count of [1, 5]) {
-        const acting = count === 1 ? 'L' : 'R';
-        const holding = acting === 'R' ? 'L' : 'R';
+        // The right hand holds the fan; the free left hand acts.
+        const acting = 'L';
+        const holding = 'R';
         const clip = ACTIONS[id][acting];
         const frame = viewFrame(pose, 0, 0);
         pose.pose({ yaw: 0, pitch: 0, reduced: true, count, frame });

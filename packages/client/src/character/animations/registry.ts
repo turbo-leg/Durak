@@ -139,6 +139,15 @@ export const EMOTES: Readonly<Record<string, Clip>> = {
   shrug,
 };
 
+/** Emotes that mean the same with either hand: performed by the left while the right holds
+ * the fan. Touching a particular ear needs that ear's hand, so those are not mirrored. */
+export const FREE_HAND_EMOTES: Readonly<Record<string, Clip>> = Object.fromEntries(
+  ['one', 'two', 'three', 'four', 'nose', 'cry', 'cheer', 'shrug'].map((id) => [
+    id,
+    mirrorClip(EMOTES[id]!),
+  ]),
+);
+
 /** Played locally when the public game ends: the durak cries, winners celebrate. */
 export type ReactionId = 'cry' | 'victory';
 export const REACTIONS: Readonly<Record<ReactionId, Clip>> = { cry, victory };

@@ -6,6 +6,7 @@ import { CharacterPose, type ActiveClip } from './CharacterPose.ts';
 import {
   ACTIONS,
   EMOTES,
+  FREE_HAND_EMOTES,
   REACTIONS,
   type ActionId,
   type ReactionId,
@@ -78,8 +79,11 @@ export function disposeCharacter(root: THREE.Object3D) {
   root.removeFromParent();
 }
 
-function gestureClips(gesture: PublicGesture, now: number): ActiveClip[] {
-  const clip = gesture.gestureId ? EMOTES[gesture.gestureId] : undefined;
+/** While the right hand holds cards, gestures that mean the same with either hand use the
+ * free left hand; the rest (touching the right ear) borrow the right and pass it the fan. */
+function gestureClips(gesture: PublicGesture, now: number, holding: boolean): ActiveClip[] {
+  const id = gesture.gestureId;
+  const clip = id ? (holding && FREE_HAND_EMOTES[id]) || EMOTES[id] : undefined;
   if (!clip || !gesture.gestureStartedAt) return [];
   return [{ clip, time: now - gesture.gestureStartedAt }];
 }
@@ -132,12 +136,10 @@ abstract class CharacterBody {
   /** Time for actions and reactions, in milliseconds; a preview can pin it to one moment. */
   clock = () => performance.now();
 
-  /**
-   * The hand that acts: the one on the target's side, so no arm reaches across the
-   * body; with a single card, the right hand is holding it and the left acts.
-   */
+  /** The hand that acts: the free left while holding cards, otherwise the nearer hand. */
   private actingSide(target?: THREE.Vector3) {
-    if (this.count === 1) return 'L';
+    // The right hand holds the fan; the left is free for the table.
+    if (this.count > 0) return 'L';
     if (!target) return 'R';
     this.root.updateWorldMatrix(true, false);
     // The character's left is +X in its own frame.
@@ -179,7 +181,7 @@ abstract class CharacterBody {
     const now = this.clock();
     this.actions = this.actions.filter((action) => now - action.start < action.clip.duration);
     return [
-      ...gestureClips(this.gesture, Date.now() + this.offset),
+      ...gestureClips(this.gesture, Date.now() + this.offset, this.count > 0),
       ...this.actions.map(({ clip, start, targets }) => ({ clip, time: now - start, targets })),
     ];
   }
