@@ -48,6 +48,84 @@ const touch = (
 
 const earRight = touch('EarR', [0.7, 0.75, -0.4], [0.85, -0.62, 0.32]);
 
+/** The right palm over the eyes, rubbing; the head bows and the chest sobs. */
+const coverEyes = (x: number): Reach => ({
+  target: 'Eyes',
+  at: [x, -0.01, 0.08],
+  effector: 'Palm',
+  // Fingers up across the brow, palm toward the face, thumb out to the side.
+  finger: [0.35, 0.9, -0.1],
+  thumb: [-0.9, 0.4, 0],
+  shape: { curl: { Index: 0.35, Middle: 0.4, Ring: 0.45, Pinky: 0.5 }, thumb: 0.3 },
+});
+const sob = (t: number, deep: boolean) => ({
+  t,
+  bones: {
+    Neck: [0.12, 0, 0] as Vec3,
+    Head: [0.28, 0, 0] as Vec3,
+    Chest: [deep ? 0.18 : 0.1, 0, 0] as Vec3,
+    ShoulderR: [0, 0, deep ? -0.07 : 0] as Vec3,
+    ShoulderL: [0, 0, deep ? 0.07 : 0] as Vec3,
+  },
+});
+const cry: Clip = {
+  duration: GESTURE_DURATION_MS,
+  fade: 300,
+  peak: 900,
+  keys: [
+    { t: 0, R: coverEyes(-0.04) },
+    { t: 700, R: coverEyes(-0.02) },
+    { t: 1000, R: coverEyes(-0.05) },
+    { t: 1300, R: coverEyes(-0.02) },
+    ...[0, 250, 450, 650, 850, 1050, 1250, 1450, 1650].map((t, i) => sob(t, i % 2 === 1)),
+  ],
+};
+
+/** A fist pumped above the shoulder, leaning back a little. */
+const pump = (height: number): Reach => ({
+  target: 'body',
+  at: [-0.32, height, 0.28],
+  finger: [0.1, 1, 0.1],
+  thumb: [1, 0, 0.2],
+  shape: { curl: { Index: 1, Middle: 1, Ring: 1, Pinky: 1 }, thumb: 1 },
+});
+const cheer: Clip = {
+  duration: GESTURE_DURATION_MS,
+  peak: 400,
+  keys: [0, 400, 650, 900, 1150, 1400].map((t, i) => ({
+    t,
+    R: pump(i % 2 ? 2.68 : 2.52),
+    bones: { Chest: [-0.06, 0, 0] as Vec3, Head: [-0.1, 0, 0] as Vec3 },
+  })),
+};
+
+/** Shoulders up, the free palm turned up and out, head tilted. */
+const shrug: Clip = {
+  duration: GESTURE_DURATION_MS,
+  peak: 700,
+  keys: [
+    {
+      t: 0,
+      R: {
+        target: 'body',
+        at: [-0.42, 1.86, 0.42],
+        finger: [-0.5, 0.1, 1],
+        thumb: [-0.89, 0, -0.45],
+        shape: { curl: { Index: 0.1, Middle: 0.15, Ring: 0.2, Pinky: 0.25 } },
+      },
+      bones: { ShoulderR: [0, 0, -0.2], ShoulderL: [0, 0, 0.2], Head: [0, 0, 0.12] },
+    },
+  ],
+};
+
+/** Both arms raised: only for a winner, whose hands are free of cards. */
+const raised = mirrorClip(cheer);
+const victory: Clip = {
+  ...cheer,
+  duration: 2600,
+  keys: cheer.keys.map((key, i) => ({ ...key, L: raised.keys[i]!.L })),
+};
+
 export const EMOTES: Readonly<Record<string, Clip>> = {
   one: count(1),
   two: count(2),
@@ -56,7 +134,14 @@ export const EMOTES: Readonly<Record<string, Clip>> = {
   nose: touch('Nose', [0, 0.88, -0.47], [1, 0, 0]),
   'ear-right': earRight,
   'ear-left': mirrorClip(earRight),
+  cry,
+  cheer,
+  shrug,
 };
+
+/** Played locally when the public game ends: the durak cries, winners celebrate. */
+export type ReactionId = 'cry' | 'victory';
+export const REACTIONS: Readonly<Record<ReactionId, Clip>> = { cry, victory };
 
 /**
  * Card actions, triggered by public table events. The renderer supplies the `table`

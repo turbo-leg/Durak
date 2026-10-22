@@ -48,6 +48,9 @@ export const GESTURES = [
   { id: 'nose', label: 'Touch nose' },
   { id: 'ear-left', label: 'Touch left ear' },
   { id: 'ear-right', label: 'Touch right ear' },
+  { id: 'cry', label: 'Cry' },
+  { id: 'cheer', label: 'Cheer' },
+  { id: 'shrug', label: 'Shrug' },
 ] as const;
 export type GestureId = (typeof GESTURES)[number]['id'];
 export const GESTURE_DURATION_MS = 2000;

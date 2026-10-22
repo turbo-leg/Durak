@@ -3,7 +3,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { avatarPreset, type PublicGesture } from '@durak/shared';
 import { CharacterPose, type ActiveClip } from './CharacterPose.ts';
-import { ACTIONS, EMOTES, type ActionId } from './animations/registry.ts';
+import {
+  ACTIONS,
+  EMOTES,
+  REACTIONS,
+  type ActionId,
+  type ReactionId,
+} from './animations/registry.ts';
 import type { Clip } from './animation.ts';
 import { characterMaterial, generateCharacter, paint, type Appearance } from './generate.ts';
 import {
@@ -123,17 +129,26 @@ abstract class CharacterBody {
   }
 
   private actions: { clip: Clip; start: number; targets: Record<string, THREE.Matrix4> }[] = [];
+  /** Time for actions and reactions, in milliseconds; a preview can pin it to one moment. */
+  clock = () => performance.now();
 
-  /** The hand that acts: the right, unless it alone is holding a single card. */
-  private actingSide() {
-    return this.count === 1 ? 'L' : 'R';
+  /**
+   * The hand that acts: the one on the target's side, so no arm reaches across the
+   * body; with a single card, the right hand is holding it and the left acts.
+   */
+  private actingSide(target?: THREE.Vector3) {
+    if (this.count === 1) return 'L';
+    if (!target) return 'R';
+    this.root.updateWorldMatrix(true, false);
+    // The character's left is +X in its own frame.
+    return this.root.worldToLocal(target.clone()).x > 0 ? 'L' : 'R';
   }
 
   /**
    * Act out a public card action toward world-space targets (`table`, `deck`). Targets
    * are framed by the seat's facing so the same clip works from every chair.
    */
-  act(id: ActionId, targets: Record<string, THREE.Vector3>, now = performance.now()) {
+  act(id: ActionId, targets: Record<string, THREE.Vector3>, now = this.clock()) {
     if (!this.pose) return;
     this.root.updateWorldMatrix(true, false);
     const rotation = this.root.getWorldQuaternion(new THREE.Quaternion());
@@ -144,18 +159,24 @@ abstract class CharacterBody {
         new THREE.Matrix4().compose(point, rotation, scale),
       ]),
     );
-    this.actions.push({ clip: ACTIONS[id][this.actingSide()], start: now, targets: frames });
+    const side = this.actingSide(Object.values(targets)[0]);
+    this.actions.push({ clip: ACTIONS[id][side], start: now, targets: frames });
   }
 
-  /** Where a card leaves (or reaches) this player's acting hand, in world space. */
-  palm() {
+  /** A local reaction to the public game, such as crying when left holding the cards. */
+  react(id: ReactionId, now = this.clock()) {
+    if (this.pose) this.actions.push({ clip: REACTIONS[id], start: now, targets: {} });
+  }
+
+  /** Where a card leaves (or reaches) the hand acting toward `target`, in world space. */
+  palm(target?: THREE.Vector3) {
     return this.model
-      ?.getObjectByName(`SocketPalm${this.actingSide()}`)
+      ?.getObjectByName(`SocketPalm${this.actingSide(target)}`)
       ?.getWorldPosition(new THREE.Vector3());
   }
 
   protected clips(): ActiveClip[] {
-    const now = performance.now();
+    const now = this.clock();
     this.actions = this.actions.filter((action) => now - action.start < action.clip.duration);
     return [
       ...gestureClips(this.gesture, Date.now() + this.offset),

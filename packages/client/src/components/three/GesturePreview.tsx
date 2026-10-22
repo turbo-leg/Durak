@@ -1,15 +1,17 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import type { PublicGesture } from '@durak/shared';
-import { CasualAvatar, disposeCharacter } from './CasualAvatar';
+import { SeatedCharacter, disposeCharacter } from '../../character/CharacterRig';
 
 /** A small mirror makes nose and ear contact visible to the person making it. */
 export default function GesturePreview({
   gesture,
   offset,
+  preset,
 }: {
   gesture: PublicGesture;
   offset: number;
+  preset: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const latest = useRef({ gesture, offset });
@@ -47,7 +49,7 @@ export default function GesturePreview({
       renderer.render(scene, camera);
       timer = setTimeout(draw, moving ? 33 : 125);
     };
-    const avatar = new CasualAvatar(() => draw());
+    const avatar = new SeatedCharacter(preset, () => draw());
     scene.add(avatar.root);
     const cards = new THREE.Group();
     const geometry = new THREE.BoxGeometry(0.82, 1.2, 0.015);
@@ -75,7 +77,7 @@ export default function GesturePreview({
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, []);
+  }, [preset]);
   return (
     <div
       ref={host}

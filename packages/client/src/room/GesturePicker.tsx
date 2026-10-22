@@ -95,11 +95,9 @@ export function GesturePicker({
             {preview ? 'Try a gesture before taking a seat.' : 'Visible to everyone at the table.'}
           </p>
           <div className="gesture-body">
-            {self.preset === 'casual' && (
-              <Suspense fallback={<span className="gesture-preview">Loading character…</span>}>
-                <GesturePreview gesture={self} offset={offset} />
-              </Suspense>
-            )}
+            <Suspense fallback={<span className="gesture-preview">Loading character…</span>}>
+              <GesturePreview gesture={self} offset={offset} preset={self.preset} />
+            </Suspense>
             <div className="gesture-options">
               {GESTURES.map((gesture) => (
                 <button
@@ -121,9 +119,7 @@ export function GesturePicker({
               ? 'Available when seated, between deals or during play.'
               : remaining
                 ? `Another gesture in ${remaining}s.`
-                : self.preset === 'casual'
-                  ? 'Your other hand keeps the cards.'
-                  : 'Choose Casual for articulated gestures. Everyone sees the gesture text.'}
+                : 'Your other hand keeps the cards.'}
           </p>
         </section>
       )}

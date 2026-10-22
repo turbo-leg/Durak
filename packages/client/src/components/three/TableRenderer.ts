@@ -583,7 +583,9 @@ export class TableRenderer {
         mesh.position.set(-4.2, 0.6, -0.1);
         const sourceSeat = previous?.seats.find((seat) => seat.active);
         const player = card ? playedBy.get(card.key) : undefined;
-        const palm = player ? this.avatars.get(player)?.palm() : undefined;
+        const palm = player
+          ? this.avatars.get(player)?.palm(new THREE.Vector3(x, y, z))
+          : undefined;
         if (palm) mesh.position.copy(palm);
         else if (sourceSeat && (id.startsWith('attack:') || id.startsWith('history:')))
           mesh.position.copy(seatPosition(sourceSeat.id));
@@ -780,7 +782,9 @@ export class TableRenderer {
               )
             : undefined;
         if (recipient) {
-          card.target.copy(this.avatars.get(recipient.id)?.palm() ?? seatPosition(recipient.id));
+          card.target.copy(
+            this.avatars.get(recipient.id)?.palm(TABLE_CENTRE) ?? seatPosition(recipient.id),
+          );
           // The identity becomes private again on pickup; only the back is shown.
           card.mesh.material = this.back;
         } else if (snapshot.discardCount > (previous?.discardCount ?? 0)) {
@@ -805,7 +809,13 @@ export class TableRenderer {
   private actOut(events: TableEvent[]) {
     const body = (seat: string) => (seat === SELF ? this.firstHands : this.avatars.get(seat));
     for (const event of events) {
-      if (event.kind === 'gameOver') continue;
+      if (event.kind === 'gameOver') {
+        // Seen on the other players; the local view keeps its eyes on the table.
+        if (event.loser && event.loser !== SELF) this.avatars.get(event.loser)?.react('cry');
+        for (const winner of event.winners)
+          if (winner !== SELF) this.avatars.get(winner)?.react('victory');
+        continue;
+      }
       const actor = body(event.seat);
       if (!actor) continue;
       if (event.kind === 'play') {

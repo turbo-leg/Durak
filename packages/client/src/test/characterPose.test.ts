@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
-import { ACTIONS, EMOTES } from '../character/animations/registry';
+import { ACTIONS, EMOTES, REACTIONS } from '../character/animations/registry';
 import { holds } from '../character/CharacterPose';
 import {
   FirstPersonCharacter,
@@ -174,6 +174,51 @@ describe('Character gestures', () => {
     // Each count extends one more finger than the last.
     for (let i = 1; i < 4; i++) expect(reach[i]![i]! - reach[i - 1]![i]!).toBeGreaterThan(0.05);
   });
+});
+
+describe('Every emote and reaction', () => {
+  const clips = [
+    ...Object.entries(EMOTES).map(([id, clip]) => [id, clip, 5] as const),
+    ...Object.entries(REACTIONS).map(
+      ([id, clip]) => [`reaction ${id}`, clip, id === 'victory' ? 0 : 5] as const,
+    ),
+  ];
+  it.each(clips)(
+    '%s keeps limbs whole, fingers apart and hands outside the head',
+    async (_id, clip, count) => {
+      const { scene, pose } = await loadCharacter(false);
+      pose.look(0, 0);
+      const rest = { L: digitClearance(scene, 'L'), R: digitClearance(scene, 'R') };
+      const arm = (side: string) => [
+        at(scene, `UpperArm${side}`).distanceTo(at(scene, `LowerArm${side}`)),
+        at(scene, `LowerArm${side}`).distanceTo(at(scene, `Hand${side}`)),
+      ];
+      const bind = { L: arm('L'), R: arm('R') };
+      const head = scene.getObjectByName('Head')!;
+      for (let time = 0; time < clip.duration; time += clip.duration / 10) {
+        pose.pose({ yaw: 0.3, pitch: 0, reduced: false, count, clips: [{ clip, time }] });
+        const label = `${_id} at ${time.toFixed(0)} ms`;
+        for (const side of ['L', 'R'] as const) {
+          arm(side).forEach((length, i) => expect(length, label).toBeCloseTo(bind[side][i]!, 5));
+          const clearance = digitClearance(scene, side);
+          for (const pair of ['Index-Middle', 'Middle-Ring', 'Ring-Pinky'])
+            expect(clearance[pair]!, `${label} ${side} ${pair}`).toBeGreaterThan(
+              rest[side][pair]! * 0.8,
+            );
+        }
+        // No hand skin inside the skull (an ellipsoid a little inside the head mesh).
+        const toHead = head.matrixWorld.clone().invert();
+        const sample = skin(scene);
+        const inside = sample.positions.filter((p, i) => {
+          if (!/:(Palm|Thumb|Index|Middle|Ring|Pinky)$/.test(sample.labels[i]!)) return false;
+          const q = p.clone().applyMatrix4(toHead);
+          return (q.x / 0.19) ** 2 + ((q.y - 0.19) / 0.24) ** 2 + (q.z / 0.2) ** 2 < 0.85;
+        });
+        expect(inside.length, label).toBe(0);
+      }
+    },
+    120000,
+  );
 });
 
 describe('Character card actions', () => {

@@ -98,6 +98,8 @@ export class CharacterPose {
   private rest = new Map<string, THREE.Vector3>();
   private fold = new Map<string, THREE.Quaternion>();
   private pinch = new Map<string, THREE.Quaternion>();
+  /** Shoulder rotation from emotes (a shrug, a sob); reaching starts from here. */
+  private shoulders = { L: new THREE.Quaternion(), R: new THREE.Quaternion() };
 
   constructor(readonly root: THREE.Object3D) {
     root.traverse((node) => {
@@ -156,6 +158,8 @@ export class CharacterPose {
       bone.quaternion.identity();
       bone.position.copy(this.rest.get(name)!);
     }
+    this.shoulders.L.identity();
+    this.shoulders.R.identity();
     this.root.updateWorldMatrix(true, true);
   }
 
@@ -238,7 +242,7 @@ export class CharacterPose {
     // elbow straightens: a natural reach, with no limb stretched.
     const shoulder = this.bone(`Shoulder${side}`);
     const upper = this.bone(`UpperArm${side}`);
-    shoulder.quaternion.identity();
+    shoulder.quaternion.copy(this.shoulders[side]);
     shoulder.updateWorldMatrix(false, true);
     const length =
       world(upper).distanceTo(world(this.bone(`LowerArm${side}`))) +
@@ -530,6 +534,8 @@ export class CharacterPose {
         const bone = this.bone(name);
         bone.quaternion.multiply(new THREE.Quaternion().slerp(rotation, weight));
       }
+    this.shoulders.L.copy(this.bone('ShoulderL').quaternion);
+    this.shoulders.R.copy(this.bone('ShoulderR').quaternion);
     this.root.updateWorldMatrix(true, true);
     for (const side of ['L', 'R'] as const) {
       // A single card is held in the right hand; two hands would meet over it.
@@ -546,6 +552,7 @@ export class CharacterPose {
       const solved = sidesOf(clip).filter((side) => {
         for (const name of [...ARM, ...DIGIT_BONES])
           this.bone(`${name}${side}`).quaternion.identity();
+        this.bone(`Shoulder${side}`).quaternion.copy(this.shoulders[side]);
         this.root.updateWorldMatrix(true, true);
         return this.perform(side, clip, at, { ...input.targets, ...targets });
       });
