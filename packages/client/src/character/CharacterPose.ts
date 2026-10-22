@@ -58,7 +58,7 @@ const REST: Reach = {
 const RESTING: Clip = { duration: 1, keys: [{ t: 0, R: REST }] };
 const RESTING_LEFT = mirrorClip(RESTING);
 
-const ARM = ['UpperArm', 'LowerArm', 'Hand'];
+const ARM = ['Shoulder', 'UpperArm', 'LowerArm', 'Hand'];
 const DIGIT_BONES = [
   ...FINGERS.flatMap((f) => [1, 2, 3].map((i) => `${f}${i}`)),
   'Thumb1',
@@ -72,6 +72,8 @@ export interface ActiveClip {
   clip: Clip;
   /** Milliseconds since the clip started. */
   time: number;
+  /** World frames of this clip's runtime targets, such as the slot a card is played to. */
+  targets?: Record<string, THREE.Matrix4>;
 }
 
 export interface PoseInput {
@@ -458,7 +460,7 @@ export class CharacterPose {
     };
     this.shape(side, shape);
     const rotation = handBasis(from.finger.lerp(to.finger, s), from.thumb.lerp(to.thumb, s));
-    const point = from.point.lerp(to.point, s);
+    const point = this.within(side, from.point.lerp(to.point, s), to.effector);
     const hand = this.bone(`Hand${side}`);
     const effector = to.effector;
     const offset =
@@ -469,6 +471,22 @@ export class CharacterPose {
           : () => world(hand);
     this.place(side, rotation, point, offset);
     return true;
+  }
+
+  /**
+   * A target beyond the arm's reach is approached along the same line, stopping with the
+   * elbow nearly straight: the card is tossed the rest of the way.
+   */
+  private within(side: Side, point: THREE.Vector3, effector: string) {
+    const upper = world(this.bone(`UpperArm${side}`));
+    const lower = world(this.bone(`LowerArm${side}`));
+    const length =
+      upper.distanceTo(lower) +
+      lower.distanceTo(world(this.bone(`Hand${side}`))) +
+      (effector === 'Wrist' ? 0 : HAND.palm * (effector === 'Palm' ? 0.5 : 1.8) * this.scale());
+    const offset = point.clone().sub(upper);
+    const limit = 0.95 * length;
+    return offset.length() > limit ? upper.add(offset.setLength(limit)) : point;
   }
 
   /** Additive spine/head rotations of a clip at `time`. */
@@ -499,17 +517,28 @@ export class CharacterPose {
     const frame = input.frame ?? carryMatrix(this.view(), undefined, this.scale());
     const half = input.half ?? fanHalfAngle(Math.min(7, input.count));
     const cards = input.count > 0 ? this.fan(frame, input.count, half) : [];
+    const active = (input.clips ?? [])
+      .map((entry) => ({ ...entry, weight: clipWeight(entry.clip, entry.time, input.reduced) }))
+      .filter((entry) => entry.weight > 0)
+      .map((entry) => ({
+        ...entry,
+        at: input.reduced ? (entry.clip.peak ?? entry.clip.duration / 2) : entry.time,
+      }));
+    // The spine and head lean first, so both hands are then placed from the leaning body.
+    for (const { clip, at, weight } of active)
+      for (const [name, rotation] of this.additive(clip, at)) {
+        const bone = this.bone(name);
+        bone.quaternion.multiply(new THREE.Quaternion().slerp(rotation, weight));
+      }
+    this.root.updateWorldMatrix(true, true);
     for (const side of ['L', 'R'] as const) {
       // A single card is held in the right hand; two hands would meet over it.
       if (holds(side, input.count)) this.grip(side, cards, half);
       else this.perform(side, side === 'R' ? RESTING : RESTING_LEFT, 0, {});
     }
     let moving = false;
-    for (const { clip, time } of input.clips ?? []) {
-      const weight = clipWeight(clip, time, input.reduced);
-      if (!weight) continue;
+    for (const { clip, at, weight, targets } of active) {
       moving ||= !input.reduced;
-      const at = input.reduced ? (clip.peak ?? clip.duration / 2) : time;
       const names = sidesOf(clip).flatMap((side) =>
         [...ARM, ...DIGIT_BONES].map((name) => `${name}${side}`),
       );
@@ -518,7 +547,7 @@ export class CharacterPose {
         for (const name of [...ARM, ...DIGIT_BONES])
           this.bone(`${name}${side}`).quaternion.identity();
         this.root.updateWorldMatrix(true, true);
-        return this.perform(side, clip, at, input.targets ?? {});
+        return this.perform(side, clip, at, { ...input.targets, ...targets });
       });
       for (const name of names) {
         const bone = this.bone(name);
@@ -526,10 +555,6 @@ export class CharacterPose {
         const solvedSide = solved.some((side) => name.endsWith(side));
         bone.quaternion.copy(base.get(name)!);
         if (solvedSide) bone.quaternion.slerp(target, weight);
-      }
-      for (const [name, rotation] of this.additive(clip, at)) {
-        const bone = this.bone(name);
-        bone.quaternion.multiply(new THREE.Quaternion().slerp(rotation, weight));
       }
       this.root.updateWorldMatrix(true, true);
     }

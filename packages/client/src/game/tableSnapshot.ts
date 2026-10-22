@@ -35,7 +35,7 @@ export interface TableSnapshot {
   readonly deckCount: number;
   readonly discardCount: number;
   readonly canSelect: boolean;
-  readonly self?: { preset: string; played: number } & PublicGesture;
+  readonly self?: { preset: string; played: number; escaped?: boolean } & PublicGesture;
   readonly serverTimeOffset?: number;
   readonly spectator?: boolean;
   readonly teamMode?: boolean;
@@ -128,6 +128,7 @@ export function tableSnapshot(
     self: {
       preset: state.players.get(sessionId)?.avatarPreset || 'copper',
       played: state.players.get(sessionId)?.playSequence || 0,
+      escaped: state.winners.includes(sessionId),
       gestureId: state.players.get(sessionId)?.gestureId,
       gestureStartedAt: state.players.get(sessionId)?.gestureStartedAt,
       gestureSequence: state.players.get(sessionId)?.gestureSequence,

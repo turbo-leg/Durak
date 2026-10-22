@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
-import { EMOTES } from '../character/animations/registry';
+import { ACTIONS, EMOTES } from '../character/animations/registry';
 import { holds } from '../character/CharacterPose';
 import {
   FirstPersonCharacter,
@@ -174,6 +174,65 @@ describe('Character gestures', () => {
     // Each count extends one more finger than the last.
     for (let i = 1; i < 4; i++) expect(reach[i]![i]! - reach[i - 1]![i]!).toBeGreaterThan(0.05);
   });
+});
+
+describe('Character card actions', () => {
+  it.each(['play', 'pickup', 'draw'] as const)(
+    '%s: the free hand reaches its target while the other keeps a clean grip',
+    async (id) => {
+      const { scene, pose } = await loadCharacter(false);
+      // A table target well beyond reach, in front and to the right of the seat.
+      const target = new THREE.Matrix4().makeTranslation(-0.6, 1.5, 2.4);
+      const targets = { table: target, deck: target };
+      for (const count of [1, 5]) {
+        const acting = count === 1 ? 'L' : 'R';
+        const holding = acting === 'R' ? 'L' : 'R';
+        const clip = ACTIONS[id][acting];
+        const frame = viewFrame(pose, 0, 0);
+        pose.pose({ yaw: 0, pitch: 0, reduced: true, count, frame });
+        const shoulder = at(scene, `UpperArm${acting}`);
+        const restDistance = at(scene, `SocketPalm${acting}`).distanceTo(
+          new THREE.Vector3(-0.6, 1.5, 2.4),
+        );
+        for (let time = 0; time < clip.duration; time += clip.duration / 10) {
+          pose.pose({
+            yaw: 0,
+            pitch: 0,
+            reduced: false,
+            count,
+            frame,
+            clips: [{ clip, time, targets }],
+          });
+          const sample = skin(scene);
+          const cards = fanCards(frame, count);
+          const label = `${id}, ${count} cards, ${time.toFixed(0)} ms`;
+          // The holding hand is untouched; any contact with the fan is the acting hand's.
+          expect(
+            cardIntersections(sample, cards).filter((hit) => hit.includes(`${holding}:`)),
+            label,
+          ).toEqual([]);
+          expect(
+            at(scene, `UpperArm${acting}`).distanceTo(at(scene, `LowerArm${acting}`)),
+          ).toBeCloseTo(0.388, 2);
+        }
+        // At its peak the palm has moved well toward the far target.
+        pose.pose({
+          yaw: 0,
+          pitch: 0,
+          reduced: false,
+          count,
+          frame,
+          clips: [{ clip, time: clip.peak!, targets }],
+        });
+        const distance = at(scene, `SocketPalm${acting}`).distanceTo(
+          new THREE.Vector3(-0.6, 1.5, 2.4),
+        );
+        expect(distance, `${id} ${count}`).toBeLessThan(restDistance - 0.25);
+        expect(at(scene, `UpperArm${acting}`).distanceTo(shoulder)).toBeLessThan(0.2);
+      }
+    },
+    120000,
+  );
 });
 
 describe('Character runtime', () => {

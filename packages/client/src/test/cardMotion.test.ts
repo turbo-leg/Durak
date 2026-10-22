@@ -50,6 +50,7 @@ function fixture() {
     face: () => new THREE.MeshStandardMaterial(),
     label: vi.fn(),
     requestFrame: vi.fn(),
+    reducedMotion: { matches: false },
     renderer: { capabilities: { getMaxAnisotropy: () => 16 } },
   });
   const update = (state: TableSnapshot) => table.update(state, new Set());

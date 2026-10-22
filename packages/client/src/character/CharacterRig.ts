@@ -3,7 +3,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { avatarPreset, type PublicGesture } from '@durak/shared';
 import { CharacterPose, type ActiveClip } from './CharacterPose.ts';
-import { EMOTES } from './animations/registry.ts';
+import { ACTIONS, EMOTES, type ActionId } from './animations/registry.ts';
+import type { Clip } from './animation.ts';
 import { characterMaterial, generateCharacter, paint, type Appearance } from './generate.ts';
 import {
   carryMatrix,
@@ -121,6 +122,47 @@ abstract class CharacterBody {
     this.count = count;
   }
 
+  private actions: { clip: Clip; start: number; targets: Record<string, THREE.Matrix4> }[] = [];
+
+  /** The hand that acts: the right, unless it alone is holding a single card. */
+  private actingSide() {
+    return this.count === 1 ? 'L' : 'R';
+  }
+
+  /**
+   * Act out a public card action toward world-space targets (`table`, `deck`). Targets
+   * are framed by the seat's facing so the same clip works from every chair.
+   */
+  act(id: ActionId, targets: Record<string, THREE.Vector3>, now = performance.now()) {
+    if (!this.pose) return;
+    this.root.updateWorldMatrix(true, false);
+    const rotation = this.root.getWorldQuaternion(new THREE.Quaternion());
+    const scale = this.root.getWorldScale(new THREE.Vector3());
+    const frames = Object.fromEntries(
+      Object.entries(targets).map(([name, point]) => [
+        name,
+        new THREE.Matrix4().compose(point, rotation, scale),
+      ]),
+    );
+    this.actions.push({ clip: ACTIONS[id][this.actingSide()], start: now, targets: frames });
+  }
+
+  /** Where a card leaves (or reaches) this player's acting hand, in world space. */
+  palm() {
+    return this.model
+      ?.getObjectByName(`SocketPalm${this.actingSide()}`)
+      ?.getWorldPosition(new THREE.Vector3());
+  }
+
+  protected clips(): ActiveClip[] {
+    const now = performance.now();
+    this.actions = this.actions.filter((action) => now - action.start < action.clip.duration);
+    return [
+      ...gestureClips(this.gesture, Date.now() + this.offset),
+      ...this.actions.map(({ clip, start, targets }) => ({ clip, time: now - start, targets })),
+    ];
+  }
+
   dispose() {
     this.disposed = true;
     if (this.model) disposeCharacter(this.model);
@@ -177,7 +219,7 @@ export class SeatedCharacter extends CharacterBody {
       count,
       half: fanHalfAngle(count),
       frame,
-      clips: gestureClips(this.gesture, Date.now() + this.offset),
+      clips: this.clips(),
     });
     const local = this.root.matrixWorld.clone().invert().multiply(frame);
     local.decompose(this.fan.position, this.fan.quaternion, this.fan.scale);
@@ -247,7 +289,7 @@ export class FirstPersonCharacter extends CharacterBody {
       count: this.count,
       half: this.half,
       frame: this.options?.cards.matrixWorld,
-      clips: gestureClips(this.gesture, Date.now() + this.offset),
+      clips: this.clips(),
     });
   }
 }

@@ -3,6 +3,7 @@ import { SeatedView } from './SeatedView';
 import { FirstPersonCharacter, SeatedCharacter } from '../../character/CharacterRig';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { seatStatus, type TableCard, type TableSnapshot } from '../../game/tableSnapshot';
+import { SELF, tableEvents, type TableEvent } from '../../game/tableEvents';
 import { cardFaceUrl, highResolutionCardFaceUrl } from '../../game/cardArt';
 import {
   CHARACTER_SCALE,
@@ -28,6 +29,8 @@ const RANKS: Record<number, string> = {
   17: 'BJ',
   18: 'RJ',
 };
+const TABLE_CENTRE = new THREE.Vector3(0.25, 0.3, -0.35);
+const DECK_TOP = new THREE.Vector3(-4.15, 0.4, 0.1);
 const SUITS: Record<string, string> = { Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣' };
 // Grow seated players around the held-card height, keeping their grip at the table.
 const SEATED_PLAYER_SCALE = CHARACTER_SCALE;
@@ -476,6 +479,11 @@ export class TableRenderer {
 
   update(snapshot: TableSnapshot, selected: ReadonlySet<string>) {
     const previous = this.previousSnapshot;
+    const events = tableEvents(previous, snapshot);
+    // A newly played card leaves its player's hand rather than appearing at the chair.
+    const playedBy = new Map<string, string>();
+    for (const event of events)
+      if (event.kind === 'play') event.cards.forEach((key) => playedBy.set(key, event.seat));
     // Every selected seat has a place at the table, occupied or not.
     const ringCount = Math.max(
       snapshot.capacity ?? 0,
@@ -574,7 +582,10 @@ export class TableRenderer {
         }
         mesh.position.set(-4.2, 0.6, -0.1);
         const sourceSeat = previous?.seats.find((seat) => seat.active);
-        if (sourceSeat && (id.startsWith('attack:') || id.startsWith('history:')))
+        const player = card ? playedBy.get(card.key) : undefined;
+        const palm = player ? this.avatars.get(player)?.palm() : undefined;
+        if (palm) mesh.position.copy(palm);
+        else if (sourceSeat && (id.startsWith('attack:') || id.startsWith('history:')))
           mesh.position.copy(seatPosition(sourceSeat.id));
         if (handKey || parentOverride) {
           const frame = parentOverride ?? this.hand;
@@ -769,7 +780,7 @@ export class TableRenderer {
               )
             : undefined;
         if (recipient) {
-          card.target.copy(seatPosition(recipient.id));
+          card.target.copy(this.avatars.get(recipient.id)?.palm() ?? seatPosition(recipient.id));
           // The identity becomes private again on pickup; only the back is shown.
           card.mesh.material = this.back;
         } else if (snapshot.discardCount > (previous?.discardCount ?? 0)) {
@@ -785,8 +796,24 @@ export class TableRenderer {
         card.roll = 0;
       }
     }
+    if (!this.reducedMotion.matches) this.actOut(events);
     this.previousSnapshot = snapshot;
     this.requestFrame();
+  }
+
+  /** Characters reach for the table, gather a pile or draw, as the public game moves. */
+  private actOut(events: TableEvent[]) {
+    const body = (seat: string) => (seat === SELF ? this.firstHands : this.avatars.get(seat));
+    for (const event of events) {
+      if (event.kind === 'gameOver') continue;
+      const actor = body(event.seat);
+      if (!actor) continue;
+      if (event.kind === 'play') {
+        const slot = this.cards.get(`card:${event.cards[0]}`)?.target;
+        if (slot) actor.act('play', { table: slot.clone() });
+      } else if (event.kind === 'pickup') actor.act('pickup', { table: TABLE_CENTRE.clone() });
+      else actor.act('draw', { deck: DECK_TOP.clone() });
+    }
   }
 
   recenter() {
