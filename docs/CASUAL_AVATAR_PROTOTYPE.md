@@ -1,5 +1,9 @@
 # Casual avatar and public gestures
 
+> **Superseded.** The Quaternius Casual rig, its procedural stand-ins and the first-person
+> hand assets were retired in favour of one purpose-built character. See
+> [CHARACTER_SPEC.md](CHARACTER_SPEC.md). This page is kept as a record of the prototype.
+
 Implemented 2026-10-22. This is a selectable prototype for review before adopting
 the character pack across the whole cast.
 

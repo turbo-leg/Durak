@@ -53,14 +53,71 @@ Each vertex carries a `_region` attribute (skin, shirt, trousers, shoes, hair, e
 iris, lip). An appearance recolours regions and picks a hair variant, so all characters
 share one asset. Weights are normalized, four influences at most.
 
-## Clips
+## How the character moves
 
-`idle`, `grip`, `play`, `pickup`, `draw` and `emote/<id>`. Clips are data in
-`character/animations/clips/`; contact clips name socket targets and are completed by IK at
-runtime. Add an emote with one clip file and one registry entry.
+`character/CharacterPose.ts` builds every frame in the same order:
+
+1. **Look:** the spine and head share the player's yaw and pitch; the camera sits at `Eyes`.
+2. **Lean:** additive spine, head and shoulder rotations from active clips.
+3. **Hold:** each holding hand pinches the outer card of the fan. The card's bottom-outer
+   corner sits on the radial side of the index finger (`GRIP.anchor`); the hand is moved
+   back behind every card it covers; the thumb turns at its base until its pad rests on
+   the frontmost face. One card is held in the right hand alone. Empty hands rest.
+4. **Clips:** arm keys are reach targets solved with two-bone IK (limbs never stretch; far
+   targets stop at a natural extension), blended over the hold by the clip's fade.
+
+## Clips and the registry
+
+Clips are data (`character/animation.ts`). A key gives, per arm, a reach `target`
+(`body`, a head socket, or a runtime target such as `table` or `deck`), an `effector`
+(`Wrist`, `IndexTip`, `Palm`), finger and thumb-side directions, and a hand shape (per-finger
+curl, spread, thumb fold); plus optional additive `bones` rotations. `mirrorClip` performs a
+clip with the other hand.
+
+`character/animations/registry.ts` holds three kinds:
+
+| Kind        | Triggered by                                      | Examples                               |
+| ----------- | ------------------------------------------------- | -------------------------------------- |
+| `EMOTES`    | A public gesture (server-validated, rate limited) | counts, nose, ears, cry, cheer, shrug  |
+| `ACTIONS`   | Public table events (`game/tableEvents.ts`)       | play, pickup, draw                     |
+| `REACTIONS` | Local, from public game results                   | cry for the durak, victory for winners |
+
+### Add an emote
+
+1. Write the clip in `registry.ts` and add it to `EMOTES` under a new id.
+2. Add `{ id, label }` to `GESTURES` in `packages/shared/src/presence.ts`, so the server
+   accepts it and the picker lists it. A test fails until both lists match.
+3. Preview it: `npm run dev -w @durak/client`, open `/character.html`, choose the clip,
+   card count, view and character. `?clip=emote:<id>&at=<ms>` freezes a moment.
+4. Run `npx vitest run src/test/characterPose.test.ts`: every emote is sampled for limb
+   length, finger spacing and hands kept outside the head.
+5. Optionally `node scripts/character-preview.mjs` to screenshot every clip at its peak.
+
+Actions and reactions work the same way, triggered from `TableRenderer.actOut`.
+
+## Regenerate or replace the model
+
+`node scripts/build-character.mjs` regenerates `public/models/character/base.glb` from
+`spec.ts` and `generate.ts`; the contract test fails if the shipped GLB is stale. An
+artist-made GLB can replace it if it keeps the bone names, identity bind rotations, sockets,
+`_region` attribute and the proportions above; the same tests then verify it.
 
 ## Acceptance
 
-Run the character tests (`src/test/character*.test.ts`): contract, proportions, grip
-geometry against the real card fan in both views, and every clip sampled for finger
-clearance, limb lengths and contact.
+`src/test/characterContract.test.ts` and `src/test/characterPose.test.ts` check the real GLB:
+the contract and proportions; the grip against the rendered fan (1, 2, 3, 5 and 7 cards and
+12 cards on a narrow screen; centre and both gaze limits; first person and peer) with no
+skin through a card, thumbs resting on faces, fingers straight and apart and hands apart;
+every gesture's contact; every emote, reaction and action for limb length, finger spacing,
+head clearance and an undisturbed holding hand.
+
+## Review screenshots
+
+Rendered with the real `TableRenderer` and shipped GLB:
+
+- [The player's own view](character/grip-player-view.jpg): one and five cards, both 65° head
+  turns, and a 390×844 phone with five and twelve cards.
+- [Other players' view](character/grip-other-players-view.jpg): one, five and seven cards, a
+  turned head, and close-ups of the index finger behind the card and the thumb pad on its face.
+- [Gestures](character/gestures.jpg), [emotes](character/emotes.jpg) and
+  [card actions](character/card-actions.jpg).

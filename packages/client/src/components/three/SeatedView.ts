@@ -7,8 +7,6 @@ export class SeatedView {
   private yaw = 0;
   private pitch = 0;
   private spectator = false;
-  // Every character shares the same rig and eye landmarks.
-  private preset = 'casual';
   private eyeSource?: (
     yaw: number,
     pitch: number,
@@ -39,11 +37,6 @@ export class SeatedView {
       this.recenter();
     }
   }
-  setPreset(preset: string) {
-    if (this.preset === preset) return;
-    this.preset = preset;
-    this.apply();
-  }
   getLook() {
     return { yaw: this.yaw, pitch: this.pitch };
   }
@@ -66,7 +59,7 @@ export class SeatedView {
       );
       this.camera.lookAt(0, 0, 0);
     } else {
-      this.camera.position.copy(seatedEyes(this.yaw, this.pitch, this.preset));
+      this.camera.position.copy(seatedEyes(this.yaw, this.pitch));
       this.camera.rotation.order = 'YXZ';
       this.camera.rotation.set(-NEUTRAL_LOOK_DOWN + this.pitch, this.yaw, 0);
       const view = this.eyeSource?.(this.yaw, this.pitch);

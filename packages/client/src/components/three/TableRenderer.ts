@@ -16,6 +16,8 @@ import {
   fanHalfAngle,
   fanStep,
   heldCard,
+  HELD_CARD,
+  heldCardBow,
   HELD_CARD_SCALE,
 } from './CharacterSpace';
 
@@ -208,10 +210,12 @@ export class TableRenderer {
   private makeHeldGeometry() {
     const geometry = this.cardGeometry.clone();
     const positions = geometry.attributes.position;
-    for (let i = 0; i < positions.count; i++) {
-      const along = positions.getZ(i) / 0.6;
-      positions.setY(i, positions.getY(i) * 0.35 + 0.025 * along * along);
-    }
+    // Thinner than a table card and bowed toward its face; hands are posed against this.
+    for (let i = 0; i < positions.count; i++)
+      positions.setY(
+        i,
+        positions.getY(i) * (HELD_CARD.thickness / 0.035) + heldCardBow(positions.getZ(i)),
+      );
     geometry.computeVertexNormals();
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
