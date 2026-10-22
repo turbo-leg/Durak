@@ -32,13 +32,13 @@ authored once and reused.
 
 ## Proportions (hard requirements)
 
-| Measure                              |                 Value | Why                                  |
-| ------------------------------------ | --------------------: | ------------------------------------ |
-| Held card height / width             |          0.18 / 0.123 | The fan as rendered                  |
-| Palm, wrist to middle knuckle        |                  0.17 | About one card high                  |
-| Middle finger                        |                 0.156 | Fingers fit behind a card            |
-| Thumb (metacarpal, proximal, distal) | 0.058 / 0.044 / 0.036 | Three bones so the thumb opposes     |
-| Finger / thumb radius                |       0.0155 / 0.0175 | A thin web: card edges fit the pinch |
+| Measure                              |               Value | Why                                  |
+| ------------------------------------ | ------------------: | ------------------------------------ |
+| Held card height / width             |        0.18 / 0.123 | The fan as rendered                  |
+| Palm, wrist to middle knuckle        |                0.17 | About one card high                  |
+| Middle finger                        |               0.156 | Fingers fit behind a card            |
+| Thumb (metacarpal, proximal, distal) | 0.068 / 0.05 / 0.04 | Three bones so the thumb opposes     |
+| Finger / thumb radius                |     0.0155 / 0.0175 | A thin web: card edges fit the pinch |
 
 ## Sockets
 

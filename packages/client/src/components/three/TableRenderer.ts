@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { SeatedView } from './SeatedView';
-import { AvatarRig } from './AvatarRig';
-import { CasualAvatar, makeCasualHands } from './CasualAvatar';
-import { makeFirstPersonHands } from './FirstPersonHands';
+import { FirstPersonCharacter, SeatedCharacter } from '../../character/CharacterRig';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { seatStatus, type TableCard, type TableSnapshot } from '../../game/tableSnapshot';
 import { cardFaceUrl, highResolutionCardFaceUrl } from '../../game/cardArt';
@@ -14,6 +12,7 @@ import {
   CARRY_SCALE,
   CARRY_TILT,
   CARRY_Y,
+  fanHalfAngle,
   fanStep,
   heldCard,
   HELD_CARD_SCALE,
@@ -57,14 +56,9 @@ export class TableRenderer {
   private faces = new Map<string, THREE.MeshStandardMaterial>();
   private edge = new THREE.MeshStandardMaterial({ color: '#d7d6cc', roughness: 0.8 });
   private controls: SeatedView;
-  private avatars = new Map<string, AvatarRig | CasualAvatar>();
-  private firstHands:
-    | ReturnType<typeof makeFirstPersonHands>
-    | ReturnType<typeof makeCasualHands>
-    | undefined;
+  private avatars = new Map<string, SeatedCharacter>();
+  private firstHands: FirstPersonCharacter | undefined;
   private ownPreset = '';
-  private lastPlayed: number | undefined;
-  private playStarted = -Infinity;
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
   private labelSignature = '';
   private hoverKey: string | null = null;
@@ -497,39 +491,27 @@ export class TableRenderer {
     this.controls.setSpectator(Boolean(snapshot.spectator));
     this.hand.visible = !snapshot.spectator;
     const preset = snapshot.self?.preset || 'copper';
-    this.controls.setPreset?.(preset);
     if (preset !== this.ownPreset) {
       this.firstHands?.dispose();
-      this.firstHands =
-        preset === 'casual'
-          ? makeCasualHands(() => this.requestFrame(), {
-              camera: this.camera,
-              cards: this.hand,
-              look: () => this.controls.getLook(),
-            })
-          : makeFirstPersonHands(preset, () => this.requestFrame());
-      (preset === 'casual' ? this.scene : this.hand).add(this.firstHands.root);
-      this.controls.setEyeSource?.(
-        preset === 'casual'
-          ? (yaw, pitch) =>
-              this.firstHands && 'view' in this.firstHands
-                ? this.firstHands.view(yaw, pitch)
-                : undefined
-          : undefined,
-      );
+      // Every preset is the same rig, so the eyes are always where the camera expects.
+      this.firstHands = new FirstPersonCharacter(preset, () => this.requestFrame(), {
+        camera: this.camera,
+        cards: this.hand,
+        look: () => this.controls.getLook(),
+      });
+      this.scene.add(this.firstHands.root);
+      this.controls.setEyeSource?.((yaw, pitch) => this.firstHands?.view(yaw, pitch));
       this.ownPreset = preset;
     }
-    const played = snapshot.self?.played || 0;
     if (this.firstHands) {
-      this.firstHands.root.visible =
-        !snapshot.spectator && (snapshot.hand.length > 0 || Boolean(snapshot.self?.gestureId));
-      this.firstHands.setCardCount(snapshot.hand.length, HELD_CARD_SCALE);
-      if ('setGesture' in this.firstHands)
-        this.firstHands.setGesture(snapshot.self || {}, snapshot.serverTimeOffset);
+      this.firstHands.root.visible = !snapshot.spectator;
+      // The grip follows the fan as laid out now, which resizing alone does not change.
+      this.firstHands.setCardCount(
+        snapshot.hand.length,
+        fanHalfAngle(snapshot.hand.length, this.camera.aspect),
+      );
+      this.firstHands.setGesture(snapshot.self || {}, snapshot.serverTimeOffset);
     }
-    if (this.lastPlayed !== undefined && played !== this.lastPlayed)
-      this.playStarted = performance.now();
-    this.lastPlayed = played;
     const labels = JSON.stringify([
       snapshot.deckCount,
       snapshot.discardCount,
@@ -699,10 +681,7 @@ export class TableRenderer {
         rig = undefined;
       }
       if (!rig) {
-        rig =
-          preset === 'casual'
-            ? new CasualAvatar(() => this.requestFrame())
-            : new AvatarRig(preset, i * 0.83);
+        rig = new SeatedCharacter(preset, () => this.requestFrame());
         this.avatars.set(seat.id, rig);
         this.scene.add(rig.root);
       }
@@ -730,43 +709,26 @@ export class TableRenderer {
           0.65,
         );
       }
-      rig.update(yaw, seat.pitch || 0, seat.played || 0, performance.now() / 1000);
-      if (rig instanceof CasualAvatar) rig.setGesture(seat, snapshot.serverTimeOffset, seat.count);
-      for (let n = 0; n < Math.min(7, seat.count); n++) {
-        if (rig instanceof CasualAvatar) {
-          const fanCount = Math.min(7, seat.count);
-          const { angle, position } = heldCard(n, fanCount, fanStep(fanCount));
-          put(
-            `seat:${seat.id}:${n}`,
-            null,
-            position.x,
-            position.y,
-            position.z,
-            0,
-            undefined,
-            Math.PI / 2,
-            -angle,
-            rig.fan,
-          );
-          const mesh = this.cards.get(`seat:${seat.id}:${n}`)!.mesh;
-          mesh.scale.setScalar(HELD_CARD_SCALE);
-          mesh.rotation.order = 'ZYX';
-          continue;
-        }
-        const offset = (n - (Math.min(7, seat.count) - 1) / 2) * 0.17 * SEATED_PLAYER_SCALE;
+      rig.update(yaw, seat.pitch || 0);
+      rig.setGesture(seat, snapshot.serverTimeOffset, seat.count);
+      const fanCount = Math.min(7, seat.count);
+      for (let n = 0; n < fanCount; n++) {
+        const { angle, position } = heldCard(n, fanCount, fanStep(fanCount));
         put(
           `seat:${seat.id}:${n}`,
           null,
-          x + offset * Math.cos(facing) + Math.sin(facing) * 0.95 * SEATED_PLAYER_SCALE,
-          SEATED_CARD_HEIGHT + n * 0.004,
-          z - offset * Math.sin(facing) + Math.cos(facing) * 0.95 * SEATED_PLAYER_SCALE,
-          facing,
+          position.x,
+          position.y,
+          position.z,
+          0,
           undefined,
-          1.3,
+          Math.PI / 2,
+          -angle,
+          rig.fan,
         );
         const mesh = this.cards.get(`seat:${seat.id}:${n}`)!.mesh;
-        mesh.scale.setScalar(0.55 * SEATED_PLAYER_SCALE);
-        mesh.rotation.order = 'YXZ';
+        mesh.scale.setScalar(HELD_CARD_SCALE);
+        mesh.rotation.order = 'ZYX';
       }
       if (refreshLabels)
         this.label(
@@ -938,17 +900,8 @@ export class TableRenderer {
     this.lastRender = now;
     for (const rig of this.avatars.values())
       moving = rig.animate(now / 1000, this.reducedMotion.matches) || moving;
-    if (this.firstHands && this.hand.visible) {
-      if ('animate' in this.firstHands)
-        moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
-      if (!('animate' in this.firstHands)) {
-        const t = Math.min(1, Math.max(0, (now - this.playStarted) / 600));
-        this.firstHands.root.position.z = this.reducedMotion.matches
-          ? 0
-          : -Math.sin(t * Math.PI) * 0.25;
-        moving = moving || (!this.reducedMotion.matches && t > 0 && t < 1);
-      }
-    }
+    if (this.firstHands && this.hand.visible)
+      moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
     for (const [id, card] of this.cards) {
       this.targetPosition.copy(card.target);
       if (this.canSelect && card.mesh.userData.handKey === this.hoverKey)

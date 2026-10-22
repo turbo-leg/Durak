@@ -35,8 +35,9 @@ export const HAND = {
     Pinky: [0.054, 0.034, 0.029],
   } satisfies Record<Finger, number[]>,
   fingerRadius: 0.0155,
-  /** Metacarpal, proximal, distal. The metacarpal lets the thumb oppose the palm. */
-  thumb: [0.058, 0.044, 0.036],
+  /** Metacarpal, proximal, distal: about a palm long, as on a real hand. The metacarpal
+   * lets the thumb climb in front of a card and oppose the index finger. */
+  thumb: [0.068, 0.05, 0.04],
   thumbRadius: 0.0175,
 } as const;
 
@@ -52,11 +53,12 @@ const mirror = (side: Side, [x, y, z]: [number, number, number]): [number, numbe
 function limbs(side: Side): Joint[] {
   const s = (name: string) => `${name}${side}`;
   const p = (x: number, y: number, z: number) => mirror(side, [x, y, z]);
-  const wrist: [number, number, number] = [-0.36, 1.72, 0.5];
+  // Upper arm 0.39 and forearm 0.44: the held fan is reached with a relaxed elbow.
+  const wrist: [number, number, number] = [-0.37, 1.7, 0.54];
   const joints: Joint[] = [
     { name: s('Shoulder'), parent: 'Chest', at: p(-0.08, 2.05, 0.1) },
     { name: s('UpperArm'), parent: s('Shoulder'), at: p(-0.29, 2.08, 0.1) },
-    { name: s('LowerArm'), parent: s('UpperArm'), at: p(-0.36, 1.72, 0.1) },
+    { name: s('LowerArm'), parent: s('UpperArm'), at: p(-0.37, 1.7, 0.1) },
     { name: s('Hand'), parent: s('LowerArm'), at: p(...wrist) },
     { name: s('UpperLeg'), parent: 'Hips', at: p(-0.2, 1.1, 0.1) },
     { name: s('LowerLeg'), parent: s('UpperLeg'), at: p(-0.2, 0.85, 0.62) },
@@ -84,11 +86,12 @@ function limbs(side: Side): Joint[] {
   }
   // The thumb leaves the wrist forward, up and toward the palm side (+X on the right).
   const thumbDirections: [number, number, number][] = [
-    [0.45, 0.45, 0.77],
-    [0.3, 0.35, 0.89],
-    [0.2, 0.3, 0.93],
+    [0.55, 0.22, 0.8],
+    [0.35, 0.12, 0.93],
+    [0.2, 0.08, 0.98],
   ];
-  let at: [number, number, number] = [wrist[0] + 0.012, wrist[1] + 0.012, wrist[2] + 0.025];
+  // The metacarpal starts at the radial (thumb-side) edge of the wrist.
+  let at: [number, number, number] = [wrist[0] + 0.01, wrist[1] + 0.036, wrist[2] + 0.02];
   let parent = s('Hand');
   HAND.thumb.forEach((length, i) => {
     const name = s(`Thumb${i + 1}`);

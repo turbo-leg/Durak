@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { CasualPose } from '../components/three/CasualPose';
+import { CharacterPose } from '../character/CharacterPose';
 import {
   CHARACTER_FLOOR,
   CHARACTER_SCALE,
@@ -13,7 +13,7 @@ import {
   heldCard,
 } from '../components/three/CharacterSpace';
 
-/** Measurements of the shipped Casual mesh against the held fan, in carry-frame units. */
+/** Measurements of the shipped character mesh against the held fan, in carry-frame units. */
 
 // Held card geometry before its mesh scale: RoundedBox 0.82 x 0.035 x 1.2, flattened to
 // 35% thickness and bowed toward the face by 0.025 at both short ends.
@@ -23,20 +23,23 @@ const HALF_THICKNESS = (0.035 * 0.35) / 2;
 const bow = (z: number) => 0.025 * (z / HALF_HEIGHT) ** 2;
 const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'] as const;
 
-export async function loadCasual(firstPerson: boolean) {
-  const data = await readFile(`public/models/casual/${firstPerson ? 'arms' : 'casual'}.glb`);
+/**
+ * The shipped character, placed in the local chair (first person) or alone at unit
+ * scale (a peer's rig before the table scales it).
+ */
+export async function loadCharacter(firstPerson: boolean) {
+  const data = await readFile('public/models/character/base.glb');
   const binary = new ArrayBuffer(data.length);
   new Uint8Array(binary).set(data);
   const { scene } = await new GLTFLoader().parseAsync(binary, '');
   if (firstPerson) {
-    // Same placement as makeCasualHands: the local chair, facing the table.
     const body = new THREE.Group();
     body.position.set(0, CHARACTER_FLOOR, SEAT_RADIUS_Z);
     body.rotation.y = Math.PI;
     body.scale.setScalar(CHARACTER_SCALE);
     body.add(scene);
   }
-  return { scene, pose: new CasualPose(scene, firstPerson) };
+  return { scene, pose: new CharacterPose(scene) };
 }
 
 /** World matrices of the held cards, laid out exactly like TableRenderer. */
@@ -126,11 +129,12 @@ function segmentHitsTriangle(
 /**
  * Every place the hand mesh passes through a card, including a clearance margin.
  * A skin edge crossing either offset surface of a card inside its outline is a hit,
- * as is a card outline edge passing through a skin triangle.
+ * as is a card outline edge passing through a skin triangle. Thumb pads rest on the
+ * face by design, so the thumb's margin only allows for that touch.
  */
 export function cardIntersections(sample: Skin, cards: THREE.Matrix4[], margin = 0.01) {
   const hits: string[] = [];
-  const level = HALF_THICKNESS + margin;
+  const levelFor = (label: string) => HALF_THICKNESS + (label.endsWith(':Thumb') ? 0.001 : margin);
   const inside = (p: THREE.Vector3) => Math.abs(p.x) <= HALF_WIDTH && Math.abs(p.z) <= HALF_HEIGHT;
   cards.forEach((card, c) => {
     const inverse = card.clone().invert();
@@ -147,6 +151,7 @@ export function cardIntersections(sample: Skin, cards: THREE.Matrix4[], margin =
       for (let e = 0; e < 3; e++) {
         const i = ids[e]!;
         const j = ids[(e + 1) % 3]!;
+        const level = levelFor(label);
         if (Math.abs(offset[i]!) < level && inside(local[i]!)) record(sample.labels[i]!);
         for (const surface of [-level, level]) {
           const di = offset[i]! - surface;
@@ -209,10 +214,9 @@ export function cardSides(sample: Skin, cards: THREE.Matrix4[]) {
 }
 
 export function bonePath(scene: THREE.Object3D, finger: string, side: string) {
-  const joints = finger === 'Thumb' ? [2, 3] : [2, 3, 4];
-  const nodes = joints.map((j) => scene.getObjectByName(`${finger}${j}${side}`)!);
-  const end = nodes.at(-1)!.children[0];
-  return [...nodes, ...(end ? [end] : [])].map((n) => n.getWorldPosition(new THREE.Vector3()));
+  return [1, 2, 3, 'Tip'].map((j) =>
+    scene.getObjectByName(`${finger}${j}${side}`)!.getWorldPosition(new THREE.Vector3()),
+  );
 }
 
 function segmentDistance(
@@ -290,7 +294,7 @@ export function handGap(sample: Skin, scene: THREE.Object3D) {
 }
 
 /** The carry frame each view holds its cards in. */
-export function viewFrame(pose: CasualPose, yaw: number, pitch: number) {
-  pose.prepareHead(yaw, pitch);
+export function viewFrame(pose: CharacterPose, yaw: number, pitch: number) {
+  pose.look(yaw, pitch);
   return carryMatrix(pose.view(), undefined, pose.root.getWorldScale(new THREE.Vector3()).x);
 }

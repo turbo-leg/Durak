@@ -7,7 +7,8 @@ export class SeatedView {
   private yaw = 0;
   private pitch = 0;
   private spectator = false;
-  private preset = 'copper';
+  // Every character shares the same rig and eye landmarks.
+  private preset = 'casual';
   private eyeSource?: (
     yaw: number,
     pitch: number,

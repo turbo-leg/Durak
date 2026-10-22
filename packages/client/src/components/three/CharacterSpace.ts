@@ -52,6 +52,9 @@ export function gripPoint(side: 'L' | 'R', count: number) {
 
 /** Held cards in the carry frame: upright, fanned about a pivot below the hand. */
 export const HELD_CARD_SCALE = 0.8;
+/** Held card geometry before its scale: a flattened card bowed toward its face at both ends. */
+export const HELD_CARD = { width: 0.82, height: 1.2, thickness: 0.035 * 0.35, bow: 0.025 };
+export const heldCardBow = (z: number) => HELD_CARD.bow * (z / (HELD_CARD.height / 2)) ** 2;
 export const HELD_FAN_RADIUS = 1.35;
 
 /** Angle between neighbouring held cards; narrow local viewports compress large hands. */
