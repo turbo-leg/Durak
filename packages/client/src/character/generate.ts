@@ -1,0 +1,661 @@
+import * as THREE from 'three';
+import { FINGERS, HAND, SIDES, SKELETON, SOCKETS, bindPosition, type Side } from './spec.ts';
+
+/**
+ * Builds the Durak character from the contract in spec.ts: a skeleton, a skinned body,
+ * a head (hidden in first person) and one mesh per hair style. Everything shares one
+ * vertex-coloured material; each vertex records its region so appearances recolour it.
+ */
+
+export const REGIONS = [
+  'skin',
+  'shirt',
+  'trousers',
+  'shoes',
+  'hair',
+  'eyeWhite',
+  'iris',
+  'lip',
+] as const;
+export type Region = (typeof REGIONS)[number];
+export const HAIR_STYLES = 5;
+
+export interface Appearance {
+  skin: string;
+  hair: string;
+  shirt: string;
+  trousers?: string;
+  shoes?: string;
+  hairStyle: number;
+}
+
+export const DEFAULT_APPEARANCE: Appearance = {
+  skin: '#d9ac8a',
+  hair: '#49392d',
+  shirt: '#648698',
+  hairStyle: 0,
+};
+
+export function regionColors(look: Appearance): Record<Region, THREE.Color> {
+  const skin = new THREE.Color(look.skin);
+  return {
+    skin,
+    shirt: new THREE.Color(look.shirt),
+    trousers: new THREE.Color(look.trousers ?? '#2b3440'),
+    shoes: new THREE.Color(look.shoes ?? '#1f1c1b'),
+    hair: new THREE.Color(look.hair),
+    eyeWhite: new THREE.Color('#f0e9db'),
+    iris: new THREE.Color('#3b2e25'),
+    lip: skin.clone().multiplyScalar(0.68),
+  };
+}
+
+type Weights = [string, number][];
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const smooth = (x: number) => {
+  const t = THREE.MathUtils.clamp(x * 0.5 + 0.5, 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/** Accumulates one skinned mesh's vertices, weights, regions and triangles. */
+class Builder {
+  positions: number[] = [];
+  weights: Weights[] = [];
+  regions: number[] = [];
+  indices: number[] = [];
+  /** A point inside the solid each vertex belongs to, used to face triangles outward. */
+  private inside: THREE.Vector3[] = [];
+
+  vertex(p: THREE.Vector3, weights: Weights, region: Region, inside = p) {
+    this.inside.push(inside.clone());
+    this.positions.push(p.x, p.y, p.z);
+    this.weights.push(weights);
+    this.regions.push(REGIONS.indexOf(region));
+    return this.positions.length / 3 - 1;
+  }
+
+  /** Quads between consecutive rings of equal size; rings are vertex index arrays. */
+  stitch(a: number[], b: number[], closed = true) {
+    const n = a.length;
+    for (let i = 0; i < (closed ? n : n - 1); i++) {
+      const j = (i + 1) % n;
+      this.indices.push(a[i]!, b[i]!, b[j]!, a[i]!, b[j]!, a[j]!);
+    }
+  }
+
+  fan(ring: number[], centre: number, reverse = false) {
+    for (let i = 0; i < ring.length; i++) {
+      const j = (i + 1) % ring.length;
+      if (reverse) this.indices.push(centre, ring[j]!, ring[i]!);
+      else this.indices.push(centre, ring[i]!, ring[j]!);
+    }
+  }
+
+  /** A smooth tube along joints; weights blend between neighbouring bones at each joint. */
+  tube(
+    nodes: { at: THREE.Vector3; r: number | [number, number]; bone: string }[],
+    options: {
+      region: Region | ((s: number, length: number) => Region);
+      up: THREE.Vector3;
+      parent?: string;
+      sides?: number;
+      steps?: number;
+      band?: number;
+      capStart?: boolean;
+      capEnd?: boolean;
+    },
+  ) {
+    const sides = options.sides ?? 8;
+    const steps = options.steps ?? 3;
+    const arc = [0];
+    for (let i = 1; i < nodes.length; i++)
+      arc.push(arc[i - 1]! + nodes[i]!.at.distanceTo(nodes[i - 1]!.at));
+    const length = arc.at(-1)!;
+    const radius = (r: number | [number, number]) => (typeof r === 'number' ? [r, r] : r);
+    const ringAt = (span: number, t: number) => {
+      const a = nodes[span]!;
+      const b = nodes[span + 1]!;
+      const centre = a.at.clone().lerp(b.at, t);
+      const [ra, rb] = [radius(a.r), radius(b.r)];
+      const r = [THREE.MathUtils.lerp(ra[0]!, rb[0]!, t), THREE.MathUtils.lerp(ra[1]!, rb[1]!, t)];
+      // Average directions at joints so the surface does not crease.
+      let tangent = b.at.clone().sub(a.at).normalize();
+      if (t === 0 && span > 0)
+        tangent
+          .add(
+            a.at
+              .clone()
+              .sub(nodes[span - 1]!.at)
+              .normalize(),
+          )
+          .normalize();
+      if (t === 1 && span + 2 < nodes.length)
+        tangent = tangent.add(nodes[span + 2]!.at.clone().sub(b.at).normalize()).normalize();
+      const s = THREE.MathUtils.lerp(arc[span]!, arc[span + 1]!, t);
+      return { centre, r, tangent, s, span };
+    };
+    const weightsAt = (span: number, s: number): Weights => {
+      const own = nodes[span]!.bone;
+      const before = span > 0 ? nodes[span - 1]!.bone : options.parent;
+      const after = span + 2 < nodes.length ? nodes[span + 1]!.bone : undefined;
+      const bandStart = (options.band ?? 1.4) * radius(nodes[span]!.r)[0]!;
+      const bandEnd = (options.band ?? 1.4) * radius(nodes[span + 1]!.r)[0]!;
+      const a = before ? smooth((s - arc[span]!) / bandStart) : 1;
+      const b = after ? smooth((s - arc[span + 1]!) / bandEnd) : 0;
+      const result: Weights = [[own, a - b]];
+      if (before && a < 1) result.push([before, 1 - a]);
+      if (after && b > 0) result.push([after, b]);
+      return result.filter(([, w]) => w > 0.0001);
+    };
+    const region = (s: number) =>
+      typeof options.region === 'function' ? options.region(s, length) : options.region;
+    const frame = (tangent: THREE.Vector3) => {
+      const n = options.up.clone().addScaledVector(tangent, -options.up.dot(tangent));
+      if (n.lengthSq() < 1e-6) n.set(1, 0, 0).addScaledVector(tangent, -tangent.x);
+      n.normalize();
+      return [n, tangent.clone().cross(n).normalize()] as const;
+    };
+    const ring = (
+      centre: THREE.Vector3,
+      r: number[],
+      tangent: THREE.Vector3,
+      weights: Weights,
+      reg: Region,
+    ) => {
+      const [n, b] = frame(tangent);
+      return Array.from({ length: sides }, (_, k) => {
+        const angle = (k / sides) * Math.PI * 2;
+        const p = centre
+          .clone()
+          .addScaledVector(n, Math.cos(angle) * r[0]!)
+          .addScaledVector(b, Math.sin(angle) * r[1]!);
+        return this.vertex(p, weights, reg, centre);
+      });
+    };
+    const rings: number[][] = [];
+    const samples: ReturnType<typeof ringAt>[] = [];
+    for (let span = 0; span + 1 < nodes.length; span++)
+      for (let k = span === 0 ? 0 : 1; k <= steps; k++) samples.push(ringAt(span, k / steps));
+    for (const sample of samples)
+      rings.push(
+        ring(
+          sample.centre,
+          sample.r,
+          sample.tangent,
+          weightsAt(sample.span, sample.s),
+          region(sample.s),
+        ),
+      );
+    for (let i = 0; i + 1 < rings.length; i++) this.stitch(rings[i]!, rings[i + 1]!);
+    const cap = (sample: (typeof samples)[number], ringIds: number[], end: boolean) => {
+      const direction = sample.tangent.clone().multiplyScalar(end ? 1 : -1);
+      const weights = weightsAt(sample.span, sample.s);
+      let previous = ringIds;
+      for (const f of [0.55, 0.85]) {
+        const angle = (f * Math.PI) / 2;
+        const centre = sample.centre
+          .clone()
+          .addScaledVector(direction, Math.sin(angle) * sample.r[0]!);
+        const next = ring(
+          centre,
+          sample.r.map((r) => r * Math.cos(angle)),
+          sample.tangent,
+          weights,
+          region(sample.s),
+        );
+        if (end) this.stitch(previous, next);
+        else this.stitch(next, previous);
+        previous = next;
+      }
+      const pole = this.vertex(
+        sample.centre.clone().addScaledVector(direction, sample.r[0]!),
+        weights,
+        region(sample.s),
+        sample.centre,
+      );
+      // Wind the pole like a ring beyond the last one: outward-facing at either end.
+      this.fan(previous, pole, end);
+    };
+    if (options.capStart) cap(samples[0]!, rings[0]!, false);
+    if (options.capEnd) cap(samples.at(-1)!, rings.at(-1)!, true);
+  }
+
+  /** A closed ellipsoid; `weights` maps each vertex position to its bone weights. */
+  ellipsoid(
+    centre: THREE.Vector3,
+    radii: [number, number, number],
+    weights: Weights | ((p: THREE.Vector3) => Weights),
+    region: Region | ((p: THREE.Vector3) => Region),
+    detail: [number, number] = [12, 8],
+    rotation?: THREE.Euler,
+    shape?: (unit: THREE.Vector3) => THREE.Vector3,
+  ) {
+    const [wide, high] = detail;
+    const rows: number[][] = [];
+    const q = new THREE.Quaternion().setFromEuler(rotation ?? new THREE.Euler());
+    for (let j = 1; j < high; j++) {
+      const v = (j / high) * Math.PI;
+      rows.push(
+        Array.from({ length: wide }, (_, i) => {
+          const u = (i / wide) * Math.PI * 2;
+          let unit = V(Math.sin(v) * Math.sin(u), Math.cos(v), Math.sin(v) * Math.cos(u));
+          if (shape) unit = shape(unit);
+          const p = V(unit.x * radii[0], unit.y * radii[1], unit.z * radii[2])
+            .applyQuaternion(q)
+            .add(centre);
+          return this.vertex(
+            p,
+            typeof weights === 'function' ? weights(p) : weights,
+            typeof region === 'function' ? region(p) : region,
+            centre,
+          );
+        }),
+      );
+    }
+    for (let j = 0; j + 1 < rows.length; j++) this.stitch(rows[j]!, rows[j + 1]!);
+    const poleAt = (y: number) => {
+      const p = V(0, y * radii[1], 0)
+        .applyQuaternion(q)
+        .add(centre);
+      return this.vertex(
+        p,
+        typeof weights === 'function' ? weights(p) : weights,
+        typeof region === 'function' ? region(p) : region,
+        centre,
+      );
+    };
+    this.fan(rows[0]!, poleAt(1), true);
+    this.fan(rows.at(-1)!, poleAt(-1));
+  }
+
+  /** Flip any triangle whose normal points into the solid it belongs to. */
+  private faceOutward() {
+    const p = (i: number) =>
+      V(this.positions[i * 3], this.positions[i * 3 + 1], this.positions[i * 3 + 2]);
+    for (let t = 0; t < this.indices.length; t += 3) {
+      const [a, b, c] = [this.indices[t]!, this.indices[t + 1]!, this.indices[t + 2]!];
+      const normal = p(b)
+        .sub(p(a))
+        .cross(p(c).sub(p(a)));
+      const outward = p(a)
+        .add(p(b))
+        .add(p(c))
+        .sub(this.inside[a]!)
+        .sub(this.inside[b]!)
+        .sub(this.inside[c]!);
+      if (normal.dot(outward) < 0) {
+        this.indices[t + 1] = c;
+        this.indices[t + 2] = b;
+      }
+    }
+  }
+
+  mesh(name: string, bones: Map<string, THREE.Bone>, skeleton: THREE.Skeleton, look: Appearance) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
+    const index: number[] = [];
+    const weight: number[] = [];
+    const order = [...bones.keys()];
+    for (const list of this.weights) {
+      const top = [...list].sort((a, b) => b[1] - a[1]).slice(0, 4);
+      const total = top.reduce((sum, [, w]) => sum + w, 0);
+      for (let k = 0; k < 4; k++) {
+        const entry = top[k];
+        index.push(entry ? order.indexOf(entry[0]) : 0);
+        weight.push(entry ? entry[1] / total : 0);
+      }
+    }
+    if (index.some((i) => i < 0)) throw new Error(`${name} weights a bone outside the skeleton`);
+    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(index, 4));
+    geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weight, 4));
+    geometry.setAttribute('_region', new THREE.Float32BufferAttribute(this.regions, 1));
+    geometry.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(new Float32Array(this.regions.length * 3), 3),
+    );
+    this.faceOutward();
+    geometry.setIndex(this.indices);
+    geometry.computeVertexNormals();
+    paint(geometry, look);
+    const mesh = new THREE.SkinnedMesh(geometry, characterMaterial());
+    mesh.name = name;
+    mesh.bind(skeleton, new THREE.Matrix4());
+    return mesh;
+  }
+}
+
+export function characterMaterial() {
+  return new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, name: 'character' });
+}
+
+/** Recolour every region of a character geometry for an appearance. */
+export function paint(geometry: THREE.BufferGeometry, look: Appearance) {
+  const colors = regionColors(look);
+  const region = geometry.getAttribute('_region');
+  const color = geometry.getAttribute('color') as THREE.BufferAttribute;
+  for (let i = 0; i < region.count; i++) {
+    const c = colors[REGIONS[Math.round(region.getX(i))]!];
+    // Vertex colours are linear; Color stores linear values already.
+    color.setXYZ(i, c.r, c.g, c.b);
+  }
+  color.needsUpdate = true;
+}
+
+const at = (name: string) => bindPosition(name);
+
+function addArm(body: Builder, side: Side) {
+  const sign = side === 'R' ? 1 : -1;
+  const s = (n: string) => `${n}${side}`;
+  const wrist = at(s('Hand'));
+  // Sleeve to the wrist, then the skin of the wrist itself.
+  body.tube(
+    [
+      { at: at(s('UpperArm')).add(V(sign * 0.02, 0.01, 0)), r: 0.072, bone: s('UpperArm') },
+      { at: at(s('LowerArm')), r: 0.058, bone: s('LowerArm') },
+      { at: wrist.clone().add(V(0, 0, 0.012)), r: [0.034, 0.042], bone: s('Hand') },
+    ],
+    {
+      region: (d, length) => (d > length - 0.03 ? 'skin' : 'shirt'),
+      up: V(0, 0, 1),
+      parent: s('Shoulder'),
+      sides: 12,
+      steps: 4,
+      band: 1.2,
+      capStart: true,
+    },
+  );
+  // Palm: a rounded slab from the wrist to the knuckles, thin across (X).
+  const palmCentre = wrist.clone().add(V(0, 0, HAND.palm * 0.5));
+  body.ellipsoid(
+    palmCentre,
+    [HAND.palmThickness / 2, HAND.palmWidth / 2, HAND.palm * 0.56],
+    (p) => {
+      // The heel of the hand follows the forearm slightly.
+      const t = THREE.MathUtils.clamp((p.z - wrist.z) / 0.04, 0, 1);
+      return t >= 1
+        ? [[s('Hand'), 1]]
+        : [
+            [s('Hand'), 0.6 + 0.4 * t],
+            [s('LowerArm'), 0.4 * (1 - t)],
+          ];
+    },
+    'skin',
+    [12, 10],
+    undefined,
+    (u) => {
+      // Square the slab off a little so knuckles line up.
+      const k = 0.35;
+      return V(
+        u.x,
+        Math.sign(u.y) * Math.abs(u.y) ** (1 - k),
+        Math.sign(u.z) * Math.abs(u.z) ** (1 - k),
+      );
+    },
+  );
+  for (const finger of FINGERS) {
+    const joints = [1, 2, 3].map((i) => s(`${finger}${i}`));
+    const r = HAND.fingerRadius * (finger === 'Pinky' ? 0.85 : finger === 'Middle' ? 1.05 : 1);
+    body.tube(
+      [
+        { at: at(joints[0]!).add(V(0, 0, -0.03)), r, bone: joints[0]! },
+        { at: at(joints[1]!), r: r * 0.92, bone: joints[1]! },
+        { at: at(joints[2]!), r: r * 0.85, bone: joints[2]! },
+        { at: at(s(`${finger}Tip`)).add(V(0, 0, -r * 0.7)), r: r * 0.78, bone: joints[2]! },
+      ],
+      {
+        region: 'skin',
+        up: V(0, 1, 0),
+        parent: s('Hand'),
+        sides: 8,
+        steps: 2,
+        band: 1,
+        capEnd: true,
+      },
+    );
+  }
+  // Thumb from deep in the heel of the palm, so the web stays thin and low.
+  const thumb = [1, 2, 3].map((i) => s(`Thumb${i}`));
+  const tip = at(s('ThumbTip'));
+  const r = HAND.thumbRadius;
+  body.tube(
+    [
+      { at: at(thumb[0]!), r: r * 1.25, bone: thumb[0]! },
+      { at: at(thumb[1]!), r: r * 1.05, bone: thumb[1]! },
+      { at: at(thumb[2]!), r: r * 0.95, bone: thumb[2]! },
+      {
+        at: tip.clone().addScaledVector(tip.clone().sub(at(thumb[2]!)).normalize(), -r * 0.7),
+        r: r * 0.85,
+        bone: thumb[2]!,
+      },
+    ],
+    {
+      region: 'skin',
+      up: V(sign, 0, 0),
+      parent: s('Hand'),
+      sides: 8,
+      steps: 2,
+      band: 1,
+      capStart: true,
+      capEnd: true,
+    },
+  );
+}
+
+function addLegs(body: Builder, side: Side) {
+  const s = (n: string) => `${n}${side}`;
+  body.tube(
+    [
+      { at: at(s('UpperLeg')).add(V(0, 0, -0.04)), r: 0.12, bone: s('UpperLeg') },
+      { at: at(s('LowerLeg')), r: 0.095, bone: s('LowerLeg') },
+      { at: at(s('Foot')).add(V(0, 0.05, 0)), r: 0.07, bone: s('Foot') },
+    ],
+    { region: 'trousers', up: V(1, 0, 0), parent: 'Hips', sides: 10, steps: 4, capStart: true },
+  );
+  const foot = at(s('Foot'));
+  const toe = at(s('Toe'));
+  body.ellipsoid(
+    foot
+      .clone()
+      .lerp(toe, 0.45)
+      .add(V(0, -0.02, 0)),
+    [0.075, 0.06, 0.16],
+    [[s('Foot'), 1]],
+    'shoes',
+    [10, 6],
+  );
+}
+
+function addTorso(body: Builder) {
+  const profile: [number, number][] = [
+    [0.0, 0.96],
+    [0.22, 0.97],
+    [0.27, 1.06],
+    [0.26, 1.25],
+    [0.25, 1.45],
+    [0.27, 1.7],
+    [0.3, 1.92],
+    [0.3, 2.05],
+    [0.24, 2.14],
+    [0.12, 2.2],
+    [0.075, 2.24],
+  ];
+  const sides = 16;
+  const weights = (p: THREE.Vector3): Weights => {
+    const spine: Weights =
+      p.y < 1.25
+        ? [
+            ['Hips', 1 - smooth((p.y - 1.2) / 0.08)],
+            ['Abdomen', smooth((p.y - 1.2) / 0.08)],
+          ]
+        : p.y < 1.7
+          ? [
+              ['Abdomen', 1 - smooth((p.y - 1.62) / 0.12)],
+              ['Chest', smooth((p.y - 1.62) / 0.12)],
+            ]
+          : [['Chest', 1]];
+    // The tops of the shoulders follow the collarbones.
+    const shoulder = smooth((Math.abs(p.x) - 0.14) / 0.08) * smooth((p.y - 1.95) / 0.1);
+    if (shoulder > 0.01)
+      return [
+        ...spine.map(([b, w]) => [b, w * (1 - shoulder)] as [string, number]),
+        [p.x < 0 ? 'ShoulderR' : 'ShoulderL', shoulder],
+      ];
+    return spine;
+  };
+  const rings = profile.map(([r, y]) =>
+    Array.from({ length: sides }, (_, k) => {
+      const a = (k / sides) * Math.PI * 2;
+      const p = V(Math.sin(a) * r, y, Math.cos(a) * r * 0.6 + 0.085);
+      return body.vertex(p, weights(p), y < 1.16 ? 'trousers' : 'shirt', V(0, y, 0.085));
+    }),
+  );
+  for (let i = 0; i + 1 < rings.length; i++) body.stitch(rings[i]!, rings[i + 1]!);
+  body.fan(rings[0]!, body.vertex(V(0, 0.95, 0.085), [['Hips', 1]], 'trousers', V(0, 1.1, 0.085)));
+  const top = V(0, 2.25, 0.085);
+  body.fan(rings.at(-1)!, body.vertex(top, weights(top), 'shirt', V(0, 2.1, 0.085)));
+  body.tube(
+    [
+      { at: V(0, 2.16, 0.083), r: [0.07, 0.064], bone: 'Neck' },
+      { at: at('Head').add(V(0, 0.06, 0)), r: [0.066, 0.06], bone: 'Head' },
+    ],
+    { region: 'skin', up: V(0, 0, 1), parent: 'Chest', sides: 10, steps: 3 },
+  );
+}
+
+/** Face landmarks follow the sockets; the skull is centred above the Head pivot. */
+function addHead(head: Builder) {
+  const pivot = at('Head');
+  const w: Weights = [['Head', 1]];
+  const socket = (name: string) => V(...SOCKETS[name]!.at).add(pivot);
+  head.ellipsoid(
+    pivot.clone().add(V(0, 0.19, 0.0)),
+    [0.19, 0.24, 0.2],
+    w,
+    'skin',
+    [20, 14],
+    undefined,
+    (u) => {
+      // A narrower jaw below the cheekbones.
+      const jaw = u.y < -0.2 ? THREE.MathUtils.lerp(0.74, 1, (u.y + 1) / 0.8) : 1;
+      return V(
+        u.x * jaw,
+        u.y,
+        u.z * (u.y < -0.2 ? THREE.MathUtils.lerp(0.9, 1, (u.y + 1) / 0.8) : 1),
+      );
+    },
+  );
+  const eyes = socket('Eyes');
+  for (const x of [-0.068, 0.068]) {
+    const centre = eyes.clone().add(V(x, 0, -0.012));
+    head.ellipsoid(centre, [0.034, 0.024, 0.02], w, 'eyeWhite', [10, 6]);
+    head.ellipsoid(centre.clone().add(V(0, 0, 0.017)), [0.015, 0.017, 0.007], w, 'iris', [8, 5]);
+    head.ellipsoid(
+      centre.clone().add(V(0, 0.042, 0.006)),
+      [0.042, 0.009, 0.012],
+      w,
+      'hair',
+      [8, 4],
+      new THREE.Euler(0, 0, x > 0 ? -0.1 : 0.1),
+    );
+  }
+  const nose = socket('Nose');
+  head.ellipsoid(nose.clone().add(V(0, 0.01, -0.025)), [0.026, 0.036, 0.028], w, 'skin', [8, 6]);
+  head.ellipsoid(nose.clone().add(V(0, -0.07, -0.032)), [0.042, 0.009, 0.012], w, 'lip', [10, 4]);
+  for (const ear of ['EarL', 'EarR']) {
+    const centre = socket(ear).add(V(ear === 'EarL' ? -0.012 : 0.012, -0.01, -0.01));
+    head.ellipsoid(centre, [0.022, 0.048, 0.032], w, 'skin', [8, 6]);
+  }
+}
+
+/** Hair styles, translated from the original procedural presets into this head. */
+function addHair(hair: Builder, style: number) {
+  const pivot = at('Head');
+  const w: Weights = [['Head', 1]];
+  const centre = pivot.clone().add(V(0, 0.19, 0));
+  const scale = 0.465;
+  const map = (x: number, y: number, z: number) =>
+    V(x * scale, (y - 0.35) * scale, z * scale).add(centre);
+  // Cap: the upper skull, lifted at the front so the forehead stays clear.
+  hair.ellipsoid(
+    map(0, 0.48, -0.025),
+    [0.445 * scale * 1.07, 0.43 * scale * 1.12, 0.395 * scale * 1.1],
+    w,
+    'hair',
+    [16, 10],
+    undefined,
+    (u) => (u.y < 0 ? V(u.x, u.y * 0.15, u.z) : u),
+  );
+  const ball = (p: [number, number, number], r: [number, number, number], rz = 0) =>
+    hair.ellipsoid(
+      map(...p),
+      [r[0] * scale, r[1] * scale, r[2] * scale],
+      w,
+      'hair',
+      [10, 6],
+      new THREE.Euler(0, 0, rz),
+    );
+  if (style === 0) ball([-0.07, 0.83, 0.12], [0.33, 0.12, 0.26], -0.14);
+  if (style === 1) {
+    ball([0, 0.35, -0.28], [0.435, 0.46, 0.17]);
+    for (const x of [-1, 1]) ball([x * 0.39, 0.34, -0.06], [0.095, 0.33, 0.2]);
+  }
+  if (style === 2)
+    for (let i = 0; i < 10; i++)
+      ball(
+        [Math.sin(i * 2.4) * 0.3, 0.77 + (i % 3) * 0.045, Math.cos(i * 2.4) * 0.24],
+        [0.135, 0.14, 0.13],
+      );
+  if (style === 3) ball([0.13, 0.82, 0.1], [0.28, 0.13, 0.27], 0.16);
+  if (style === 4)
+    for (let i = 0; i < 7; i++)
+      ball(
+        [(i - 3) * 0.11, 0.86 + (i % 2) * 0.03, 0.1 - Math.abs(i - 3) * 0.03],
+        [0.1, 0.12, 0.16],
+        (i - 3) * 0.12,
+      );
+}
+
+/** The complete character: bones, sockets and meshes, in the seated bind pose. */
+export function generateCharacter(look: Appearance = DEFAULT_APPEARANCE) {
+  const root = new THREE.Group();
+  root.name = 'Character';
+  const bones = new Map<string, THREE.Bone>();
+  for (const joint of SKELETON) {
+    const bone = new THREE.Bone();
+    bone.name = joint.name;
+    const parent = joint.parent ? bones.get(joint.parent)! : undefined;
+    bone.position.set(...joint.at);
+    if (parent) {
+      bone.position.sub(bindPosition(joint.parent));
+      parent.add(bone);
+    } else root.add(bone);
+    bones.set(joint.name, bone);
+  }
+  for (const [name, socket] of Object.entries(SOCKETS)) {
+    const node = new THREE.Object3D();
+    node.name = `Socket${name}`;
+    node.position.set(...socket.at);
+    bones.get(socket.bone)!.add(node);
+  }
+  root.updateMatrixWorld(true);
+  const skeleton = new THREE.Skeleton([...bones.values()]);
+
+  const body = new Builder();
+  addTorso(body);
+  for (const side of SIDES) {
+    addArm(body, side);
+    addLegs(body, side);
+  }
+  const head = new Builder();
+  addHead(head);
+  root.add(body.mesh('BodyMesh', bones, skeleton, look));
+  root.add(head.mesh('HeadMesh', bones, skeleton, look));
+  for (let style = 0; style < HAIR_STYLES; style++) {
+    const hair = new Builder();
+    addHair(hair, style);
+    const mesh = hair.mesh(`Hair${style}`, bones, skeleton, look);
+    mesh.visible = style === look.hairStyle;
+    root.add(mesh);
+  }
+  return root;
+}

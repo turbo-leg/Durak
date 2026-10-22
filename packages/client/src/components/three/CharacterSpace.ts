@@ -50,6 +50,35 @@ export function gripPoint(side: 'L' | 'R', count: number) {
   return new THREE.Vector3(side === 'L' ? -spread : spread, -1.7, 0);
 }
 
+/** Held cards in the carry frame: upright, fanned about a pivot below the hand. */
+export const HELD_CARD_SCALE = 0.8;
+export const HELD_FAN_RADIUS = 1.35;
+
+/** Angle between neighbouring held cards; narrow local viewports compress large hands. */
+export function fanStep(count: number, aspect = Infinity) {
+  const spread = Math.min(0.75, 1.5 * aspect);
+  return Math.min(0.25, (2 * spread) / Math.max(1, count - 1));
+}
+
+/** Half-angle of the whole fan, from its centre to the outermost card. */
+export function fanHalfAngle(count: number, aspect = Infinity) {
+  return (fanStep(count, aspect) * Math.max(0, count - 1)) / 2;
+}
+
+export function heldCard(index: number, count: number, step: number, raised = false) {
+  const offset = index - (count - 1) / 2;
+  const angle = offset * step;
+  const radius = HELD_FAN_RADIUS + (raised ? 0.23 : 0);
+  return {
+    angle,
+    position: new THREE.Vector3(
+      Math.sin(angle) * radius * HELD_CARD_SCALE,
+      (Math.cos(angle) * radius - HELD_FAN_RADIUS) * HELD_CARD_SCALE,
+      offset * 0.018 + (raised ? 0.12 : 0),
+    ),
+  };
+}
+
 /** Eye position for the local chair, matching the same head pose peers render. */
 export function seatedEyes(yaw: number, pitch: number, preset = 'casual') {
   const head = preset === 'casual' ? CASUAL_HEAD : new THREE.Vector3(0, 2.25, 0);

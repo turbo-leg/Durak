@@ -14,6 +14,9 @@ import {
   CARRY_SCALE,
   CARRY_TILT,
   CARRY_Y,
+  fanStep,
+  heldCard,
+  HELD_CARD_SCALE,
 } from './CharacterSpace';
 
 const RANKS: Record<number, string> = {
@@ -26,7 +29,6 @@ const RANKS: Record<number, string> = {
   17: 'BJ',
   18: 'RJ',
 };
-const HELD_CARD_SCALE = 0.8;
 const SUITS: Record<string, string> = { Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣' };
 // Grow seated players around the held-card height, keeping their grip at the table.
 const SEATED_PLAYER_SCALE = CHARACTER_SCALE;
@@ -656,18 +658,20 @@ export class TableRenderer {
         0.7,
       ),
     );
+    const handStep = fanStep(snapshot.hand.length, this.camera.aspect);
     snapshot.hand.forEach((card, i) => {
-      const offset = i - (snapshot.hand.length - 1) / 2;
-      const spread = Math.min(0.75, 1.5 * this.camera.aspect);
-      const step = Math.min(0.25, (2 * spread) / Math.max(1, snapshot.hand.length - 1));
-      const angle = offset * step;
-      const radius = 1.35 + (selected.has(card.key) ? 0.23 : 0);
+      const { angle, position } = heldCard(
+        i,
+        snapshot.hand.length,
+        handStep,
+        selected.has(card.key),
+      );
       put(
         `hand:${card.key}`,
         card,
-        Math.sin(angle) * radius * HELD_CARD_SCALE,
-        (Math.cos(angle) * radius - 1.35) * HELD_CARD_SCALE,
-        offset * 0.018 + (selected.has(card.key) ? 0.12 : 0),
+        position.x,
+        position.y,
+        position.z,
         0,
         card.key,
         Math.PI / 2,
@@ -731,13 +735,13 @@ export class TableRenderer {
       for (let n = 0; n < Math.min(7, seat.count); n++) {
         if (rig instanceof CasualAvatar) {
           const fanCount = Math.min(7, seat.count);
-          const angle = (n - (fanCount - 1) / 2) * Math.min(0.25, 1.5 / Math.max(1, fanCount - 1));
+          const { angle, position } = heldCard(n, fanCount, fanStep(fanCount));
           put(
             `seat:${seat.id}:${n}`,
             null,
-            Math.sin(angle) * 1.35 * HELD_CARD_SCALE,
-            (Math.cos(angle) * 1.35 - 1.35) * HELD_CARD_SCALE,
-            (n - (fanCount - 1) / 2) * 0.018,
+            position.x,
+            position.y,
+            position.z,
             0,
             undefined,
             Math.PI / 2,
