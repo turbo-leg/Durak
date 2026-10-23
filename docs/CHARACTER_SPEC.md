@@ -91,8 +91,11 @@ body, head and hair stay under 12,000 triangles.
    clip's fade. Motion follows a smooth curve through every key (`track`): it carries on
    through a waypoint and settles only at the ends, a hold or a turn back, never
    overshooting. Keys may place different parts of the hand; the placed point slides from
-   one to the next. A clip steers its own path with waypoints: face touches start at
-   `REST`, drop beside the hip, rise beside the shoulder and only then come to the face;
+   one to the next. The hand's turn travels as a rotation, and a moving hand's elbow
+   follows it (away from the thumb, behind the fingers, steadied out and down), so the
+   bend never flips. A clip steers its own path with waypoints: face touches lift straight
+   up in front of the chest (behind any held fan), the index straightening on the way,
+   meet the face as the head leans in, rub or tug twice, and return the same way;
    card actions lift off the table's edge, and a played card rides in the hand until it is
    set down (`PLAY_RELEASE_MS`).
 5. **The table:** the table is solid (`TABLE_LAYERS` and `tableClearance` in

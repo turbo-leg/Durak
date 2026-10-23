@@ -40,65 +40,101 @@ const count = (fingers: number): Clip => ({
   ],
 });
 
+/** A hand on its way up: fingers loosely curled, the index just starting to lead. */
+const rising: HandShape = {
+  curl: { Index: 0.25, Middle: 0.6, Ring: 0.7, Pinky: 0.75 },
+  thumb: 0.55,
+};
+
+interface Touch {
+  /** The face socket the index fingertip touches; the hand turns with the head. */
+  socket: string;
+  /** Finger and thumb-side directions at the face, in the head's frame. */
+  finger: Vec3;
+  thumb: Vec3;
+  /** Where the fingertip comes from, just short of the socket (metres, head frame). */
+  approach: Vec3;
+  /** Where the hand rises to first, close in front of the chest (metres, body frame):
+   * behind any held fan, so the hand never crosses the cards. */
+  lift: Vec3;
+  /** Where the fingertip rests against the socket (metres, head frame); at the socket if
+   * omitted. */
+  contact?: Vec3;
+  /** The small movement at the face, from the contact: a rub at the nose, a tug at the ear. */
+  rub: Vec3;
+  /** How the head leans into the hand. */
+  lean: Record<string, Vec3>;
+}
+
 /**
- * The right index fingertip on a face socket; the hand turns with the head. It arrives
- * around the fan, via its own shoulder and then `approach` (metres in the head's frame, beside the ear or
- * the face), and leaves the same way, so the hand passes neither the fan nor the face.
+ * The right index fingertip on a face socket, the way people do it: the hand lifts off
+ * the table straight up in front of the chest, the index finger straightening as it goes,
+ * meets the face as the head leans in, rubs or tugs twice, and settles back the same way.
  */
-/** Waypoints out of the way of the held fan wherever the head turns it: lifted off the
- * table and out to the side at chest height, still in front of the body, then raised
- * beside the shoulder. */
-const OUT_TO_SIDE: Reach = {
-  target: 'body',
-  at: [-0.36, 0.9, 0.2],
-  effector: 'IndexTip',
-  finger: [-0.2, 0.5, 1],
-  thumb: [1, 0.2, 0],
-  shape: extended(1),
-};
-const BESIDE_SHOULDER = {
-  target: 'body',
-  at: [-0.3, 1.02, 0.08] as Vec3,
-  effector: 'IndexTip' as const,
-  shape: extended(1),
+const touch = ({
+  socket,
+  finger,
+  thumb,
+  approach,
+  lift,
+  contact = [0, 0, 0],
+  rub,
+  lean,
+}: Touch): Clip => {
+  const rubbed = contact.map((value, i) => value + rub[i]!) as Vec3;
+  const at = (offset?: Vec3, shape = extended(1)): Reach => ({
+    target: socket,
+    at: offset,
+    effector: 'IndexTip',
+    finger,
+    thumb,
+    shape,
+  });
+  const raised: Reach = {
+    target: 'body',
+    at: lift,
+    effector: 'IndexTip',
+    finger,
+    thumb,
+    shape: rising,
+  };
+  const end = GESTURE_DURATION_MS;
+  const still = { Head: [0, 0, 0] as Vec3, Neck: [0, 0, 0] as Vec3 };
+  return {
+    duration: end,
+    peak: 900,
+    keys: [
+      { t: 0, R: REST, bones: still },
+      { t: 300, R: raised },
+      { t: 520, R: at(approach), bones: lean },
+      { t: 650, R: at(contact) },
+      { t: 820, R: at(rubbed) },
+      { t: 980, R: at(contact) },
+      { t: 1140, R: at(rubbed) },
+      { t: 1300, R: at(contact), bones: lean },
+      { t: 1450, R: at(approach) },
+      { t: end - 300, R: raised },
+      { t: end, R: REST, bones: still },
+      // A knowing look: a half smile, eyes narrowed, the brows a touch low.
+      { t: 0, face: { smile: 0.3, squint: 0.22, brows: -0.15 } },
+    ],
+  };
 };
 
-const touch = (
-  socket: string,
-  finger: [number, number, number],
-  thumb: [number, number, number],
-  approach: [number, number, number],
-): Clip => ({
-  duration: GESTURE_DURATION_MS,
-  keys: [
-    { t: 0, R: REST },
-    { t: 250, R: OUT_TO_SIDE },
-    { t: 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
-    {
-      t: 600,
-      R: { target: socket, at: approach, effector: 'IndexTip', finger, thumb, shape: extended(1) },
-    },
-    {
-      t: 750,
-      R: { target: socket, effector: 'IndexTip', finger, thumb, shape: extended(1) },
-    },
-    {
-      t: GESTURE_DURATION_MS - 750,
-      R: { target: socket, effector: 'IndexTip', finger, thumb, shape: extended(1) },
-    },
-    {
-      t: GESTURE_DURATION_MS - 600,
-      R: { target: socket, at: approach, effector: 'IndexTip', finger, thumb, shape: extended(1) },
-    },
-    { t: GESTURE_DURATION_MS - 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
-    { t: GESTURE_DURATION_MS - 250, R: OUT_TO_SIDE },
-    { t: GESTURE_DURATION_MS, R: REST },
-    // A knowing look: a half smile, eyes narrowed, the brows a touch low.
-    { t: 0, face: { smile: 0.3, squint: 0.22, brows: -0.15 } },
-  ],
+const earRight = touch({
+  socket: 'EarR',
+  // The hand up beside the head, fingers up and the palm toward it; the elbow below,
+  // in front.
+  finger: [0.2, 0.85, -0.45],
+  thumb: [0, -0.3, -1],
+  approach: [-0.05, -0.03, 0.02],
+  lift: [-0.18, 1.02, 0.14],
+  // The fingertip on the outside of the ear, so the hand stays clear of the head; then a
+  // little tug down on the lobe.
+  contact: [-0.012, 0, 0],
+  rub: [-0.002, -0.008, 0],
+  lean: { Head: [0, 0, -0.1], Neck: [0, 0, -0.04] },
 });
-
-const earRight = touch('EarR', [0.7, 0.75, -0.4], [0.85, -0.62, 0.32], [-0.07, -0.02, 0.02]);
 
 /** The right palm over the eyes, rubbing; the head bows and the chest sobs. */
 const coverEyes = (x: number): Reach => ({
@@ -189,7 +225,18 @@ export const EMOTES: Readonly<Record<string, Clip>> = {
   two: count(2),
   three: count(3),
   four: count(4),
-  nose: touch('Nose', [0, 0.88, -0.47], [1, 0, 0], [-0.18, -0.06, 0.06]),
+  nose: touch({
+    socket: 'Nose',
+    // A knowing tap on the side of the nose: the finger runs up across the cheek, palm
+    // to the face, and arrives from below and to the side.
+    finger: [0.55, 0.65, -0.5],
+    thumb: [-0.67, 0.19, -0.49],
+    approach: [-0.05, -0.04, 0.03],
+    lift: [-0.1, 0.98, 0.2],
+    // A rub up the side of the nose.
+    rub: [0, 0.008, 0.002],
+    lean: { Head: [0.08, 0, 0], Neck: [0.03, 0, 0] },
+  }),
   'ear-right': earRight,
   'ear-left': mirrorClip(earRight),
   cry,
