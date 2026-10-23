@@ -135,6 +135,13 @@ export const CARRY_TILT = -0.1;
 export const CARRY_Y = -m(0.2);
 /** While the free hand reaches across in front, the held cards are drawn up this far. */
 export const CARRY_RAISE = m(0.07);
+/**
+ * Seen from the player's own eyes the held fan covers the middle of the table, where cards
+ * are played and gathered: while their free hand acts there, it dips this far and leans back
+ * this much (radians) instead, out of the line of sight.
+ */
+export const CARRY_DIP = m(0.1);
+export const CARRY_LEAN = 0.5;
 
 export function headLook(yaw: number, pitch: number) {
   return new THREE.Quaternion().setFromEuler(

@@ -198,8 +198,10 @@ abstract class CharacterBody {
    * the palm (a card taken face down) or toward it (one held face up, as a played card is).
    * The card's near edge is just short of the furthest fingertip, `half` its length (world
    * units) from its middle. Laid along the hand instead, the curled fingers ran through it.
+   * `tip` turns the card about its near edge, its far end toward its back (radians), so a
+   * card held face out can show its back to the holder rather than its edge.
    */
-  held(side: 'L' | 'R', half: number, faceIn: boolean) {
+  held(side: 'L' | 'R', half: number, faceIn: boolean, tip = 0) {
     const hand = this.model?.getObjectByName(`Hand${side}`);
     const index = this.model?.getObjectByName(`IndexTip${side}`);
     const thumb = this.model?.getObjectByName(`ThumbTip${side}`);
@@ -229,6 +231,11 @@ abstract class CharacterBody {
           return tip ? tip.getWorldPosition(new THREE.Vector3()).sub(tips).dot(along) : 0;
         }),
       );
+    if (tip) {
+      const across = new THREE.Vector3().crossVectors(face, along);
+      along.applyAxisAngle(across, tip);
+      face.applyAxisAngle(across, tip);
+    }
     return {
       position: tips.addScaledVector(along, edge + half * 0.97),
       quaternion: new THREE.Quaternion().setFromRotationMatrix(

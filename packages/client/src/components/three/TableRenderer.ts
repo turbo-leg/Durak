@@ -34,7 +34,8 @@ import {
   CARRY_DEPTH,
   CARRY_SCALE,
   CARRY_TILT,
-  CARRY_RAISE,
+  CARRY_DIP,
+  CARRY_LEAN,
   CARRY_Y,
   fanHalfAngle,
   fanStep,
@@ -1026,11 +1027,13 @@ export class TableRenderer {
     now: number,
   ) {
     const body = (seat: string) => (seat === SELF ? this.firstHands : this.avatars.get(seat));
-    // Played and gathered cards are held face up; drawn cards as they come off the deck.
+    // Played and gathered cards are held face up; drawn cards as they come off the deck,
+    // face down, tipped in the player's own hand so its back faces them, not its edge.
     const grip = (seat: string, faceIn: boolean) => {
       const actor = body(seat);
       const act = acts.get(seat);
-      return actor && act ? () => actor.held(act.side, CARD_HALF.z, faceIn) : undefined;
+      const tip = seat === SELF && !faceIn ? 0.65 : 0;
+      return actor && act ? () => actor.held(act.side, CARD_HALF.z, faceIn, tip) : undefined;
     };
     const held = (seat: string) => previous.seats.find((s) => s.id === seat)?.count ?? 0;
     // The fan slots each peer gained, hidden until the card filling each one arrives.
@@ -1288,12 +1291,11 @@ export class TableRenderer {
     for (const rig of this.avatars.values())
       moving = rig.animate(now / 1000, this.reducedMotion.matches) || moving;
     if (this.firstHands && this.hand.visible) {
-      // The local fan is drawn up out of the way while the free hand reaches across.
-      this.hand.position.set(
-        0,
-        CARRY_Y + CARRY_RAISE * this.firstHands.cardsRaised(),
-        -CARRY_DEPTH,
-      );
+      // The local fan dips and leans back out of the way while the free hand acts at the
+      // table, so the player sees their card go down and the pile gathered.
+      const acting = this.firstHands.cardsRaised();
+      this.hand.position.set(0, CARRY_Y - CARRY_DIP * acting, -CARRY_DEPTH);
+      this.hand.rotation.x = CARRY_TILT + CARRY_LEAN * acting;
       moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
     }
     // Hands are posed for this frame first, so a carried card is drawn in the palm it is in.
