@@ -2,7 +2,9 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useRef 
 import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
 import { GameState } from '@durak/shared';
-import { discordSdk } from '../discordAuth';
+import { discordSdk, getDiscordSessionToken, clearDiscordSessionToken } from '../discordAuth';
+import { isSessionTokenCurrent } from '../game/sessionToken';
+import { useAuth } from './AuthContext';
 
 type DefenseSnapshot = {
   at: number;
@@ -134,6 +136,45 @@ const GameContext = createContext<GameContextState>({
 export const useGame = () => useContext(GameContext);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, logout } = useAuth();
+  const clearExpiredSession = () => {
+    clearDiscordSessionToken();
+    logout();
+  };
+  const sessionOptions = () => {
+    let token = getDiscordSessionToken() ?? user?.token;
+    if (token && !isSessionTokenCurrent(token)) {
+      clearExpiredSession();
+      token = undefined;
+    }
+    return {
+      ...(token ? { token } : {}),
+      avatarPreset: localStorage.getItem('durak_avatar') || 'copper',
+    };
+  };
+  const joinWithSession = async (
+    join: (options: Record<string, unknown>) => Promise<Room<GameState>>,
+    options: Record<string, unknown>,
+  ) => {
+    // Identity claims are optional and never retained when falling back to a guest.
+    const guestOptions = { ...options };
+    delete guestOptions.token;
+    delete guestOptions.userId;
+    delete guestOptions.discordId;
+    const session = sessionOptions();
+    try {
+      return await join({ ...(session.token ? options : guestOptions), ...session });
+    } catch (error) {
+      if (
+        !session.token ||
+        !(error instanceof Error) ||
+        !['Invalid or expired session token', 'Invalid session token'].includes(error.message)
+      )
+        throw error;
+      clearExpiredSession();
+      return await join({ ...guestOptions, avatarPreset: session.avatarPreset });
+    }
+  };
   const defaultServerUrl = useMemo(() => {
     if (typeof window === 'undefined') return 'ws://localhost:2567';
 
@@ -195,6 +236,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } | null>(null);
   const [gameAbortReason, setGameAbortReason] = useState<string | null>(null);
   const discardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef<Promise<boolean> | null>(null);
+  const activeRoomRef = useRef<Room<GameState> | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
   const [, setTick] = useState(0);
@@ -221,39 +264,64 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDiscardedCards(null);
   };
 
-  const attemptReconnect = async () => {
-    const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
-    if (!token) return false;
+  const attemptReconnect = () => {
+    // StrictMode mounts effects twice; both callers must share one reservation.
+    if (reconnectAttemptRef.current) return reconnectAttemptRef.current;
+    const reconnect = async () => {
+      const token = sessionStorage.getItem(RECONNECT_TOKEN_KEY);
+      if (!token) return false;
 
-    setIsReconnecting(true);
-    setConnectionStatus('reconnecting');
-    for (let i = 0; i < MAX_RECONNECT_ATTEMPTS; i++) {
-      await new Promise((res) => setTimeout(res, RECONNECT_DELAYS[i]));
-      try {
-        const newRoom = await clientRef.current.reconnect<GameState>(token);
-        handleRoomEvents(newRoom);
-        setIsReconnecting(false);
-        setConnectionStatus('connected');
-        return true;
-      } catch {
-        // continue to next attempt
+      setIsReconnecting(true);
+      setConnectionStatus('reconnecting');
+      for (let i = 0; i < MAX_RECONNECT_ATTEMPTS; i++) {
+        await new Promise((res) => setTimeout(res, RECONNECT_DELAYS[i]));
+        try {
+          const newRoom = await clientRef.current.reconnect<GameState>(token);
+          handleRoomEvents(newRoom);
+          setIsReconnecting(false);
+          setConnectionStatus('connected');
+          setGameMessage('Connection restored. You’re back in control.');
+          setTimeout(() => setGameMessage(null), 4000);
+          return true;
+        } catch {
+          // continue to next attempt
+        }
       }
-    }
 
-    // All attempts exhausted
-    sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
-    setIsReconnecting(false);
-    setConnectionStatus('connected');
-    return false;
+      // All attempts exhausted
+      sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
+      setIsReconnecting(false);
+      setConnectionStatus('connected');
+      return false;
+    };
+    const pending = reconnect().finally(() => {
+      if (reconnectAttemptRef.current === pending) reconnectAttemptRef.current = null;
+    });
+    reconnectAttemptRef.current = pending;
+    return pending;
   };
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
+    activeRoomRef.current = roomInstance;
     // Persist token so the client can reconnect after a network drop or page refresh
     if (roomInstance.reconnectionToken) {
       sessionStorage.setItem(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
     }
 
-    roomInstance.onStateChange(() => setTick((t) => t + 1));
+    roomInstance.onStateChange((state) => {
+      setTick((t) => t + 1);
+      if (state.phase === 'playing') setRematchState(null);
+      // A watcher who was given a seat (invitation or late arrival) is now a player.
+      if (state.players.has(roomInstance.sessionId)) setIsSpectator(false);
+      // A rematch reuses the room after gameOver cleared its saved token.
+      if (
+        state.phase === 'playing' &&
+        state.players.has(roomInstance.sessionId) &&
+        roomInstance.reconnectionToken
+      ) {
+        sessionStorage.setItem(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
+      }
+    });
 
     // Calculate server time offset
     roomInstance.onMessage('pong', (data: { clientTime: number; serverTime: number }) => {
@@ -288,8 +356,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     roomInstance.onMessage(
       'playerDisconnected',
       (data: { sessionId: string; username: string }) => {
-        // Only flag waiting-for-opponent if it's not our own session
-        if (data.sessionId !== roomInstance.sessionId) {
+        // Only flag waiting-for-opponent if it's not our own session. Private tables
+        // keep playing with a stand-in; the seat itself shows Reconnecting / Bot playing.
+        if (data.sessionId !== roomInstance.sessionId && !roomInstance.state.isPrivate) {
           setDisconnectedOpponent(data.username);
           setConnectionStatus('waiting_opponent');
         }
@@ -321,20 +390,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setGameMessage(`Error: ${message}`);
       setTimeout(() => setGameMessage(null), 4000);
     });
-    roomInstance.onMessage('playerWon', (playerId: string) => {
-      setGameMessage(
-        playerId === roomInstance.sessionId ? '🎉 You won!' : `🎉 Player ${playerId} has won!`,
-      );
-      setTimeout(() => setGameMessage(null), 4000);
-    });
-    roomInstance.onMessage('gameOver', (data: { loser?: string; draw?: boolean }) => {
-      if (data.draw) setGameMessage('Game Over! It is a draw.');
-      else
-        setGameMessage(
-          data.loser === roomInstance.sessionId
-            ? '😭 Game Over. You are the Durak (Fool)!'
-            : `🎉 Game Over! ${data.loser} is the Durak.`,
-        );
+    roomInstance.onMessage('gameOver', (data: { winner?: string; draw?: boolean }) => {
+      const state = roomInstance.state as GameState | undefined;
+      if (data.draw) setGameMessage('Game over. It’s a draw.');
+      else if (state?.winners.includes(roomInstance.sessionId)) setGameMessage('🎉 You won!');
+      else setGameMessage(`Game over. ${state?.winnerName || 'Another player'} went out first.`);
       // Game is over — no reconnection needed after this point
       sessionStorage.removeItem(RECONNECT_TOKEN_KEY);
     });
@@ -375,7 +435,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRematchState((prev) => ({
           votes: data.votes,
           needed: data.needed,
-          voters: [...(prev?.voters ?? []), data.username],
+          voters: [...new Set([...(prev?.voters ?? []), data.sessionId])],
         }));
       },
     );
@@ -391,7 +451,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     roomInstance.onMessage('turnExpired', (data: { playerId: string }) => {
       setGameMessage(
         data.playerId === roomInstance.sessionId
-          ? '⏰ Your time ran out! Skipping your turn...'
+          ? 'Your turn expired. The server played your turn automatically.'
           : '⏰ Turn time expired!',
       );
       setTimeout(() => setGameMessage(null), 3000);
@@ -401,6 +461,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(message || 'Unknown room error');
     });
     roomInstance.onLeave(async (code) => {
+      if (activeRoomRef.current !== roomInstance) return;
+      activeRoomRef.current = null;
       console.log('Left room:', code);
       setIsConnected(false);
       setRoom(null);
@@ -432,7 +494,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createGame = async (options: Record<string, unknown>) => {
     try {
-      const roomInstance = await client.create<GameState>('durak', options);
+      const roomInstance = await joinWithSession(
+        (opts) => client.create<GameState>('durak', opts),
+        {
+          ...options,
+        },
+      );
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error creating room:', e);
@@ -445,10 +512,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Always pin discordInstanceId so filterBy produces a consistent match key.
       // Browser games use null; Discord Activity games use the instance ID.
       const discordInstanceId = discordSdk?.instanceId ?? null;
-      const roomInstance = await client.joinOrCreate<GameState>('durak', {
-        ...options,
-        discordInstanceId,
-      });
+      const roomInstance = await joinWithSession(
+        (opts) => client.joinOrCreate<GameState>('durak', opts),
+        {
+          ...options,
+          discordInstanceId,
+        },
+      );
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error joining/creating room:', e);
@@ -469,7 +539,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userId) opts.userId = userId;
       if (username) opts.username = username;
       if (avatarUrl) opts.avatarUrl = avatarUrl;
-      const roomInstance = await client.joinById<GameState>(roomId, opts);
+      const roomInstance = await joinWithSession(
+        (options) => client.joinById<GameState>(roomId, options),
+        {
+          ...opts,
+        },
+      );
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error joining room:', e);
@@ -479,7 +554,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const spectateGame = async (roomId: string) => {
     try {
-      const roomInstance = await client.joinById<GameState>(roomId, { spectator: true });
+      const roomInstance = await joinWithSession(
+        (opts) => client.joinById<GameState>(roomId, opts),
+        {
+          spectator: true,
+        },
+      );
       setIsSpectator(true);
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
@@ -499,13 +579,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     discordId?: string,
   ) => {
     try {
-      const roomInstance = await client.joinOrCreate<GameState>('durak', {
-        discordInstanceId,
-        username,
-        avatarUrl,
-        isPrivate: true,
-        ...(discordId ? { discordId } : {}),
-      });
+      const roomInstance = await joinWithSession(
+        (opts) => client.joinOrCreate<GameState>('durak', opts),
+        {
+          discordInstanceId,
+          username,
+          avatarUrl,
+          isPrivate: true,
+          ...(discordId ? { discordId } : {}),
+        },
+      );
       handleRoomEvents(roomInstance);
     } catch (e: unknown) {
       console.error('Error auto-joining Discord room:', e);
@@ -548,7 +631,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     return () => {
-      if (room) room.leave();
+      if (room?.connection.isOpen) void room.leave();
     };
   }, [room]);
 

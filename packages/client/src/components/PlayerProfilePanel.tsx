@@ -84,7 +84,7 @@ export const PlayerProfilePanel: React.FC<Props> = ({ discordId, userId, avatarU
     return () => {
       cancelled = true;
     };
-  }, [discordId]);
+  }, [id, byParam]);
 
   useEffect(() => {
     if (tab !== 'leaderboard') return;

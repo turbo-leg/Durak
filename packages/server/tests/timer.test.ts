@@ -95,4 +95,19 @@ describe('DurakRoom Timer Logic', () => {
     expect(room.broadcast).toHaveBeenCalledWith('turnExpired', { playerId: 'p1' });
     expect(endRoundSpy).toHaveBeenCalledWith(room.state, 'p1');
   });
+
+  it('plays an owned single card when an attacker times out with an empty table', () => {
+    room.state.phase = 'playing';
+    room.state.seatOrder.push('p1', 'p2');
+    room.state.currentTurn = 'p2';
+    const p1 = new Player('p1');
+    p1.hand.push(new Card('Hearts', 9));
+    room.state.players.set('p1', p1);
+    room.state.players.set('p2', new Player('p2'));
+    (room as any).nextTurn();
+    vi.advanceTimersByTime(31000);
+    expect(room.state.activeAttackCards[0]?.rank).toBe(9);
+    expect(p1.hand.length).toBe(0);
+    expect(room.state.currentTurn).toBe('p2');
+  });
 });

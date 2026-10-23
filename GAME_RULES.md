@@ -79,6 +79,9 @@ When initiating an attack, a player can play either a **Single Card** or a **Mas
   - **Special rule**: Once a player picks up (`hasPickedUp = true`), they stop drawing from the deck **until their hand falls below targetHandSize again**.
   - When replenishing, the number of cards drawn is: `Math.min(deckSize, targetHandSize - player.hand.length)`.
 
-## 7. Winning & Escaping the Game
+## 7. Winning the Game
 
-- **Goal**: Reach 0 cards when the deck is empty.
+- **Goal**: Be the first to reach 0 cards once the deck is empty.
+- **Free for all**: The first player out of cards is the only winner. The game ends immediately; everyone else loses. No single Durak is named.
+- **Teams and Horse**: When any player runs out of cards, their whole team wins and the game ends immediately. In Horse, the losing team gets the next letter of H-O-R-S-E.
+- **Ratings and stats** (public tables): winners get a win, rating gain and +10 coins; everyone else gets a loss, rating drop and +3 coins. Players with the same result do not move each other's rating.

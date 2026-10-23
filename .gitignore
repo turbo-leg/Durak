@@ -3,3 +3,6 @@ dist/
 .env
 .DS_Store
 GEMINI.md
+.firecrawl/
+output/playwright/
+.playwright-cli/

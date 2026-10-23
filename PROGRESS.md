@@ -1,5 +1,7 @@
 # Development Progress
 
+> Historical progress snapshot retained for context. Current ownership, milestones and verification results are tracked in [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md); the baseline is in [docs/PROJECT_AUDIT.md](docs/PROJECT_AUDIT.md). The branch and “next steps” below are stale and do not describe the active server bot.
+
 ## Current Focus
 
 - **Branch**: `feat/discord-auto-lobby`

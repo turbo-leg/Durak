@@ -50,7 +50,12 @@ describe('DurakRoom Disconnect Handling', () => {
     });
   });
 
-  describe('unexpected disconnect during game', () => {
+  // Private tables use temporary bot control instead (privateTakeover.test.ts).
+  describe('unexpected disconnect during a public game', () => {
+    beforeEach(() => {
+      room.state.isPrivate = false;
+    });
+
     it("auto-pickups after 5s if it is the disconnected player's turn", async () => {
       // active attack cards on the table
       room.state.activeAttackCards.push(new Card('spades', 10));
@@ -88,26 +93,16 @@ describe('DurakRoom Disconnect Handling', () => {
       expect(endRoundSpy).not.toHaveBeenCalled();
     });
 
-    it('permanently removes player and skips turn after reconnect window expires', async () => {
-      room.state.currentTurn = 'p2'; // p1 is not the current attacker
+    it('aborts a public game after the reconnect window expires', async () => {
+      room.state.currentTurn = 'p2';
 
       // allowReconnection immediately rejects (window expired)
       (room as any).allowReconnection = vi.fn(() => Promise.reject(new Error('timeout')));
 
       await room.onLeave(makeClient('p1'), false);
 
-      expect(room.state.players.has('p1')).toBe(false);
-      expect(room.state.seatOrder.includes('p1')).toBe(false);
-      // p2 becomes host
-      expect(room.state.hostId).toBe('p2');
-    });
-
-    it('ends the game when only 1 player remains after permanent removal', async () => {
-      (room as any).allowReconnection = vi.fn(() => Promise.reject(new Error('timeout')));
-
-      await room.onLeave(makeClient('p1'), false);
-
       expect(room.state.phase).toBe('finished');
+      expect(room.broadcast).toHaveBeenCalledWith('gameAborted', expect.anything());
     });
 
     it('clears pickup timer if player reconnects before 5s', async () => {

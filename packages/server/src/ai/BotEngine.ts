@@ -359,13 +359,20 @@ function scorePickup(state: GameState, botId: string): number {
 // ---------- Huzur swap ----------
 
 // Returns true when the bot holds the swap-eligible card and the deck is non-empty.
-// DurakEngine.swapHuzur enforces the picked-up restriction; we just gate on hand presence.
-function canSwapHuzur(hand: Card[], state: GameState): boolean {
+// Match the engine's provenance restriction so a rejected swap cannot stall a turn.
+function canSwapHuzur(hand: Card[], state: GameState, botId: string): boolean {
   if (state.deck.length === 0) return false;
+  const pickedUp = state.players.get(botId)?.pickedUpCardKeys;
   if (state.huzurCard.isJoker) {
-    return hand.some((c) => c.suit === Suit.Spades && c.rank === Rank.Ace);
+    return (
+      !pickedUp?.includes(`Spades:${Rank.Ace}:0`) &&
+      hand.some((c) => c.suit === Suit.Spades && c.rank === Rank.Ace)
+    );
   }
-  return hand.some((c) => c.suit === state.huzurSuit && c.rank === Rank.Seven);
+  return (
+    !pickedUp?.includes(`${state.huzurSuit}:${Rank.Seven}:0`) &&
+    hand.some((c) => c.suit === state.huzurSuit && c.rank === Rank.Seven)
+  );
 }
 
 // ---------- Move builder ----------
@@ -390,6 +397,7 @@ const PICKUP_MOVE: BotMove = { action: 'pickup', cards: [] };
 
 export class BotEngine {
   private pendingTurns = new Set<string>();
+  private attackVisits = new Map<string, number>();
 
   async think(
     state: GameState,
@@ -406,7 +414,7 @@ export class BotEngine {
       const hand = Array.from(player.hand).filter((c): c is Card => !!c);
 
       // Always swap if eligible — free value, almost universally correct.
-      if (canSwapHuzur(hand, state)) {
+      if (canSwapHuzur(hand, state, botId)) {
         return { action: 'swapHuzur', cards: [] };
       }
 
@@ -421,6 +429,10 @@ export class BotEngine {
         // Defending
         const defense = findCheapestDefense(hand, activeAttacks, state.huzurSuit);
         if (defense) {
+          // In this Hot Potato variant repeated voluntary pickups can circulate
+          // the same cards indefinitely. Hard bots resolve a legal defense;
+          // easy bots retain their existing chance to make a pickup mistake.
+          if (difficulty === 'hard') return moveFromDefense(defense);
           candidates.push({
             move: moveFromDefense(defense),
             score: scoreDefense(state, botId, defense, ctx),
@@ -457,7 +469,22 @@ export class BotEngine {
         return noisy[0]!.move;
       }
 
-      // Hard: deterministic best with tiny tiebreak noise
+      // Explore another legal lead when a position repeats. A purely greedy
+      // lead can recirculate the same pickup pile forever in Hot Potato.
+      const position = `${botId}|${state.deck.length}|${hand.map(cardKey).sort().join(',')}|${Array.from(
+        state.players.values(),
+      )
+        .map((p) => `${p.id}:${p.hand.length}`)
+        .join(',')}`;
+      const visits = this.attackVisits.get(position) ?? 0;
+      this.attackVisits.set(position, visits + 1);
+      if (this.attackVisits.size > 2048) {
+        const oldest = this.attackVisits.keys().next().value;
+        if (oldest !== undefined) this.attackVisits.delete(oldest);
+      }
+      if (visits > 0) return candidates[visits % candidates.length]!.move;
+
+      // Hard: best evaluated lead, with randomized exact ties.
       const tied = candidates.filter((c) => c.score === candidates[0]!.score);
       if (tied.length > 1) return tied[Math.floor(Math.random() * tied.length)]!.move;
       return candidates[0]!.move;

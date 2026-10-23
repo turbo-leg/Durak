@@ -1,5 +1,24 @@
 import { Room, Client } from 'colyseus';
-import { GameState, DurakEngine, Card, Player } from '@durak/shared';
+import {
+  GameState,
+  DurakEngine,
+  Card,
+  Player,
+  AVATAR_PRESETS,
+  isAvatarPreset,
+  LOOK_INTERVAL_MS,
+  LOOK_YAW_LIMIT,
+  LOOK_PITCH_MIN,
+  LOOK_PITCH_MAX,
+  isGesture,
+  GESTURE_COOLDOWN_MS,
+  GESTURE_DURATION_MS,
+  COUNTDOWN_MS,
+  OPENING_MS,
+  TAKEOVER_GRACE_MS,
+  OpeningDraw,
+  SeatRequest,
+} from '@durak/shared';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 
@@ -9,6 +28,8 @@ import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
 import { evaluateBadges, BADGES } from '../utils/Badges';
 import mongoose from 'mongoose';
 import { botEngine, BotDifficulty } from '../ai/BotEngine';
+import { verifyRoomIdentity, type RoomIdentity } from '../auth/session';
+import { isRecord, roomSettings } from './roomSettings';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -20,40 +41,70 @@ const RATE_LIMIT_MAX = 10; // messages per window
 const RATE_LIMIT_WINDOW_MS = 1000;
 const MAX_USERNAME_LEN = 32;
 const MAX_AVATAR_URL_LEN = 256;
-const MAX_SHORT_STRING_LEN = 32; // mode, teamSelection, etc.
 
 export class DurakRoom extends Room<GameState> {
   maxClients = 100; // Enforced manually in onJoin; spectators bypass the Colyseus cap
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
+  private soloDifficulty: BotDifficulty | null = null;
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
   private spectators = new Set<string>(); // sessionIds of read-only spectators
   private discordInstanceId: string | null = null;
   private rematchVotes = new Set<string>(); // sessionIds that voted for rematch
+  private horseNextGameTimer?: { clear(): void };
+  private lookTimes = new Map<string, number>();
+  private gestureTimes = new Map<string, number>();
+  private watcherIdentities = new Map<string, RoomIdentity>();
+  private pendingSeatOptions = new Map<string, Record<string, unknown>>();
+  // Temporary bot control: takeover grace timers, held reconnections, and
+  // serials that invalidate delayed bot work when a game, turn or seat owner changes.
+  private takeoverTimers = new Map<string, { clear(): void }>();
+  private reservations = new Map<string, ReturnType<Room['allowReconnection']>>();
+  private controlSerial = new Map<string, number>();
+  private gameSerial = 0;
+  private turnSerial = 0;
+  // Private-table lifecycle (countdown → opening). Room-clock timer only.
+  private lifecycleTimer?: { clear(): void };
+  private countdownReturn: 'waiting' | 'finished' = 'waiting';
+  private countdownMs = COUNTDOWN_MS;
+  private openingMs = OPENING_MS;
+  private takeoverMs = TAKEOVER_GRACE_MS;
+  // Horse on a private table: the next deal continues (or restarts) the match.
+  private horseContinues = false;
 
   onCreate(options: any) {
     this.setState(new GameState());
-
-    // Apply custom options
-    this.state.maxPlayers = options.maxPlayers ? parseInt(options.maxPlayers, 10) : 6;
+    Object.assign(this.state, roomSettings(options));
+    if (options.isPrivate !== undefined && typeof options.isPrivate !== 'boolean') {
+      throw new Error('isPrivate must be a boolean');
+    }
     // maxClients is set to 100 at class level; player cap is enforced in onJoin/onAuth
 
     this.state.isPrivate = !!options.isPrivate;
     this.setPrivate(this.state.isPrivate);
 
-    if (options.mode) {
-      this.state.mode = String(options.mode).slice(0, MAX_SHORT_STRING_LEN);
-    } // "classic" | "teams" etc. (defaults to "classic" in GameState)
-
-    if (options.teamSelection) {
-      this.state.teamSelection = String(options.teamSelection).slice(0, MAX_SHORT_STRING_LEN);
+    if (options.botDifficulty !== undefined) {
+      if (
+        !this.state.isPrivate ||
+        this.state.mode !== 'classic' ||
+        this.state.maxPlayers !== 2 ||
+        ![5, 7].includes(this.state.targetHandSize) ||
+        !['easy', 'hard'].includes(options.botDifficulty)
+      )
+        throw new Error(
+          'Solo requires a private two-player Classic room, 5 or 7 cards, and easy or hard difficulty',
+        );
+      this.soloDifficulty = options.botDifficulty;
     }
 
-    if (options.handSize) {
-      this.state.targetHandSize = parseInt(options.handSize, 10);
+    if (
+      options.discordInstanceId !== undefined &&
+      options.discordInstanceId !== null &&
+      (typeof options.discordInstanceId !== 'string' || options.discordInstanceId.length > 128)
+    ) {
+      throw new Error('Invalid Discord instance');
     }
-
     this.discordInstanceId = options.discordInstanceId || null;
     this.setMetadata({
       mode: this.state.mode,
@@ -64,9 +115,98 @@ export class DurakRoom extends Room<GameState> {
       phase: this.state.phase,
     }).catch(() => {});
 
-    this.testModeDeck = options.testModeDeck;
+    // Deterministic decks are test fixtures, never client-controlled production input.
+    this.testModeDeck = process.env.NODE_ENV === 'test' ? options.testModeDeck : undefined;
+    if (process.env.NODE_ENV === 'test' && isRecord(options.lifecycleTiming)) {
+      const { countdownMs, openingMs, takeoverMs } = options.lifecycleTiming;
+      if (Number.isFinite(countdownMs)) this.countdownMs = countdownMs as number;
+      if (Number.isFinite(openingMs)) this.openingMs = openingMs as number;
+      if (Number.isFinite(takeoverMs)) this.takeoverMs = takeoverMs as number;
+    }
 
     // Register Handlers
+    this.onMessage('look', (client, message) => this.handleLook(client, message));
+    this.onMessage('gesture', (client, message: unknown) => {
+      const player = this.state.players.get(client.sessionId);
+      if (
+        this.spectators.has(client.sessionId) ||
+        !player ||
+        player.control !== 'human' ||
+        !['waiting', 'playing', 'finished'].includes(this.state.phase) ||
+        !isRecord(message) ||
+        !isGesture(message.id)
+      )
+        return;
+      const now = Date.now();
+      if (now - (this.gestureTimes.get(client.sessionId) ?? -Infinity) < GESTURE_COOLDOWN_MS)
+        return;
+      this.gestureTimes.set(client.sessionId, now);
+      player.gestureId = message.id;
+      player.gestureStartedAt = now;
+      player.gestureSequence++;
+      const sequence = player.gestureSequence;
+      this.clock.setTimeout(() => {
+        if (
+          this.state.players.get(client.sessionId) === player &&
+          player.gestureSequence === sequence
+        )
+          player.gestureId = '';
+      }, GESTURE_DURATION_MS);
+    });
+    this.onMessage('avatarPreset', (client, message) => {
+      if (this.spectators.has(client.sessionId) || this.isRateLimited(client.sessionId)) return;
+      const player = this.state.players.get(client.sessionId);
+      if (
+        player &&
+        this.state.phase === 'waiting' &&
+        isRecord(message) &&
+        isAvatarPreset(message.preset)
+      )
+        player.avatarPreset = message.preset;
+    });
+    // Watchers (invited or late) ask to join; seats fill in arrival order between games.
+    this.onMessage('requestSeat', (client, message) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      this.handleSeatRequest(client, message);
+    });
+    this.onMessage('cancelSeatRequest', (client) => {
+      if (this.isRateLimited(client.sessionId)) return;
+      this.dropSeatRequest(client.sessionId);
+      this.pendingSeatOptions.delete(client.sessionId);
+    });
+    // Private-table seats: the host fills empty seats with bots between games.
+    this.onMessage('addBot', (client, message) => {
+      if (this.isRateLimited(client.sessionId) || !this.canEditTable(client)) return;
+      const difficulty = isRecord(message) ? message.difficulty : undefined;
+      if (difficulty !== 'easy' && difficulty !== 'hard') return;
+      if (this.state.players.size >= this.state.maxPlayers) {
+        client.send('error', 'Every seat is already taken.');
+        return;
+      }
+      const id = `bot-${Math.random().toString(36).substring(2, 9)}`;
+      const bot = new Player(id);
+      bot.avatarPreset = AVATAR_PRESETS[this.state.players.size % AVATAR_PRESETS.length]!.id;
+      bot.username = `Bot (${difficulty})`;
+      bot.isReady = true;
+      bot.control = 'bot';
+      bot.team = this.balancedTeam();
+      this.state.players.set(id, bot);
+      this.botIds.set(id, difficulty);
+      if (this.state.phase === 'finished') this.state.seatOrder.push(id);
+      this.rosterChanged();
+    });
+    this.onMessage('removeBot', (client, message) => {
+      if (this.isRateLimited(client.sessionId) || !this.canEditTable(client)) return;
+      const id = isRecord(message) ? message.playerId : undefined;
+      // Only permanent bots are unowned; temporary stand-ins belong to a player.
+      if (typeof id !== 'string' || this.state.players.get(id)?.control !== 'bot') return;
+      this.botIds.delete(id);
+      this.state.players.delete(id);
+      const seat = this.state.seatOrder.indexOf(id);
+      if (seat !== -1) this.state.seatOrder.splice(seat, 1);
+      this.rosterChanged();
+      this.processSeatQueue();
+    });
     this.onMessage('attack', (client, message) => {
       if (this.spectators.has(client.sessionId)) return;
       if (this.isRateLimited(client.sessionId)) return;
@@ -89,6 +229,7 @@ export class DurakRoom extends Room<GameState> {
     });
     this.onMessage('ping', (client, message: { clientTime: number }) => {
       if (this.isRateLimited(client.sessionId)) return;
+      if (!isRecord(message) || !Number.isFinite(message.clientTime)) return;
       client.send('pong', { clientTime: message.clientTime, serverTime: Date.now() });
     });
 
@@ -108,12 +249,14 @@ export class DurakRoom extends Room<GameState> {
     // Broadcast that the defender has picked up (started dragging) a card from their hand.
     // Other players see a face-down ghost on ALL pending attacker slots immediately.
     this.onMessage('defenderDragging', (client) => {
+      if (this.isRateLimited(client.sessionId)) return;
       if (this.spectators.has(client.sessionId)) return;
       if (this.state.currentTurn !== client.sessionId) return;
       if (this.state.activeAttackCards.length === 0) return;
       this.broadcast('defenderDragging', { defenderId: client.sessionId }, { except: client });
     });
     this.onMessage('defenderDragEnd', (client) => {
+      if (this.isRateLimited(client.sessionId)) return;
       if (this.spectators.has(client.sessionId)) return;
       this.broadcast('defenderDragEnd', { defenderId: client.sessionId }, { except: client });
     });
@@ -121,11 +264,21 @@ export class DurakRoom extends Room<GameState> {
     // Developer Mode Action Handler
     this.onMessage('dev_action', (client, message) => {
       if (this.isRateLimited(client.sessionId)) return;
-      // NOTE: In a real app, verify process.env.NODE_ENV !== "production"
+      if (!message || typeof message !== 'object') return;
+      // Lobby controls use this channel to add real bots. All other production
+      // mutations (including manually controlled dummies) are debug-only.
+      if (
+        process.env.NODE_ENV === 'production' &&
+        (message.action !== 'spawn_dummies' ||
+          message.difficulty === 'dummy' ||
+          !['easy', 'hard'].includes(message.difficulty))
+      )
+        return;
       // Host-only: only the lobby leader can mutate game state via dev actions.
       if (client.sessionId !== this.state.hostId) return;
 
       if (message.action === 'spawn_dummies') {
+        if (this.state.phase !== 'waiting') return;
         const count = message.count || this.state.maxPlayers - this.state.players.size;
         const isDummy = message.difficulty === 'dummy';
         const difficulty: BotDifficulty = message.difficulty === 'hard' ? 'hard' : 'easy';
@@ -136,24 +289,18 @@ export class DurakRoom extends Room<GameState> {
           const prefix = isDummy ? 'dummy' : 'bot';
           const id = `${prefix}-${Math.random().toString(36).substring(2, 7)}`;
           const p = new Player(id);
+          p.avatarPreset = AVATAR_PRESETS[this.state.players.size % AVATAR_PRESETS.length]!.id;
           p.username = isDummy ? `Dummy` : `Bot (${difficulty})`;
           p.isReady = true;
-
-          if (this.state.mode === 'teams' || this.state.mode === 'horse') {
-            const team0Count = Array.from(this.state.players.values()).filter(
-              (plyr) => plyr.team === 0,
-            ).length;
-            const team1Count = Array.from(this.state.players.values()).filter(
-              (plyr) => plyr.team === 1,
-            ).length;
-            p.team = team0Count <= team1Count ? 0 : 1;
-          }
+          p.control = 'bot';
+          p.team = this.balancedTeam();
 
           this.state.players.set(id, p);
           // Dummies have no AI — they are controlled manually via play_as dev actions
           if (!isDummy) this.botIds.set(id, difficulty);
           spawned++;
         }
+        if (spawned) this.rosterChanged();
         const label = isDummy ? 'dummy/dummies' : `${difficulty} bot(s)`;
         this.broadcast(
           'info',
@@ -177,8 +324,9 @@ export class DurakRoom extends Room<GameState> {
     // Team selection handler in lobby
     this.onMessage('switchTeam', (client, message) => {
       if (this.isRateLimited(client.sessionId)) return;
+      if (!isRecord(message) || (message.team !== 0 && message.team !== 1)) return;
       if (
-        this.state.phase === 'waiting' &&
+        this.isBetweenGames() &&
         (this.state.mode === 'teams' || this.state.mode === 'horse') &&
         this.state.teamSelection === 'manual'
       ) {
@@ -209,8 +357,10 @@ export class DurakRoom extends Room<GameState> {
             return;
           }
 
+          if (player.team === targetTeam) return;
           player.team = targetTeam;
           client.send('info', `You joined ${targetTeam === 0 ? 'Team Blue' : 'Team Red'}.`);
+          this.rosterChanged();
         }
       }
     });
@@ -218,17 +368,24 @@ export class DurakRoom extends Room<GameState> {
     // Update Lobby Settings
     this.onMessage('updateSettings', (client, message) => {
       if (this.isRateLimited(client.sessionId)) return;
-      if (this.state.phase !== 'waiting' || client.sessionId !== this.state.hostId) return;
-      if (!this.state.isPrivate) return; // matchmade rooms are locked
-      if (message.mode) this.state.mode = String(message.mode).slice(0, MAX_SHORT_STRING_LEN);
-      if (message.teamSelection)
-        this.state.teamSelection = String(message.teamSelection).slice(0, MAX_SHORT_STRING_LEN);
-      if (message.maxPlayers) {
-        this.state.maxPlayers = parseInt(message.maxPlayers, 10);
-      }
-      if (message.targetHandSize) {
-        const requestedHandSize = parseInt(message.targetHandSize, 10);
-        this.state.targetHandSize = requestedHandSize === 7 ? 7 : 5;
+      if (!this.canEditTable(client)) return; // host only; matchmade rooms are locked
+      try {
+        const settings = roomSettings(message, this.state);
+        if (settings.maxPlayers < this.state.players.size)
+          throw new Error('Cannot remove occupied seats');
+        if (this.soloDifficulty && (settings.maxPlayers !== 2 || settings.mode !== 'classic')) {
+          throw new Error('Solo settings cannot change player count or mode');
+        }
+        const before = `${this.state.mode}:${this.state.maxPlayers}`;
+        Object.assign(this.state, settings);
+        // A different format starts a fresh Horse match.
+        if (before !== `${this.state.mode}:${this.state.maxPlayers}`) this.resetHorseMatch();
+        this.cancelCountdown();
+        this.resetHumanReadiness();
+        this.processSeatQueue(); // more seats may admit people waiting in line
+        this.updateLobbyMetadata();
+      } catch (error) {
+        client.send('error', error instanceof Error ? error.message : 'Invalid room settings');
       }
     });
 
@@ -237,8 +394,17 @@ export class DurakRoom extends Room<GameState> {
       if (this.isRateLimited(client.sessionId)) return;
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== 'waiting') return;
+      if (this.state.isPrivate) {
+        // Private tables start themselves once every seat is filled and ready.
+        client.send('info', 'The table starts automatically when every seat is filled and ready.');
+        return;
+      }
 
       const playerCount = Array.from(this.state.players.values()).length;
+      if (this.state.mode !== 'classic' && ![4, 6].includes(playerCount)) {
+        client.send('error', 'Teams and Horse require 4 or 6 players to start.');
+        return;
+      }
       if (playerCount < 2) {
         client.send('error', 'Need at least 2 players to start.');
         return;
@@ -274,8 +440,22 @@ export class DurakRoom extends Room<GameState> {
     // Rematch voting — any player in a finished game can request a rematch
     this.onMessage('rematchVote', (client, message: { accept: boolean }) => {
       if (this.isRateLimited(client.sessionId)) return;
+      if (!isRecord(message) || typeof message.accept !== 'boolean') return;
       if (this.state.phase !== 'finished') return;
       if (!this.state.players.has(client.sessionId)) return;
+      if (this.state.isPrivate) {
+        // Private tables use "Ready for next game" instead of rematch voting.
+        client.send('info', 'Press Ready for the next game.');
+        return;
+      }
+
+      // A Horse sub-game continues on the room clock; votes only restart a completed match.
+      if (
+        this.state.mode === 'horse' &&
+        this.state.horseTeamA.length < 5 &&
+        this.state.horseTeamB.length < 5
+      )
+        return;
 
       const player = this.state.players.get(client.sessionId)!;
 
@@ -301,6 +481,11 @@ export class DurakRoom extends Room<GameState> {
 
       if (this.rematchVotes.size >= humanPlayers.length) {
         this.rematchVotes.clear();
+        if (this.state.mode === 'horse') {
+          this.state.horseTeamA = '';
+          this.state.horseTeamB = '';
+          this.state.horseGame = 1;
+        }
         this.resetGameStateForReplay();
         this.startGame();
       }
@@ -309,12 +494,228 @@ export class DurakRoom extends Room<GameState> {
     // Allow players to ready up manually
     this.onMessage('toggleReady', (client, message) => {
       if (this.isRateLimited(client.sessionId)) return;
-      if (this.state.phase !== 'waiting') return;
+      if (!isRecord(message) || typeof message.isReady !== 'boolean') return;
+      const between = this.state.isPrivate ? this.isBetweenGames() : this.state.phase === 'waiting';
+      if (!between) return;
       const player = this.state.players.get(client.sessionId);
-      if (player) {
-        player.isReady = message.isReady;
-      }
+      if (!player || player.control !== 'human' || !player.connected) return;
+      player.isReady = message.isReady;
+      if (this.state.isPrivate) this.evaluateCountdown();
     });
+  }
+
+  // ── Private-table lifecycle ────────────────────────────────────────────────
+
+  /** Waiting for the first deal, showing results, or counting down to a deal. */
+  private isBetweenGames() {
+    return ['waiting', 'finished', 'countdown'].includes(this.state.phase);
+  }
+
+  /** The host may edit seats and settings of a private table between games. */
+  private canEditTable(client: Client) {
+    return this.state.isPrivate && client.sessionId === this.state.hostId && this.isBetweenGames();
+  }
+
+  private balancedTeam() {
+    if (this.state.mode !== 'teams' && this.state.mode !== 'horse') return 0;
+    const players = Array.from(this.state.players.values());
+    const blue = players.filter((p) => p.team === 0).length;
+    return blue <= players.length - blue ? 0 : 1;
+  }
+
+  /** Why the table cannot deal yet, or null when every start condition holds. */
+  private startBlocker(): string | null {
+    const players = Array.from(this.state.players.values());
+    const humans = players.filter((p) => p.control === 'human');
+    if (players.length < this.state.maxPlayers) return 'Waiting for every seat to fill.';
+    if (humans.length === 0) return 'A table needs at least one person.';
+    if (this.state.mode !== 'classic') {
+      if (![4, 6].includes(players.length)) return 'Teams and Horse need 4 or 6 seats.';
+      if (this.state.teamSelection === 'manual') {
+        const blue = players.filter((p) => p.team === 0).length;
+        if (blue * 2 !== players.length) return 'Teams must be balanced.';
+      }
+    }
+    if (humans.some((p) => !p.connected || !p.isReady)) return 'Waiting for everyone to be ready.';
+    return null;
+  }
+
+  /** Start or cancel the countdown to match the current table. */
+  private evaluateCountdown() {
+    if (!this.state.isPrivate) return;
+    const ready = this.startBlocker() === null;
+    if (this.state.phase === 'countdown' && !ready) this.cancelCountdown();
+    else if (ready && (this.state.phase === 'waiting' || this.state.phase === 'finished'))
+      this.beginCountdown();
+  }
+
+  private beginCountdown() {
+    this.countdownReturn = this.state.phase === 'finished' ? 'finished' : 'waiting';
+    this.state.phase = 'countdown';
+    this.state.phaseEndsAt = Date.now() + this.countdownMs;
+    this.lifecycleTimer?.clear();
+    this.lifecycleTimer = this.clock.setTimeout(() => {
+      this.lifecycleTimer = undefined;
+      if (this.state.phase !== 'countdown') return;
+      if (this.startBlocker() !== null) {
+        this.cancelCountdown();
+        return;
+      }
+      this.startGame({ opening: true });
+    }, this.countdownMs);
+    this.updateLobbyMetadata();
+  }
+
+  private cancelCountdown() {
+    if (this.state.phase !== 'countdown') return;
+    this.lifecycleTimer?.clear();
+    this.lifecycleTimer = undefined;
+    this.state.phase = this.countdownReturn;
+    this.state.phaseEndsAt = 0;
+    this.updateLobbyMetadata();
+  }
+
+  /** Creates a human seat from validated join options and a verified identity. */
+  private seatPlayer(sessionId: string, options: Record<string, unknown>, identity?: RoomIdentity) {
+    const player = new Player(sessionId);
+    if (isAvatarPreset(options.avatarPreset)) player.avatarPreset = options.avatarPreset;
+    if (options.username)
+      player.username = String(options.username).trim().slice(0, MAX_USERNAME_LEN);
+    if (options.avatarUrl)
+      player.avatarUrl = String(options.avatarUrl).trim().slice(0, MAX_AVATAR_URL_LEN);
+    player.discordId = identity?.discordId ?? '';
+    player.userId = identity?.userId ?? '';
+    player.team = this.balancedTeam();
+
+    // First player is host
+    if (!this.state.hostId || !this.state.players.has(this.state.hostId)) {
+      this.state.hostId = sessionId;
+      // Public hosts are ready by default; private tables ready up explicitly.
+      if (!this.state.isPrivate) player.isReady = true;
+    }
+
+    this.state.players.set(sessionId, player);
+    // A seat taken between games joins the table now; seat order is rebuilt at the deal.
+    if (this.state.phase === 'finished') this.state.seatOrder.push(sessionId);
+    return player;
+  }
+
+  private dropSeatRequest(sessionId: string) {
+    const index = this.state.seatRequests.findIndex((r) => r.id === sessionId);
+    if (index !== -1) this.state.seatRequests.splice(index, 1);
+  }
+
+  /** A watcher asks for a seat: seated now if one is free between games, otherwise queued. */
+  private handleSeatRequest(client: Client, message: unknown) {
+    if (!this.state.isPrivate || !this.spectators.has(client.sessionId)) return;
+    const options = isRecord(message) ? message : {};
+    const identity = this.watcherIdentities.get(client.sessionId);
+    if (
+      Array.from(this.state.players.values()).some(
+        (p) =>
+          (identity?.userId && p.userId === identity.userId) ||
+          (identity?.discordId && p.discordId === identity.discordId),
+      )
+    ) {
+      client.send('error', 'This account is already seated');
+      return;
+    }
+    const existing = this.state.seatRequests.find((r) => r.id === client.sessionId);
+    const name =
+      String(options.username ?? '')
+        .trim()
+        .slice(0, MAX_USERNAME_LEN) || 'Guest';
+    if (existing) existing.name = name;
+    else this.state.seatRequests.push(new SeatRequest(client.sessionId, name));
+    this.pendingSeatOptions.set(client.sessionId, {
+      username: name,
+      avatarPreset: options.avatarPreset,
+    });
+    this.processSeatQueue();
+    if (this.spectators.has(client.sessionId))
+      client.send('info', 'You’re in line for the next free seat.');
+  }
+
+  /** Seats waiting watchers in arrival order. Only empty seats are filled, between games. */
+  private processSeatQueue() {
+    if (!this.state.isPrivate) return;
+    let seated = false;
+    while (
+      (this.state.phase === 'waiting' || this.state.phase === 'finished') &&
+      this.state.players.size < this.state.maxPlayers &&
+      this.state.seatRequests.length > 0
+    ) {
+      const request = this.state.seatRequests.shift()!;
+      const sessionId = request.id;
+      if (!this.spectators.has(sessionId)) continue;
+      const identity = this.watcherIdentities.get(sessionId);
+      const client = this.clients.find((c) => c.sessionId === sessionId);
+      if (
+        Array.from(this.state.players.values()).some(
+          (p) =>
+            (identity?.userId && p.userId === identity.userId) ||
+            (identity?.discordId && p.discordId === identity.discordId),
+        )
+      ) {
+        client?.send('error', 'This account is already seated');
+        continue;
+      }
+      this.spectators.delete(sessionId);
+      this.state.spectatorCount = this.spectators.size;
+      this.watcherIdentities.delete(sessionId);
+      this.seatPlayer(sessionId, this.pendingSeatOptions.get(sessionId) ?? {}, identity);
+      this.pendingSeatOptions.delete(sessionId);
+      client?.send('seated', {});
+      seated = true;
+    }
+    if (seated) this.rosterChanged();
+  }
+
+  private resetHumanReadiness() {
+    this.state.players.forEach((p) => {
+      if (p.control === 'human') p.isReady = false;
+    });
+  }
+
+  /** Joins, departures, bot and team changes invalidate a countdown in progress. */
+  private rosterChanged() {
+    if (!this.state.isPrivate) return;
+    if (this.state.phase === 'countdown') {
+      this.cancelCountdown();
+      this.resetHumanReadiness();
+    } else {
+      // e.g. a bot filling the last seat while everyone is already ready.
+      this.evaluateCountdown();
+    }
+    this.updateLobbyMetadata();
+  }
+
+  private resetHorseMatch() {
+    this.state.horseTeamA = '';
+    this.state.horseTeamB = '';
+    this.state.horseGame = 1;
+    this.horseContinues = false;
+  }
+
+  /** The opening has shown the deal, Huzur and Suhuh; the first turn begins now. */
+  private beginPlay() {
+    if (this.state.phase !== 'opening') return;
+    this.state.phase = 'playing';
+    this.state.phaseEndsAt = 0;
+    this.state.turnStartTime = Date.now();
+    this.updateLobbyMetadata();
+    this.startTurnTimer();
+    this.scheduleBotTurn(this.state.currentTurn);
+  }
+
+  /** Results stay on the table; everyone readies again for the next deal. */
+  private finishPrivateGame() {
+    if (!this.state.isPrivate) return;
+    this.state.phaseEndsAt = 0;
+    this.resetHumanReadiness();
+    this.releaseDepartedSeats();
+    // People waiting to join take any empty seats for the next game.
+    this.processSeatQueue();
   }
 
   private updateLobbyMetadata() {
@@ -332,13 +733,39 @@ export class DurakRoom extends Room<GameState> {
     }
   }
 
+  onBeforePatch() {
+    this.syncPublicCounts();
+  }
+
+  private syncPublicCounts() {
+    this.state.deckCount = this.state.deck.length;
+    this.state.players.forEach((player) => {
+      player.handCount = player.hand.length;
+    });
+  }
+
   async onAuth(_client: Client, options: any) {
-    if (this.state.phase === 'playing') {
+    if (!isRecord(options)) throw new Error('Invalid join options');
+    if (options.spectator !== undefined && typeof options.spectator !== 'boolean')
+      throw new Error('Invalid spectator option');
+    const identity = verifyRoomIdentity(options ?? {});
+    const live = this.state.phase === 'playing' || this.state.phase === 'opening';
+    if (live) {
       if (!options?.spectator) throw new Error('Game already in progress');
-      return true;
+      return identity;
     }
-    if (options?.spectator) throw new Error('Game has not started yet');
+    if (options?.spectator) {
+      // Friends may watch a private table at any point; public tables only during play.
+      if (this.state.isPrivate) return identity;
+      throw new Error('Game has not started yet');
+    }
     if (this.state.players.size >= this.state.maxPlayers) throw new Error('Room is full');
+    // Seats go to people already waiting in line, in order.
+    if (this.state.isPrivate && this.state.seatRequests.length > 0)
+      throw new Error('Others are waiting for a seat. Join to watch and get in line.');
+    const requested = roomSettings(options, this.state);
+    if (requested.targetHandSize !== this.state.targetHandSize)
+      throw new Error('Hand size mismatch');
 
     // Hard-reject mismatched matchmaking options so a Colyseus routing quirk
     // can never put a Classic player into a Teams room (or vice versa).
@@ -346,40 +773,57 @@ export class DurakRoom extends Room<GameState> {
       if (options?.mode && String(options.mode) !== this.state.mode) {
         throw new Error('Game mode mismatch');
       }
-      if (options?.maxPlayers && parseInt(options.maxPlayers) !== this.state.maxPlayers) {
+      if (requested.maxPlayers !== this.state.maxPlayers) {
         throw new Error('Player count mismatch');
       }
     }
 
-    return true;
+    const seatable =
+      this.state.phase === 'waiting' || (this.state.isPrivate && this.state.phase === 'finished');
+    if (!seatable) throw new Error('Game has finished');
+    if (
+      Array.from(this.state.players.values()).some(
+        (p) =>
+          (identity.userId && p.userId === identity.userId) ||
+          (identity.discordId && p.discordId === identity.discordId),
+      )
+    )
+      throw new Error('This account is already seated');
+    return identity;
   }
 
-  onJoin(client: Client, options: any) {
+  onJoin(client: Client, options: any, identity?: RoomIdentity) {
     logger.info({ sessionId: client.sessionId }, 'client joined');
 
     if (options?.spectator) {
+      this.syncPublicCounts();
       this.spectators.add(client.sessionId);
+      // Kept so an invited watcher can later take a seat under the same verified identity.
+      this.watcherIdentities.set(client.sessionId, identity ?? { userId: '', discordId: '' });
       this.state.spectatorCount = this.spectators.size;
       this.updateLobbyMetadata();
       return;
     }
 
-    const player = new Player(client.sessionId);
-    if (options.username)
-      player.username = String(options.username).trim().slice(0, MAX_USERNAME_LEN);
-    if (options.avatarUrl)
-      player.avatarUrl = String(options.avatarUrl).trim().slice(0, MAX_AVATAR_URL_LEN);
-    if (options.discordId)
-      player.discordId = String(options.discordId).trim().slice(0, MAX_SHORT_STRING_LEN);
-    if (options.userId) player.userId = String(options.userId).trim().slice(0, 64);
+    const player = this.seatPlayer(client.sessionId, options, identity);
 
-    // First player is host
-    if (this.state.players.size === 0) {
-      this.state.hostId = client.sessionId;
-      player.isReady = true; // Host is ready by default
+    if (this.soloDifficulty && this.state.players.size === 1) {
+      const botId = `bot-${client.sessionId}`;
+      const bot = new Player(botId);
+      bot.avatarPreset = AVATAR_PRESETS[1].id;
+      bot.username = `Bot (${this.soloDifficulty})`;
+      bot.isReady = true;
+      bot.control = 'bot';
+      this.state.players.set(botId, bot);
+      this.botIds.set(botId, this.soloDifficulty);
+      // Practice deals at once; the client finishes connecting before the opening.
+      this.clock.setTimeout(() => {
+        if (this.state.phase === 'waiting' && this.state.players.has(client.sessionId)) {
+          this.startGame({ opening: true });
+        }
+      }, 50);
     }
-
-    this.state.players.set(client.sessionId, player);
+    this.rosterChanged();
     this.updateLobbyMetadata();
 
     // Auto-start for matchmade (non-private) rooms: mark player ready and
@@ -401,16 +845,31 @@ export class DurakRoom extends Room<GameState> {
   async onLeave(client: Client, consented: boolean) {
     logger.info({ sessionId: client.sessionId, consented }, 'client left');
     this.rateLimitMap.delete(client.sessionId);
+    this.lookTimes.delete(client.sessionId);
+    this.gestureTimes.delete(client.sessionId);
+    const leaving = this.state.players.get(client.sessionId);
+    if (leaving) {
+      leaving.headYaw = 0;
+      leaving.headPitch = 0;
+    }
     this.clearDefenseGhostsFor(client.sessionId);
 
     if (this.spectators.has(client.sessionId)) {
       this.spectators.delete(client.sessionId);
+      this.watcherIdentities.delete(client.sessionId);
+      this.pendingSeatOptions.delete(client.sessionId);
+      this.dropSeatRequest(client.sessionId);
       this.state.spectatorCount = this.spectators.size;
       this.updateLobbyMetadata();
       return;
     }
 
-    const isInGame = this.state.phase === 'playing';
+    const isInGame = this.state.phase === 'playing' || this.state.phase === 'opening';
+
+    if (isInGame && this.state.isPrivate && leaving) {
+      await this.holdSeatForGame(client, leaving, consented);
+      return;
+    }
 
     if (isInGame && !consented) {
       const player = this.state.players.get(client.sessionId);
@@ -420,9 +879,9 @@ export class DurakRoom extends Room<GameState> {
 
       // Schedule auto-pickup after 5s if it's their turn, so the game doesn't freeze
       let pickupTimer: NodeJS.Timeout | null = null;
-      if (this.state.currentTurn === client.sessionId) {
+      if (this.state.currentTurn === client.sessionId && this.state.phase === 'playing') {
         pickupTimer = setTimeout(() => {
-          if (this.state.currentTurn === client.sessionId) {
+          if (this.state.currentTurn === client.sessionId && this.state.phase === 'playing') {
             this.broadcast('clearDefenseSnapshot');
             DurakEngine.endRound(this.state, client.sessionId);
             DurakEngine.replenishAll(this.state);
@@ -461,54 +920,199 @@ export class DurakRoom extends Room<GameState> {
     this.permanentlyRemovePlayer(client.sessionId, isInGame);
   }
 
+  // ── Temporary bot control on private tables ────────────────────────────────
+
+  /**
+   * A private-table seat is reserved until the game ends. A lost connection is
+   * marked at once and an Easy stand-in plays the same seat after a short grace;
+   * leaving on purpose hands the seat over immediately.
+   */
+  private async holdSeatForGame(client: Client, player: Player, consented: boolean) {
+    const id = client.sessionId;
+    const name = player.username || id.slice(0, 6);
+    player.connected = false;
+    player.isReady = false;
+    this.broadcast('playerDisconnected', { sessionId: id, username: name });
+    if (consented) {
+      this.broadcast('info', `${name} left. A bot plays their seat for the rest of this game.`);
+      this.transferHostFrom(id);
+      this.makeStandIn(id);
+      return;
+    }
+    this.broadcast('info', `${name} lost connection. A bot takes over in a few seconds.`);
+    this.takeoverTimers.get(id)?.clear();
+    this.takeoverTimers.set(
+      id,
+      this.clock.setTimeout(() => {
+        this.takeoverTimers.delete(id);
+        this.makeStandIn(id);
+      }, this.takeoverMs),
+    );
+    const reservation = this.allowReconnection(client, 'manual');
+    this.reservations.set(id, reservation);
+    try {
+      await reservation;
+      if (this.reservations.get(id) === reservation) this.reservations.delete(id);
+      this.restoreHuman(id);
+    } catch {
+      // Released when the game ended (or the room closed); see releaseDepartedSeats.
+      if (this.reservations.get(id) === reservation) this.reservations.delete(id);
+    }
+  }
+
+  private makeStandIn(id: string) {
+    const player = this.state.players.get(id);
+    if (!player || player.connected || player.control !== 'human') return;
+    if (this.state.phase !== 'playing' && this.state.phase !== 'opening') return;
+    player.control = 'standin';
+    this.botIds.set(id, 'easy');
+    this.bumpControl(id);
+    this.broadcast('seatControl', { sessionId: id, control: 'standin' });
+    // During the opening, beginPlay schedules whoever leads.
+    if (this.state.phase === 'playing' && this.state.currentTurn === id) this.scheduleBotTurn(id);
+  }
+
+  /** The person is back: pending bot work is invalidated and the seat is theirs again. */
+  private restoreHuman(id: string) {
+    this.takeoverTimers.get(id)?.clear();
+    this.takeoverTimers.delete(id);
+    const player = this.state.players.get(id);
+    if (!player) return;
+    player.connected = true;
+    if (player.control === 'standin') {
+      player.control = 'human';
+      this.botIds.delete(id);
+    }
+    this.bumpControl(id);
+    this.broadcast('playerReconnected', { sessionId: id });
+    this.broadcast('seatControl', { sessionId: id, control: 'human' });
+  }
+
+  private bumpControl(id: string) {
+    this.controlSerial.set(id, (this.controlSerial.get(id) ?? 0) + 1);
+  }
+
+  /** At game end, seats of people who left or never came back are released. */
+  private releaseDepartedSeats() {
+    const departed = Array.from(this.state.players.values()).filter(
+      (p) => !p.connected && p.control !== 'bot',
+    );
+    for (const player of departed) {
+      this.takeoverTimers.get(player.id)?.clear();
+      this.takeoverTimers.delete(player.id);
+      const reservation = this.reservations.get(player.id);
+      this.reservations.delete(player.id);
+      reservation?.reject(new Error('Seat released at game end'));
+      this.permanentlyRemovePlayer(player.id, false);
+    }
+  }
+
+  /** Host controls pass to the next connected human in seat order, never to a bot. */
+  private transferHostFrom(sessionId: string) {
+    if (this.state.hostId !== sessionId) return;
+    const order = Array.from(this.state.seatOrder).filter((id): id is string => !!id);
+    const seatIdx = order.indexOf(sessionId);
+    const humans = Array.from(this.state.players.values()).filter(
+      (p) => p.id !== sessionId && p.control === 'human' && p.connected,
+    );
+    const after = seatIdx === -1 ? [] : [...order.slice(seatIdx + 1), ...order.slice(0, seatIdx)];
+    const next = after.map((id) => humans.find((p) => p.id === id)).find((p) => !!p) ?? humans[0];
+    this.state.hostId = next?.id ?? '';
+    if (next && !this.state.isPrivate) next.isReady = true;
+  }
+
   private permanentlyRemovePlayer(sessionId: string, isInGame: boolean) {
     const wasCurrentTurn = this.state.currentTurn === sessionId;
 
     const seatIdx = this.state.seatOrder.indexOf(sessionId);
+    // Choose the successor before the seat disappears from the order.
+    const order = Array.from(this.state.seatOrder).filter((id): id is string => !!id);
+    let successor = '';
+    for (let step = 1; seatIdx !== -1 && step < order.length; step++) {
+      const id = order[(seatIdx + step) % order.length]!;
+      if (!this.state.winners.includes(id)) {
+        successor = id;
+        break;
+      }
+    }
+    this.transferHostFrom(sessionId);
     if (seatIdx !== -1) this.state.seatOrder.splice(seatIdx, 1);
 
     this.state.players.delete(sessionId);
-
-    if (this.state.hostId === sessionId && this.state.players.size > 0) {
-      this.state.hostId = this.state.players.keys().next().value || '';
-      const newHost = this.state.players.get(this.state.hostId);
-      if (newHost) newHost.isReady = true;
-    }
+    this.botIds.delete(sessionId);
+    this.controlSerial.delete(sessionId);
 
     if (isInGame) {
       if (this.state.players.size <= 1) {
         this.state.phase = 'finished';
+        this.state.phaseEndsAt = 0;
+        this.lifecycleTimer?.clear();
+        this.lifecycleTimer = undefined;
         if (this.turnTimeoutId) {
           clearInterval(this.turnTimeoutId);
           this.turnTimeoutId = null;
         }
+        this.finishPrivateGame();
         this.updateLobbyMetadata();
         return;
       }
-      if (wasCurrentTurn) this.nextTurn();
+      if (wasCurrentTurn && successor) {
+        if (this.state.phase === 'opening') {
+          // The turn clock starts when the opening ends.
+          this.state.currentTurn = successor;
+        } else {
+          this.state.currentTurn = successor;
+          this.state.turnStartTime = Date.now();
+          this.startTurnTimer();
+          this.scheduleBotTurn(successor);
+        }
+      }
+    } else {
+      this.rosterChanged();
+      this.processSeatQueue();
     }
     this.updateLobbyMetadata();
   }
 
   private formatCard(c: Card): string {
-    if (c.isJoker) return c.rank === 15 ? 'BJ' : 'RJ';
+    if (c.isJoker) return c.rank === 17 ? 'BJ' : 'RJ';
     const suits: any = { Clubs: 'c', Diamonds: 'd', Hearts: 'h', Spades: 's' };
     let r = c.rank.toString();
     if (c.rank === 11) r = 'J';
     else if (c.rank === 12) r = 'Q';
     else if (c.rank === 13) r = 'K';
-    else if (c.rank === 14) r = 'A';
+    else if (c.rank === 14) r = '3';
+    else if (c.rank === 15) r = '2';
+    else if (c.rank === 16) r = 'A';
     return `${r}${suits[c.suit] || c.suit.charAt(0).toLowerCase()}`;
   }
 
-  private startGame() {
+  /**
+   * Deals a new game. With `opening`, the table shows the deal, Huzur and Suhuh
+   * for a fixed time before the first turn (and its clock) begins.
+   */
+  private startGame({ opening = false }: { opening?: boolean } = {}) {
+    this.horseNextGameTimer?.clear();
+    this.horseNextGameTimer = undefined;
+    this.lifecycleTimer?.clear();
+    this.lifecycleTimer = undefined;
     const playerCount = Array.from(this.state.players.values()).length;
     if (playerCount < 2) return; // Guard: never start with fewer than 2 players
+    this.gameSerial++;
+
+    if (this.state.isPrivate && this.state.mode === 'horse') {
+      // Letters carry between sub-games; a finished match starts over.
+      if (this.state.horseTeamA.length >= 5 || this.state.horseTeamB.length >= 5)
+        this.resetHorseMatch();
+      else if (this.horseContinues) this.state.horseGame += 1;
+      this.horseContinues = false;
+    }
 
     this.rematchVotes.clear();
     this.clearRoundStateForNewGame();
 
-    this.state.phase = 'playing';
+    this.state.phase = opening ? 'opening' : 'playing';
+    this.state.phaseEndsAt = 0;
     this.updateLobbyMetadata();
     this.state.seatOrder.splice(0, this.state.seatOrder.length);
     this.state.lastDefenseAt = 0;
@@ -586,9 +1190,26 @@ export class DurakRoom extends Room<GameState> {
     // Highest card wins; falls back to lowest-trump-in-hand if the deck is empty.
     const { firstId, draws } = this.resolveSuhuh();
     this.state.currentTurn = firstId;
+    // Synchronized so a reconnecting client sees the same opening.
+    for (const draw of draws)
+      this.state.openingDraws.push(
+        new OpeningDraw(draw.playerId, new Card(draw.suit, draw.rank, draw.isJoker)),
+      );
     if (draws.length > 0) {
       this.broadcast('suhuhResult', { draws, winnerId: firstId });
     }
+
+    if (opening) {
+      // The first player's turn time is not consumed by the opening.
+      this.state.turnStartTime = 0;
+      this.state.phaseEndsAt = Date.now() + this.openingMs;
+      this.lifecycleTimer = this.clock.setTimeout(() => {
+        this.lifecycleTimer = undefined;
+        this.beginPlay();
+      }, this.openingMs);
+      return;
+    }
+
     this.state.turnStartTime = Date.now();
 
     // Start turn timeout enforcement
@@ -756,6 +1377,7 @@ export class DurakRoom extends Room<GameState> {
     this.state.activeAttackCards.splice(0, this.state.activeAttackCards.length);
     this.state.winners.splice(0, this.state.winners.length);
     this.state.actionLog.splice(0, this.state.actionLog.length);
+    this.state.openingDraws.splice(0, this.state.openingDraws.length);
 
     this.state.huzurCard = new Card();
     this.state.huzurSuit = '';
@@ -764,9 +1386,14 @@ export class DurakRoom extends Room<GameState> {
     this.state.turnStartTime = 0;
     this.state.lastDefenseAt = 0;
     this.state.loser = '';
+    this.state.outcome = '';
+    this.state.winnerName = '';
+    this.state.winnerTeam = -1;
 
     this.state.players.forEach((player) => {
       player.hand.splice(0, player.hand.length);
+      player.gestureId = '';
+      player.gestureStartedAt = 0;
       player.pickedUpCardKeys.splice(0, player.pickedUpCardKeys.length);
       player.hasPickedUp = false;
       player.lastDrawLog.splice(0, player.lastDrawLog.length);
@@ -783,6 +1410,8 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private startTurnTimer() {
+    // Every new turn starts here; pending bot work for an earlier turn is now stale.
+    this.turnSerial++;
     // Clear any existing timer
     if (this.turnTimeoutId) clearInterval(this.turnTimeoutId);
 
@@ -808,6 +1437,12 @@ export class DurakRoom extends Room<GameState> {
           DurakEngine.replenishAll(this.state);
           this.checkGameOver();
           this.nextTurn();
+        } else if (player?.hand[0]) {
+          // A lead cannot be picked up. Play one owned card so an idle attacker
+          // cannot freeze the room indefinitely after the timer reaches zero.
+          this.handleAttack({ sessionId: currentPlayerId, send: () => {} } as unknown as Client, {
+            cards: [player.hand[0]],
+          });
         }
       }
     }, 500);
@@ -822,6 +1457,8 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private nextTurn() {
+    // The move that ended the game has no next turn.
+    if (this.state.phase !== 'playing') return;
     const ids = Array.from(this.state.seatOrder);
     const idx = ids.indexOf(this.state.currentTurn);
     if (idx === -1) return;
@@ -843,9 +1480,20 @@ export class DurakRoom extends Room<GameState> {
     if (!difficulty) return;
 
     const delay = 800 + Math.random() * 1200; // 0.8–2s human-like pause
-    setTimeout(async () => {
-      // Abort if turn changed while we were waiting
-      if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
+    // Delayed and asynchronous bot work applies only to the game, turn and seat
+    // owner it was scheduled for; a reconnecting human invalidates it.
+    const game = this.gameSerial;
+    const turn = this.turnSerial;
+    const control = this.controlSerial.get(playerId) ?? 0;
+    const stillValid = () =>
+      this.state.phase === 'playing' &&
+      this.state.currentTurn === playerId &&
+      this.gameSerial === game &&
+      this.turnSerial === turn &&
+      (this.controlSerial.get(playerId) ?? 0) === control &&
+      this.botIds.has(playerId);
+    this.clock.setTimeout(async () => {
+      if (!stillValid()) return;
 
       const activeLen = this.state.activeAttackCards.length;
       const handLen = this.state.players.get(playerId)?.hand.length ?? 0;
@@ -867,8 +1515,7 @@ export class DurakRoom extends Room<GameState> {
         },
         'bot chose move',
       );
-      if (!move) return;
-      if (this.state.currentTurn !== playerId || this.state.phase !== 'playing') return;
+      if (!move || !stillValid()) return;
 
       const fakeClient = {
         sessionId: playerId,
@@ -878,7 +1525,9 @@ export class DurakRoom extends Room<GameState> {
       if (move.action === 'swapHuzur') {
         this.handleSwapHuzur(fakeClient);
         // Swap doesn't consume the turn — re-schedule immediately so the bot still acts.
-        setTimeout(() => this.scheduleBotTurn(playerId), 400);
+        this.clock.setTimeout(() => {
+          if (stillValid()) this.scheduleBotTurn(playerId);
+        }, 400);
       } else if (move.action === 'attack') this.handleAttack(fakeClient, { cards: move.cards });
       else if (move.action === 'defend') this.handleDefend(fakeClient, { cards: move.cards });
       else if (move.action === 'pickup') this.handlePickUp(fakeClient);
@@ -899,7 +1548,8 @@ export class DurakRoom extends Room<GameState> {
     // Only the current defender may stage ghosts.
     if (this.state.currentTurn !== client.sessionId) return;
     if (this.state.activeAttackCards.length === 0) return;
-    const atkKey = (message.attackerKey ?? '').toString().slice(0, 32);
+    if (!isRecord(message) || typeof message.attackerKey !== 'string') return;
+    const atkKey = message.attackerKey.slice(0, 32);
     if (!atkKey) return;
     // The attackerKey must reference an active attacker.
     const validKeys = new Set(
@@ -946,6 +1596,24 @@ export class DurakRoom extends Room<GameState> {
     return false;
   }
 
+  private handleLook(client: Client, message: unknown) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || this.spectators.has(client.sessionId) || !isRecord(message)) return;
+    const { yaw, pitch } = message;
+    if (
+      typeof yaw !== 'number' ||
+      typeof pitch !== 'number' ||
+      !Number.isFinite(yaw) ||
+      !Number.isFinite(pitch)
+    )
+      return;
+    const now = Date.now();
+    if (now - (this.lookTimes.get(client.sessionId) ?? -Infinity) < LOOK_INTERVAL_MS) return;
+    this.lookTimes.set(client.sessionId, now);
+    player.headYaw = Math.max(-LOOK_YAW_LIMIT, Math.min(LOOK_YAW_LIMIT, yaw));
+    player.headPitch = Math.max(LOOK_PITCH_MIN, Math.min(LOOK_PITCH_MAX, pitch));
+  }
+
   private logPendingDraws(skipId?: string): void {
     this.state.players.forEach((p) => {
       if (skipId && p.id === skipId) return;
@@ -964,12 +1632,14 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private parseCards(raw: any): Card[] | null {
-    if (!Array.isArray(raw) || raw.length === 0) return null;
+    if (!Array.isArray(raw) || raw.length === 0 || raw.length > 7) return null;
     const cards: Card[] = [];
     for (const c of raw) {
       if (
         typeof c?.suit !== 'string' ||
-        typeof c?.rank !== 'number' ||
+        !Number.isInteger(c?.rank) ||
+        c.rank < 7 ||
+        c.rank > 18 ||
         typeof c?.isJoker !== 'boolean'
       )
         return null;
@@ -983,11 +1653,11 @@ export class DurakRoom extends Room<GameState> {
     const counts = new Map<string, number>();
     for (const c of player.hand) {
       if (!c) continue;
-      const key = `${c.suit}:${c.rank}`;
+      const key = `${c.suit}:${c.rank}:${c.isJoker ? 1 : 0}`;
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     for (const c of cards) {
-      const key = `${c.suit}:${c.rank}`;
+      const key = `${c.suit}:${c.rank}:${c.isJoker ? 1 : 0}`;
       const count = counts.get(key) || 0;
       if (count <= 0) return false;
       counts.set(key, count - 1);
@@ -1002,7 +1672,7 @@ export class DurakRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    const cardsToPlay = this.parseCards(message.cards);
+    const cardsToPlay = this.parseCards(message?.cards);
     if (!cardsToPlay) {
       client.send('error', 'Invalid card format.');
       return;
@@ -1038,6 +1708,8 @@ export class DurakRoom extends Room<GameState> {
     }
 
     this.broadcast('clearDefenseSnapshot');
+    player.playSequence++;
+    player.gestureId = '';
 
     // Move cards from hand to active attack
     const attackCounts = new Map<string, number>();
@@ -1082,7 +1754,7 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
-    const defendingCards = this.parseCards(message.cards);
+    const defendingCards = this.parseCards(message?.cards);
     if (!defendingCards) {
       client.send('error', 'Invalid card format.');
       return;
@@ -1110,6 +1782,8 @@ export class DurakRoom extends Room<GameState> {
     }
 
     // Defense accepted — clear any in-flight ghost markers for this defender.
+    player.playSequence++;
+    player.gestureId = '';
     this.clearDefenseGhostsFor(client.sessionId);
 
     // Issue #80: broadcast snapshot of what was defended so the UI can show it for 10 seconds.
@@ -1167,6 +1841,7 @@ export class DurakRoom extends Room<GameState> {
     this.logPendingDraws();
     DurakEngine.replenishAll(this.state);
     this.checkGameOver();
+    if (this.state.phase !== 'playing') return;
 
     // Increment chain
     this.state.defenseChainCount++;
@@ -1189,8 +1864,14 @@ export class DurakRoom extends Room<GameState> {
       DurakEngine.replenishAll(this.state);
       this.checkGameOver();
 
-      // The next trick is led by the player who made the LAST defense in this chain.
-      // Since currentTurn is already the client who just defended, we simply leave it alone!
+      if (this.state.phase !== 'playing') return;
+      // A last defender who just escaped has no cards with which to lead.
+      // Continue clockwise to a remaining player instead of stranding their turn.
+      if (this.state.winners.includes(this.state.currentTurn)) {
+        this.nextTurn();
+        return;
+      }
+      // Otherwise the last defender leads the next trick.
       this.state.turnStartTime = Date.now();
       this.startTurnTimer();
       this.scheduleBotTurn(this.state.currentTurn);
@@ -1219,6 +1900,8 @@ export class DurakRoom extends Room<GameState> {
 
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (player) player.gestureId = '';
 
     this.logPendingDraws(client.sessionId); // picker-upper already got cards from table
     DurakEngine.replenishAll(this.state);
@@ -1234,6 +1917,7 @@ export class DurakRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     const success = DurakEngine.swapHuzur(player, this.state);
+    if (success) player.gestureId = '';
     if (!success) {
       client.send(
         'error',
@@ -1242,56 +1926,55 @@ export class DurakRoom extends Room<GameState> {
     }
   }
 
+  /**
+   * The first player to run out of cards once the deck is empty wins, and the game
+   * ends there. In Teams and Horse that player's whole team wins. Everyone else loses;
+   * no single Durak is named.
+   */
   private checkGameOver() {
-    if (this.state.phase !== 'playing') return;
+    if (this.state.phase !== 'playing' || this.state.deck.length > 0) return;
+    const out = Array.from(this.state.seatOrder).filter(
+      (id): id is string => !!id && this.state.players.get(id)?.hand.length === 0,
+    );
+    if (out.length === 0) return;
 
-    // A player wins if the deck is empty and they have no cards left
-    // We check every player
-    let hasNewWinner = false;
-    this.state.players.forEach((player, id) => {
-      // check if player already in winners list
-      const alreadyWon = this.state.winners.includes(id);
-
-      if (this.state.deck.length === 0 && player.hand.length === 0 && !alreadyWon) {
-        this.state.winners.push(id);
-        hasNewWinner = true;
-        this.broadcast('playerWon', id);
-      }
-    });
-
-    if (hasNewWinner) {
-      // Are there any players left who haven't won?
-      const remainingPlayers = Array.from(this.state.players.keys()).filter(
-        (id) => !this.state.winners.includes(id),
-      );
-
-      if (remainingPlayers.length <= 1) {
-        this.state.phase = 'finished';
-        // Clean up the turn timer
-        if (this.turnTimeoutId) {
-          clearInterval(this.turnTimeoutId);
-          this.turnTimeoutId = null;
-        }
-        if (remainingPlayers.length === 1) {
-          this.state.loser = remainingPlayers[0];
-          this.broadcast('gameOver', { loser: this.state.loser });
-          this.saveGameLog();
-          if (this.state.mode === 'horse') this.handleHorseRoundEnd(this.state.loser);
-        } else {
-          // It's a draw (multi-person win on last beat)
-          this.broadcast('gameOver', { loser: null, draw: true });
-          this.saveGameLog();
-        }
-      }
+    this.state.phase = 'finished';
+    if (this.turnTimeoutId) {
+      clearInterval(this.turnTimeoutId);
+      this.turnTimeoutId = null;
     }
+    const teamMode = this.state.mode === 'teams' || this.state.mode === 'horse';
+    const teams = new Set(out.map((id) => this.state.players.get(id)!.team));
+    // Only the player who just moved can empty a hand, so a tie is a safeguard.
+    if (teamMode ? teams.size === 1 : out.length === 1) {
+      const first = this.state.players.get(out[0]!)!;
+      const winnerTeam = teamMode ? first.team : -1;
+      const winners = teamMode
+        ? Array.from(this.state.seatOrder).filter(
+            (id): id is string => !!id && this.state.players.get(id)?.team === winnerTeam,
+          )
+        : [out[0]!];
+      this.state.winners.push(...winners);
+      this.state.outcome = 'win';
+      this.state.winnerName = first.username || '';
+      this.state.winnerTeam = winnerTeam;
+      this.broadcast('gameOver', { winner: out[0], winnerTeam });
+      this.saveGameLog();
+      if (this.state.mode === 'horse') this.handleHorseRoundEnd(winnerTeam === 0 ? 1 : 0);
+    } else {
+      this.state.winners.push(...out);
+      this.state.outcome = 'draw';
+      this.broadcast('gameOver', { draw: true });
+      this.saveGameLog();
+      if (this.state.mode === 'horse') this.continueHorseMatch();
+    }
+    // After the result is recorded: departed seats are released for the next game.
+    this.finishPrivateGame();
   }
 
-  private handleHorseRoundEnd(loserId: string) {
+  private handleHorseRoundEnd(losingTeam: number) {
     const LETTERS = 'HORSE';
-    const loserPlayer = this.state.players.get(loserId);
-    if (!loserPlayer) return;
-
-    const losingTeam = loserPlayer.team; // 0 = team A, 1 = team B
+    // 0 = team A (Blue), 1 = team B (Red)
     if (losingTeam === 0) {
       this.state.horseTeamA = LETTERS.slice(0, this.state.horseTeamA.length + 1);
     } else {
@@ -1305,19 +1988,38 @@ export class DurakRoom extends Room<GameState> {
     if (matchOver) {
       const winningTeam = this.state.horseTeamA.length >= LETTERS.length ? 1 : 0;
       this.broadcast('horseMatchOver', { winningTeam });
-      // phase stays 'finished' — host must create a new room for another meta-match
+      // Phase stays finished. The next deal (ready-up or rematch) resets the whole match.
     } else {
-      // Auto-restart the next game after a short delay
-      this.state.horseGame += 1;
-      setTimeout(() => {
-        this.clearRoundStateForNewGame();
-        this.state.phase = 'waiting';
-        this.broadcast('horseNextGame', { game: this.state.horseGame });
-      }, 5000);
+      this.continueHorseMatch();
     }
   }
 
+  /** Private tables continue with the next ready-up; public tables return to the lobby. */
+  private continueHorseMatch() {
+    if (this.state.isPrivate) this.horseContinues = true;
+    else this.scheduleHorseNextGame();
+  }
+
+  private scheduleHorseNextGame() {
+    this.state.horseGame += 1;
+    this.horseNextGameTimer?.clear();
+    this.horseNextGameTimer = this.clock.setTimeout(() => {
+      this.horseNextGameTimer = undefined;
+      if (this.state.phase !== 'finished' || this.state.mode !== 'horse') return;
+      this.clearRoundStateForNewGame();
+      this.state.phase = 'waiting';
+      this.updateLobbyMetadata();
+      this.broadcast('horseNextGame', { game: this.state.horseGame });
+    }, 5000);
+  }
+
   async onDispose() {
+    this.horseNextGameTimer?.clear();
+    this.horseNextGameTimer = undefined;
+    this.takeoverTimers.forEach((timer) => timer.clear());
+    this.takeoverTimers.clear();
+    this.lifecycleTimer?.clear();
+    this.lifecycleTimer = undefined;
     if (this.turnTimeoutId) {
       clearInterval(this.turnTimeoutId);
       this.turnTimeoutId = null;
@@ -1366,10 +2068,14 @@ export class DurakRoom extends Room<GameState> {
       await log.save();
       logger.info({ roomId: this.roomId }, 'GameLog saved to MongoDB');
 
+      // Shutdown snapshots are useful replay evidence, never completed-match rewards.
+      if (this.state.phase !== 'finished' || this.state.winners.length === 0) return;
+
       // Upsert PlayerProfile for every authenticated participant (Discord or email)
       const authedPlayers = players.filter((p) => p?.discordId || p?.userId);
       const eloField = this.state.mode === 'teams' ? 'eloTeams' : 'eloClassic';
-      const isRanked = !this.state.isPrivate;
+      // Guests may join public tables, but a mixed/guest match cannot affect ratings.
+      const isRanked = !this.state.isPrivate && authedPlayers.length === players.length;
 
       // Fetch current profiles so we can compute Elo deltas
       const currentProfiles = await Promise.all(
@@ -1382,12 +2088,12 @@ export class DurakRoom extends Room<GameState> {
       const eloInputs: EloPlayer[] = authedPlayers.map((p, i) => {
         const prof = currentProfiles[i];
         const isWinner = winnerSessions.includes(p.id);
-        const isDurak = this.state.loser === p.id;
         return {
           id: p.id,
           currentElo: prof?.[eloField] ?? 1000,
           gamesPlayed: prof?.stats.gamesPlayed ?? 0,
-          placement: isWinner ? 'winner' : isDurak ? 'durak' : 'middle',
+          // Everyone who did not win lost; there are no middle places.
+          placement: isWinner ? 'winner' : 'durak',
         };
       });
 
@@ -1435,7 +2141,7 @@ export class DurakRoom extends Room<GameState> {
                 }),
                 'stats.gamesPlayed': { $add: [{ $ifNull: ['$stats.gamesPlayed', 0] }, 1] },
                 'stats.wins': { $add: [{ $ifNull: ['$stats.wins', 0] }, isWinner ? 1 : 0] },
-                'stats.losses': { $add: [{ $ifNull: ['$stats.losses', 0] }, isDurak ? 1 : 0] },
+                'stats.losses': { $add: [{ $ifNull: ['$stats.losses', 0] }, isWinner ? 0 : 1] },
                 'stats.durakCount': {
                   $add: [{ $ifNull: ['$stats.durakCount', 0] }, isDurak ? 1 : 0],
                 },
@@ -1488,11 +2194,10 @@ export class DurakRoom extends Room<GameState> {
         this.notifyBadgeUnlocks(playerName, newBadges);
       }
 
-      // Award coins: winner = +10, durak = +3, others = +5
+      // Award coins: winners +10, everyone else +3
       const coinOps = authedPlayers.map((p) => {
         const isWinner = winnerSessions.includes(p.id);
-        const isDurak = this.state.loser === p.id;
-        const award = isWinner ? 10 : isDurak ? 3 : 5;
+        const award = isWinner ? 10 : 3;
         const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
         return PlayerProfile.findOneAndUpdate(filter, { $inc: { coins: award } });
       });

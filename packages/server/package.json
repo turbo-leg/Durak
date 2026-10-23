@@ -4,6 +4,8 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "build": "npm run typecheck",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "ts-node index.ts",
     "start:prod": "ts-node --transpile-only index.ts",
     "dev": "nodemon index.ts",

@@ -23,6 +23,7 @@ import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
 import { SHOP_ITEMS, FREE_ITEM_IDS } from './src/config/shopCatalog';
+import { sessionSecret } from './src/auth/session';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -34,20 +35,7 @@ const logger = pino(
     : { level: process.env.LOG_LEVEL ?? 'info' },
 );
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_PLACEHOLDERS = new Set([
-  'durak-dev-secret-change-in-prod',
-  'change-me-in-production',
-  'secret',
-  '',
-]);
-if (process.env.NODE_ENV === 'production') {
-  if (!JWT_SECRET || JWT_PLACEHOLDERS.has(JWT_SECRET)) {
-    logger.error('FATAL: JWT_SECRET is missing or uses a known insecure placeholder in production');
-    process.exit(1);
-  }
-}
-const _JWT_SECRET = JWT_SECRET ?? 'durak-dev-secret-change-in-prod';
+const _JWT_SECRET = sessionSecret();
 
 const COMMON_PASSWORDS = new Set([
   'password',
@@ -489,7 +477,8 @@ gameServer
   .define('durak', DurakRoom)
   .filterBy(['discordInstanceId', 'mode', 'maxPlayers', 'handSize', 'eloTier']);
 
-app.use('/colyseus', monitor());
+// Monitor includes privileged room data and mutation controls. Keep it local-only.
+if (process.env.NODE_ENV !== 'production') app.use('/colyseus', monitor());
 
 const clientDistPath = path.resolve(__dirname, '../client/dist');
 if (fs.existsSync(clientDistPath)) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { useGame, type RevealPair } from '../contexts/GameContext';
 import { Card as UICard } from './Card';
 import { Card as SharedCard, Player } from '@durak/shared';
@@ -9,6 +9,11 @@ import { useIsDesktop } from '../utils/useIsDesktop';
 import { SuhuhReveal } from './SuhuhReveal';
 import { CardBack } from './CardBack';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
+import { HandCard } from './HandCard';
+import { useCardBack } from '../contexts/CardBackContext';
+import { tableSnapshot, cardIdentity, cardLabel } from '../game/tableSnapshot';
+
+const ThreeTable = lazy(() => import('./three/ThreeTable'));
 
 const DealSoundTrigger = ({ delayMs, playSound }: { delayMs: number; playSound: () => void }) => {
   React.useEffect(() => {
@@ -48,6 +53,16 @@ export const GameBoard: React.FC = () => {
   const [devSelectedCards, setDevSelectedCards] = useState<Record<string, SharedCard[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [hasVotedRematch, setHasVotedRematch] = useState(false);
+  const [use3D, setUse3D] = useState(() => {
+    if (import.meta.env.MODE === 'test') return false;
+    try {
+      return localStorage.getItem('durak_table_view') !== '2d';
+    } catch {
+      return true;
+    }
+  });
+  const [renderMessage, setRenderMessage] = useState('');
+  const { imageUrl: cardBackUrl } = useCardBack();
   const {
     playDealSound,
     playCardSound,
@@ -60,10 +75,15 @@ export const GameBoard: React.FC = () => {
   const isDesktop = useIsDesktop();
   const warningPlayedRef = React.useRef(false);
   const gameResultKeyRef = React.useRef<string | null>(null);
+  const phase = gameState?.phase;
+  const turnStartTime = gameState?.turnStartTime ?? 0;
+  const turnTimeLimit = gameState?.turnTimeLimit ?? 0;
+  const loserId = gameState?.loser;
+  const sessionId = room?.sessionId;
 
   // Update timer smoothly using requestAnimationFrame
   useEffect(() => {
-    if (!gameState || gameState.phase !== 'playing') {
+    if (phase !== 'playing') {
       return;
     }
 
@@ -72,8 +92,8 @@ export const GameBoard: React.FC = () => {
     const updateTimer = () => {
       // Adjusted clock: Add our measured server offset to local time
       const currentServerTime = Date.now() + serverTimeOffset;
-      const elapsed = currentServerTime - gameState.turnStartTime;
-      const remaining = Math.max(0, gameState.turnTimeLimit - elapsed);
+      const elapsed = currentServerTime - turnStartTime;
+      const remaining = Math.max(0, turnTimeLimit - elapsed);
 
       setTimeRemaining(remaining);
 
@@ -83,7 +103,7 @@ export const GameBoard: React.FC = () => {
 
     updateTimer();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [gameState?.phase, gameState?.turnStartTime, gameState?.turnTimeLimit, serverTimeOffset]);
+  }, [phase, turnStartTime, turnTimeLimit, serverTimeOffset]);
 
   // Play discard sound when cards are marked for discard
   React.useEffect(() => {
@@ -119,16 +139,16 @@ export const GameBoard: React.FC = () => {
 
   // Victory / defeat jingle — fires once per game result
   React.useEffect(() => {
-    if (!gameState || gameState.phase !== 'finished' || !room) return;
-    const key = `${gameState.phase}:${gameState.loser}`;
+    if (phase !== 'finished' || !sessionId) return;
+    const key = `${phase}:${loserId}`;
     if (gameResultKeyRef.current === key) return;
     gameResultKeyRef.current = key;
-    if (gameState.loser === room.sessionId) {
+    if (loserId === sessionId) {
       playDefeatSound();
     } else {
       playVictorySound();
     }
-  }, [gameState?.phase, gameState?.loser, room?.sessionId, playVictorySound, playDefeatSound]);
+  }, [phase, loserId, sessionId, playVictorySound, playDefeatSound]);
 
   // Reset rematch vote when a new game starts so the button reappears
   React.useEffect(() => {
@@ -192,15 +212,16 @@ export const GameBoard: React.FC = () => {
   }, [gameState?.currentTurn, gameState?.activeAttackCards?.length]);
 
   // If the active attack changes, drop stale staging.
+  const activeAttackKey = Array.from(gameState?.activeAttackCards || [])
+    .filter((c): c is SharedCard => c !== undefined)
+    .map((c) => `${c.suit}:${c.rank}`)
+    .join('|');
   useEffect(() => {
-    const currentAttackCards = Array.from(gameState?.activeAttackCards || []).filter(
-      (c): c is SharedCard => c !== undefined,
-    );
-    if (currentAttackCards.length === 0) {
+    if (!activeAttackKey) {
       setStagedDefense({});
       return;
     }
-    const liveKeys = new Set(currentAttackCards.map((c) => `${c.suit}:${c.rank}`));
+    const liveKeys = new Set(activeAttackKey.split('|'));
     setStagedDefense((prev) => {
       let changed = false;
       const next: Record<string, SharedCard> = {};
@@ -210,19 +231,13 @@ export const GameBoard: React.FC = () => {
       }
       return changed ? next : prev;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    Array.from(gameState?.activeAttackCards || [])
-      .filter((c): c is SharedCard => c !== undefined)
-      .map((c) => `${c.suit}:${c.rank}`)
-      .join('|'),
-  ]);
+  }, [activeAttackKey]);
 
   if (!room || !gameState) {
     return null;
   }
 
-  const isMyTurn = gameState.currentTurn === room.sessionId;
+  const isMyTurn = gameState.phase === 'playing' && gameState.currentTurn === room.sessionId;
   const myPlayer = gameState.players.get(room.sessionId);
   // True if viewing as a spectator — either the flag is set, or (once game is live) sessionId
   // is absent from seatOrder, which catches any render before the isSpectator state commits.
@@ -406,6 +421,7 @@ export const GameBoard: React.FC = () => {
   };
 
   const isDevMode =
+    import.meta.env.DEV &&
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('dev') === 'true';
 
@@ -705,7 +721,17 @@ export const GameBoard: React.FC = () => {
                       {canEdit ? (
                         <select
                           value={gameState.mode}
-                          onChange={(e) => updateLobbySettings({ mode: e.target.value })}
+                          onChange={(e) =>
+                            updateLobbySettings({
+                              mode: e.target.value,
+                              maxPlayers:
+                                e.target.value === 'teams' && ![4, 6].includes(gameState.maxPlayers)
+                                  ? gameState.players.size > 4
+                                    ? 6
+                                    : 4
+                                  : gameState.maxPlayers,
+                            })
+                          }
                           style={selectStyle}
                         >
                           <option value="classic">Classic (Free-for-all)</option>
@@ -750,7 +776,7 @@ export const GameBoard: React.FC = () => {
                           }
                           style={selectStyle}
                         >
-                          {[2, 3, 4, 5, 6].map((n) => (
+                          {(gameState.mode === 'classic' ? [2, 3, 4, 5, 6] : [4, 6]).map((n) => (
                             <option key={n} value={n}>
                               {n} Players
                             </option>
@@ -1251,6 +1277,17 @@ export const GameBoard: React.FC = () => {
     ],
   };
   const seatPositions = SEAT_POSITIONS[opponents.length] || SEAT_POSITIONS[1] || [];
+  const snapshot = tableSnapshot(gameState, room.sessionId, viewAsSpectator);
+  const changeView = () => {
+    const next = !use3D;
+    setUse3D(next);
+    setRenderMessage('');
+    try {
+      localStorage.setItem('durak_table_view', next ? '3d' : '2d');
+    } catch {
+      /* Storage is optional. */
+    }
+  };
 
   return (
     <div
@@ -1353,13 +1390,13 @@ export const GameBoard: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '8px 14px',
+          padding: '12px 112px 12px 14px',
           background: 'linear-gradient(180deg, rgba(7,38,26,0.92), rgba(4,21,14,0.96))',
           borderBottom: '1px solid rgba(212,175,55,0.35)',
           boxShadow: '0 2px 10px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(0,0,0,0.4)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
           {isMyTurn && (
             <motion.div
               animate={shouldShake ? { x: [0, -2, 2, -2, 0] } : { x: 0 }}
@@ -1380,11 +1417,12 @@ export const GameBoard: React.FC = () => {
             <span
               style={{ color: '#f4d774', fontWeight: 800, fontFamily: "'Cinzel', Georgia, serif" }}
             >
-              {gameState.deck?.length || 0}
+              {gameState.deckCount}
             </span>
           </span>
           {gameState.huzurCard && (
             <span
+              aria-label={`Trump suit: ${gameState.huzurSuit}`}
               style={{
                 color: '#f4d774',
                 fontWeight: 700,
@@ -1393,7 +1431,8 @@ export const GameBoard: React.FC = () => {
                 textShadow: '0 0 8px rgba(212,175,55,0.4)',
               }}
             >
-              ♦ {gameState.huzurSuit}
+              {{ Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣' }[gameState.huzurSuit]}
+              <span className="hidden sm:inline"> {gameState.huzurSuit}</span>
             </span>
           )}
         </div>
@@ -1537,507 +1576,551 @@ export const GameBoard: React.FC = () => {
 
       {/* ── Oval Table Area ── */}
       <div className="flex-1 relative min-h-0">
-        {/* Oval felt surface — also the drop zone for drag-to-play */}
-        <div
-          ref={dropZoneRef}
-          className="absolute inset-3 md:inset-8 rounded-[50%] transition-colors duration-150"
-          style={{
-            background: 'radial-gradient(ellipse at center, #135c3f 0%, #0a3624 55%, #04150e 100%)',
-            border: `3px solid ${
-              draggingCardKey
-                ? isOverDropZone
-                  ? '#f4d774'
-                  : 'rgba(212,175,55,0.7)'
-                : 'rgba(212,175,55,0.45)'
-            }`,
-            boxShadow:
-              draggingCardKey && isOverDropZone
-                ? 'inset 0 0 90px rgba(212,175,55,0.35), inset 0 0 0 1px rgba(212,175,55,0.6), 0 0 30px rgba(212,175,55,0.25)'
-                : 'inset 0 0 80px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(212,175,55,0.18), 0 8px 24px rgba(0,0,0,0.55)',
-          }}
-        >
-          {/* Deck + Trump — pinned to the oval's left edge so played cards never collide with it */}
-          {gameState.phase === 'playing' && gameState.huzurCard && (
-            <div className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 pointer-events-none">
-              <div className="relative w-8 h-12 md:w-10 md:h-14">
-                {(gameState.deck?.length || 0) > 0 ? (
-                  <>
-                    <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rounded border border-white/10 bg-black/40 -z-10" />
-                    <div className="absolute inset-0">
-                      <CardBack />
-                    </div>
-                    <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[10px] md:text-xs drop-shadow z-10">
-                      {gameState.deck?.length}
-                    </span>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
-                )}
-              </div>
-              <div
-                style={{
-                  borderRadius: 8,
-                  padding: 1,
-                  background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 45%, #8b6914 100%)',
-                  boxShadow: '0 0 16px rgba(212,175,55,0.55)',
-                }}
-              >
-                <UICard card={gameState.huzurCard} compact />
-              </div>
-            </div>
-          )}
-
-          {/* Center: Table Cards (played pairs) — kept clear of the deck/trump cluster */}
-          <div className="absolute inset-0 flex items-center justify-center px-24 md:px-32 pointer-events-none">
-            <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 p-2 max-w-full pointer-events-auto">
-              {/* Table stack — pair-aware: shows atk→def pairing explicitly so mass attack
-                  defenses are obvious. Hidden while the discard overlay is active. */}
-              <AnimatePresence>
-                {!discardedCards &&
-                  (() => {
-                    // Build pairs from tableStacks (consecutive [atk, def] entries)
-                    type Pair = { atk: SharedCard; def?: SharedCard; pairKey: string };
-                    const pairs: Pair[] = [];
-                    const defSeen = new Set<string>();
-                    for (let i = 0; i < tableCards.length; i += 2) {
-                      const atk = tableCards[i];
-                      if (!atk) continue;
-                      const def = tableCards[i + 1];
-                      // Skip later "pair" entries whose atk is just a previous def
-                      // (chain re-uses def cards as the next round of attackers)
-                      const atkKey = `${atk.suit}:${atk.rank}`;
-                      if (defSeen.has(atkKey)) continue;
-                      if (def) defSeen.add(`${def.suit}:${def.rank}`);
-                      pairs.push({
-                        atk,
-                        def,
-                        pairKey: `${atkKey}-${def ? `${def.suit}:${def.rank}` : 'open'}`,
-                      });
-                    }
-                    // Active attacks not yet attached to any pair — fresh incoming attacks
-                    const pairedKeys = new Set([
-                      ...pairs.map((p) => `${p.atk.suit}:${p.atk.rank}`),
-                      ...pairs.filter((p) => p.def).map((p) => `${p.def!.suit}:${p.def!.rank}`),
-                    ]);
-                    const freshAttacks = attackCards.filter(
-                      (c) => !pairedKeys.has(`${c.suit}:${c.rank}`),
-                    );
-                    // If there are pending pairs (atk played, def not yet), merge fresh attacks into them.
-                    // Otherwise fresh attacks render standalone.
-                    const renderItems: Pair[] = [
-                      ...pairs,
-                      ...freshAttacks.map((atk) => ({
-                        atk,
-                        def: undefined,
-                        pairKey: `fresh-${atk.suit}:${atk.rank}`,
-                      })),
-                    ];
-                    return renderItems.map((p, i) => {
-                      const rotate =
-                        (i % 2 === 0 ? -3 : 3) + (i - (renderItems.length - 1) / 2) * 4;
-                      const atkKey = attackerKey(p.atk);
-                      // isPendingAttacker: card still needs a defender (visible to everyone)
-                      const isPendingAttacker =
-                        !p.def && attackCards.some((c) => attackerKey(c) === atkKey);
-                      // Only the current defender gets interactive drop zones
-                      const isDropTarget = isPendingAttacker && isMyTurn;
-                      const staged = isDropTarget ? stagedDefense[atkKey] : undefined;
-                      const isHovered =
-                        isDropTarget && hoveredAttackerKey === atkKey && !!draggingCardKey;
-                      const showGhost =
-                        isPendingAttacker &&
-                        !staged &&
-                        !isMyTurn &&
-                        ghostedAttackerKeys.has(atkKey);
-
-                      return (
-                        <motion.div
-                          key={`pair-${p.pairKey}`}
-                          initial={{ opacity: 0, scale: 0.85, y: 12 }}
-                          animate={{ opacity: 1, scale: 1, y: 0, rotate }}
-                          exit={{ opacity: 0, scale: 1, transition: { duration: 0 } }}
-                          transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                          style={{ zIndex: i }}
-                          className="relative flex-shrink-0"
-                        >
-                          {isPendingAttacker ? (
-                            /* ── Per-card drop zone: slot above, attacker below ── */
-                            <div
-                              ref={(el) => {
-                                if (isDropTarget) attackerDropRefs.current.set(atkKey, el);
-                                else attackerDropRefs.current.delete(atkKey);
-                              }}
-                              className={`flex flex-col items-center gap-0.5 rounded-lg p-0.5 transition-all duration-150 ${
-                                isHovered
-                                  ? 'bg-yellow-400/10 shadow-[0_0_20px_rgba(250,204,21,0.5)]'
-                                  : ''
-                              }`}
-                            >
-                              {/* Defender slot — shows staged card, ghost, or empty placeholder */}
-                              <div
-                                className={`w-12 h-[72px] rounded-md border-2 flex items-center justify-center transition-all duration-150 relative overflow-hidden ${
-                                  staged
-                                    ? 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.55)]'
-                                    : isHovered
-                                      ? 'border-yellow-300 bg-yellow-300/20'
-                                      : 'border-dashed border-white/25 bg-white/5'
-                                }`}
-                              >
-                                {staged ? (
-                                  /* Staged card is draggable — lets the defender move it
-                                     directly from one attacker slot to another. */
-                                  <motion.div
-                                    key={`staged-${atkKey}-${staged.suit}-${staged.rank}`}
-                                    initial={{ opacity: 0, scale: 0.6 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-                                    className="absolute inset-0 cursor-grab active:cursor-grabbing"
-                                    style={{ touchAction: 'none' }}
-                                    drag={isDropTarget}
-                                    dragSnapToOrigin
-                                    dragElastic={0.4}
-                                    dragMomentum={false}
-                                    whileDrag={{ scale: 1.15, zIndex: 200 }}
-                                    onTap={() => {
-                                      if (isDropTarget) unstageDefender(atkKey);
-                                    }}
-                                    onDragStart={() => {
-                                      setDraggingCardKey(`slot-${atkKey}`);
-                                      Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
-                                      room.send('defenderDragging');
-                                    }}
-                                    onDrag={(_, info) => {
-                                      setHoveredAttackerKey(
-                                        pointOverAttacker(info.point.x, info.point.y),
-                                      );
-                                    }}
-                                    onDragEnd={(_, info) => {
-                                      const target = pointOverAttacker(info.point.x, info.point.y);
-                                      setDraggingCardKey(null);
-                                      setHoveredAttackerKey(null);
-                                      room.send('defenderDragEnd');
-                                      if (target && target !== atkKey) {
-                                        stageDefender(target, staged);
-                                      }
-                                    }}
-                                  >
-                                    <div className="pointer-events-none">
-                                      <UICard card={staged} compact />
-                                    </div>
-                                  </motion.div>
-                                ) : showGhost ? (
-                                  <motion.div
-                                    key={`ghost-${atkKey}`}
-                                    initial={{ opacity: 0, scale: 0.6 }}
-                                    animate={{ opacity: 0.95, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.5 }}
-                                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-                                    className="absolute inset-0 rounded-md ring-1 ring-white/20"
-                                    style={{
-                                      background:
-                                        'repeating-linear-gradient(45deg,#7f1d1d 0 6px,#991b1b 6px 12px)',
-                                    }}
-                                  >
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <span className="text-white/80 text-lg">★</span>
-                                    </div>
-                                  </motion.div>
-                                ) : (
-                                  <span
-                                    className={`text-2xl font-thin select-none transition-colors ${
-                                      isHovered ? 'text-yellow-300' : 'text-white/20'
-                                    }`}
-                                  >
-                                    +
-                                  </span>
-                                )}
-                              </div>
-                              {/* Attacker card — the card that must be beaten */}
-                              <UICard card={p.atk} compact />
-                            </div>
-                          ) : (
-                            /* ── Resolved pair: attacker with defender overlaid ── */
-                            <div className="relative">
-                              <UICard card={p.atk} compact />
-                              {p.def && (
-                                <motion.div
-                                  initial={{ opacity: 0, x: -6, y: -6, rotate: -8 }}
-                                  animate={{ opacity: 1, x: 0, y: 0, rotate: 8 }}
-                                  transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-                                  className="absolute left-3 top-3 ring-1 ring-green-400/50 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
-                                >
-                                  <UICard card={p.def} compact />
-                                </motion.div>
-                              )}
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    });
-                  })()}
-              </AnimatePresence>
-
-              {/* Defense reveal — 1.5s window after round ends, before discard animation */}
-              <AnimatePresence>
-                {defenseRevealPairs && !discardedCards && (
-                  <motion.div
-                    key="defense-reveal"
-                    initial={{ opacity: 0, scale: 0.88 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                  >
-                    <div className="flex items-center justify-center gap-3 flex-wrap">
-                      {(defenseRevealPairs as RevealPair[]).map((pair, i) => (
-                        <div key={i} className="relative flex-shrink-0">
-                          <UICard card={pair.atk as unknown as SharedCard} compact />
-                          {/* Defender card flips in — rotateY -90→0 simulates flipping face-up */}
-                          <motion.div
-                            initial={{ rotateY: -90 }}
-                            animate={{ rotateY: 0 }}
-                            transition={{
-                              duration: 0.42,
-                              ease: [0.25, 0.46, 0.45, 0.94],
-                              delay: i * 0.1,
-                            }}
-                            style={{ transformPerspective: 900, rotate: 8 }}
-                            className="absolute left-3 top-3 ring-1 ring-green-400/60 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-                          >
-                            <UICard card={pair.def as unknown as SharedCard} compact />
-                          </motion.div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Discard animation — shown briefly after a successful defense round */}
-              <AnimatePresence>
-                {discardedCards &&
-                  discardedCards.length > 0 &&
-                  (() => {
-                    // Server sends raw tableStacks (each card appears twice in a chain — as the
-                    // def in one pair and the atk in the next) plus activeAttackCards (the latest
-                    // defs again). Dedupe so the discard pile is clean.
-                    const seen = new Set<string>();
-                    const uniqueDiscarded = discardedCards.filter((c) => {
-                      const k = `${c.suit}:${c.rank}`;
-                      if (seen.has(k)) return false;
-                      seen.add(k);
-                      return true;
-                    });
-                    return (
-                      <motion.div
-                        key="discard-pile"
-                        className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                      >
-                        {uniqueDiscarded.map((card, i) => (
-                          <motion.div
-                            key={`discard-${card.suit}-${card.rank}-${i}`}
-                            initial={{
-                              opacity: 1,
-                              y: 0,
-                              scale: 1,
-                              rotate: (i % 2 === 0 ? -3 : 3) + (i * 1.5 - uniqueDiscarded.length),
-                            }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{
-                              opacity: 0,
-                              y: -55,
-                              scale: 0.45,
-                              rotate: i % 2 === 0 ? -15 : 15,
-                              transition: { duration: 0.38, delay: i * 0.035, ease: 'easeIn' },
-                            }}
-                            style={{ marginLeft: i > 0 ? '-28px' : 0, zIndex: i }}
-                            className="flex-shrink-0"
-                          >
-                            <UICard card={card as unknown as SharedCard} compact />
-                          </motion.div>
-                        ))}
-                      </motion.div>
-                    );
-                  })()}
-              </AnimatePresence>
-            </div>
-          </div>
+        <div className="absolute top-2 left-3 z-20 flex items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={changeView}
+            aria-label={use3D ? 'Switch to 2D table' : 'Switch to 3D table'}
+            className="rounded-full border border-amber-200/30 bg-emerald-950/90 px-3 py-1.5 text-amber-100 focus-visible:outline-2 focus-visible:outline-amber-200"
+          >
+            {use3D ? '2D table' : '3D table'}
+          </button>
+          {renderMessage && <span role="status">{renderMessage}</span>}
         </div>
-
-        {/* ── Opponent Seats (clockwise around the oval) ── */}
-        {opponents.map(({ id, player }, i) => {
-          const pos = seatPositions[i] || { top: '10%', left: '50%' };
-          const isPlaying = gameState.currentTurn === id;
-
-          return (
+        {use3D ? (
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center" role="status">
+                Preparing the table…
+              </div>
+            }
+          >
+            <ThreeTable
+              snapshot={snapshot}
+              selectedKeys={selectedCards.map(cardIdentity).join('|')}
+              backUrl={cardBackUrl}
+              onSelect={(key) => {
+                const card = myHand.find((candidate) => cardIdentity(candidate) === key);
+                if (card && isMyTurn) handleCardClick(card);
+              }}
+              onUnavailable={() => {
+                setUse3D(false);
+                setRenderMessage('3D unavailable. You can keep playing in 2D.');
+              }}
+            />
+          </Suspense>
+        ) : (
+          <>
+            {/* Oval felt surface — also the drop zone for drag-to-play */}
             <div
-              key={id}
-              className="absolute z-10 flex flex-col items-center -translate-x-1/2"
-              style={{ top: pos.top, left: pos.left }}
+              ref={dropZoneRef}
+              className="absolute inset-3 md:inset-8 rounded-[50%] transition-colors duration-150"
+              style={{
+                background:
+                  'radial-gradient(ellipse at center, #135c3f 0%, #0a3624 55%, #04150e 100%)',
+                border: `3px solid ${
+                  draggingCardKey
+                    ? isOverDropZone
+                      ? '#f4d774'
+                      : 'rgba(212,175,55,0.7)'
+                    : 'rgba(212,175,55,0.45)'
+                }`,
+                boxShadow:
+                  draggingCardKey && isOverDropZone
+                    ? 'inset 0 0 90px rgba(212,175,55,0.35), inset 0 0 0 1px rgba(212,175,55,0.6), 0 0 30px rgba(212,175,55,0.25)'
+                    : 'inset 0 0 80px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(212,175,55,0.18), 0 8px 24px rgba(0,0,0,0.55)',
+              }}
             >
-              <div
-                className="flex flex-col items-center transition-all"
-                style={{
-                  padding: '6px 8px',
-                  borderRadius: 14,
-                  background: isPlaying
-                    ? 'linear-gradient(180deg, rgba(212,175,55,0.18), rgba(139,105,20,0.12))'
-                    : 'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
-                  border: isPlaying ? '1.5px solid #d4af37' : '1px solid rgba(212,175,55,0.18)',
-                  boxShadow: isPlaying
-                    ? '0 0 20px rgba(212,175,55,0.5), inset 0 1px 0 rgba(255,255,255,0.06)'
-                    : '0 4px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)',
-                }}
-              >
-                <div
-                  style={{
-                    padding: 2,
-                    borderRadius: '50%',
-                    background: isPlaying
-                      ? 'linear-gradient(135deg, #f4d774, #d4af37 50%, #8b6914)'
-                      : 'linear-gradient(135deg, rgba(212,175,55,0.5), rgba(139,105,20,0.5))',
-                  }}
-                >
-                  {player.avatarUrl ? (
-                    <img
-                      src={player.avatarUrl}
-                      alt={player.username || id}
-                      className="w-7 h-7 md:w-9 md:h-9 rounded-full"
-                      style={{ display: 'block' }}
-                    />
-                  ) : (
-                    <div
-                      className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center"
-                      style={{
-                        background: 'linear-gradient(180deg, #07261a, #04150e)',
-                        color: '#d8c89c',
-                        fontFamily: "'Cinzel', Georgia, serif",
-                        fontWeight: 700,
-                        fontSize: 11,
-                      }}
-                    >
-                      {(player.username || id).slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <span
-                  className="truncate max-w-[60px] md:max-w-[110px]"
-                  style={{
-                    marginTop: 4,
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: isPlaying ? '#f4d774' : '#d8c89c',
-                    letterSpacing: 0.5,
-                    textShadow: '0 1px 2px rgba(0,0,0,0.6)',
-                  }}
-                >
-                  {player.username || id.slice(0, 6)}
-                </span>
-                <span
-                  style={{
-                    marginTop: 3,
-                    fontSize: 10,
-                    fontWeight: 800,
-                    color: '#f5ead0',
-                    background: 'rgba(0,0,0,0.55)',
-                    border: '1px solid rgba(212,175,55,0.3)',
-                    padding: '1px 8px',
-                    borderRadius: 999,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  🃏{player.hand.length}
-                </span>
-                {gameState.mode === 'teams' && (
-                  <span
+              {/* Deck + Trump — pinned to the oval's left edge so played cards never collide with it */}
+              {gameState.phase === 'playing' && gameState.huzurCard && (
+                <div className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 pointer-events-none">
+                  <div className="relative w-8 h-12 md:w-10 md:h-14">
+                    {gameState.deckCount > 0 ? (
+                      <>
+                        <div className="absolute inset-0 translate-x-0.5 -translate-y-0.5 rounded border border-white/10 bg-black/40 -z-10" />
+                        <div className="absolute inset-0">
+                          <CardBack />
+                        </div>
+                        <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[10px] md:text-xs drop-shadow z-10">
+                          {gameState.deckCount}
+                        </span>
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 rounded border border-dashed border-white/20 bg-black/20" />
+                    )}
+                  </div>
+                  <div
                     style={{
-                      marginTop: 3,
-                      fontSize: 8,
-                      fontWeight: 800,
-                      letterSpacing: 1,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      background:
-                        player.team === 0
-                          ? 'linear-gradient(135deg, #1e3a8a, #0a1a4a)'
-                          : 'linear-gradient(135deg, #8b2121, #2a0a0a)',
-                      color: player.team === 0 ? '#dbeafe' : '#fde2e2',
-                      border: player.team === 0 ? '1px solid #3b82f6' : '1px solid #b13030',
+                      borderRadius: 8,
+                      padding: 1,
+                      background: 'linear-gradient(135deg, #f4d774 0%, #d4af37 45%, #8b6914 100%)',
+                      boxShadow: '0 0 16px rgba(212,175,55,0.55)',
                     }}
                   >
-                    {player.team === 0 ? 'BLU' : 'RED'}
-                  </span>
-                )}
+                    <UICard card={gameState.huzurCard} compact />
+                  </div>
+                </div>
+              )}
+
+              {/* Center: Table Cards (played pairs) — kept clear of the deck/trump cluster */}
+              <div className="absolute inset-0 flex items-center justify-center px-24 md:px-32 pointer-events-none">
+                <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 p-2 max-w-full pointer-events-auto">
+                  {/* Table stack — pair-aware: shows atk→def pairing explicitly so mass attack
+                  defenses are obvious. Hidden while the discard overlay is active. */}
+                  <AnimatePresence>
+                    {!discardedCards &&
+                      (() => {
+                        // Build pairs from tableStacks (consecutive [atk, def] entries)
+                        type Pair = { atk: SharedCard; def?: SharedCard; pairKey: string };
+                        const pairs: Pair[] = [];
+                        const defSeen = new Set<string>();
+                        for (let i = 0; i < tableCards.length; i += 2) {
+                          const atk = tableCards[i];
+                          if (!atk) continue;
+                          const def = tableCards[i + 1];
+                          // Skip later "pair" entries whose atk is just a previous def
+                          // (chain re-uses def cards as the next round of attackers)
+                          const atkKey = `${atk.suit}:${atk.rank}`;
+                          if (defSeen.has(atkKey)) continue;
+                          if (def) defSeen.add(`${def.suit}:${def.rank}`);
+                          pairs.push({
+                            atk,
+                            def,
+                            pairKey: `${atkKey}-${def ? `${def.suit}:${def.rank}` : 'open'}`,
+                          });
+                        }
+                        // Active attacks not yet attached to any pair — fresh incoming attacks
+                        const pairedKeys = new Set([
+                          ...pairs.map((p) => `${p.atk.suit}:${p.atk.rank}`),
+                          ...pairs.filter((p) => p.def).map((p) => `${p.def!.suit}:${p.def!.rank}`),
+                        ]);
+                        const freshAttacks = attackCards.filter(
+                          (c) => !pairedKeys.has(`${c.suit}:${c.rank}`),
+                        );
+                        // If there are pending pairs (atk played, def not yet), merge fresh attacks into them.
+                        // Otherwise fresh attacks render standalone.
+                        const renderItems: Pair[] = [
+                          ...pairs,
+                          ...freshAttacks.map((atk) => ({
+                            atk,
+                            def: undefined,
+                            pairKey: `fresh-${atk.suit}:${atk.rank}`,
+                          })),
+                        ];
+                        return renderItems.map((p, i) => {
+                          const rotate =
+                            (i % 2 === 0 ? -3 : 3) + (i - (renderItems.length - 1) / 2) * 4;
+                          const atkKey = attackerKey(p.atk);
+                          // isPendingAttacker: card still needs a defender (visible to everyone)
+                          const isPendingAttacker =
+                            !p.def && attackCards.some((c) => attackerKey(c) === atkKey);
+                          // Only the current defender gets interactive drop zones
+                          const isDropTarget = isPendingAttacker && isMyTurn;
+                          const staged = isDropTarget ? stagedDefense[atkKey] : undefined;
+                          const isHovered =
+                            isDropTarget && hoveredAttackerKey === atkKey && !!draggingCardKey;
+                          const showGhost =
+                            isPendingAttacker &&
+                            !staged &&
+                            !isMyTurn &&
+                            ghostedAttackerKeys.has(atkKey);
+
+                          return (
+                            <motion.div
+                              key={`pair-${p.pairKey}`}
+                              initial={{ opacity: 0, scale: 0.85, y: 12 }}
+                              animate={{ opacity: 1, scale: 1, y: 0, rotate }}
+                              exit={{ opacity: 0, scale: 1, transition: { duration: 0 } }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                              style={{ zIndex: i }}
+                              className="relative flex-shrink-0"
+                            >
+                              {isPendingAttacker ? (
+                                /* ── Per-card drop zone: slot above, attacker below ── */
+                                <div
+                                  ref={(el) => {
+                                    if (isDropTarget) attackerDropRefs.current.set(atkKey, el);
+                                    else attackerDropRefs.current.delete(atkKey);
+                                  }}
+                                  className={`flex flex-col items-center gap-0.5 rounded-lg p-0.5 transition-all duration-150 ${
+                                    isHovered
+                                      ? 'bg-yellow-400/10 shadow-[0_0_20px_rgba(250,204,21,0.5)]'
+                                      : ''
+                                  }`}
+                                >
+                                  {/* Defender slot — shows staged card, ghost, or empty placeholder */}
+                                  <div
+                                    className={`w-12 h-[72px] rounded-md border-2 flex items-center justify-center transition-all duration-150 relative overflow-hidden ${
+                                      staged
+                                        ? 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.55)]'
+                                        : isHovered
+                                          ? 'border-yellow-300 bg-yellow-300/20'
+                                          : 'border-dashed border-white/25 bg-white/5'
+                                    }`}
+                                  >
+                                    {staged ? (
+                                      /* Staged card is draggable — lets the defender move it
+                                     directly from one attacker slot to another. */
+                                      <motion.div
+                                        key={`staged-${atkKey}-${staged.suit}-${staged.rank}`}
+                                        initial={{ opacity: 0, scale: 0.6 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                                        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+                                        style={{ touchAction: 'none' }}
+                                        drag={isDropTarget}
+                                        dragSnapToOrigin
+                                        dragElastic={0.4}
+                                        dragMomentum={false}
+                                        whileDrag={{ scale: 1.15, zIndex: 200 }}
+                                        onTap={() => {
+                                          if (isDropTarget) unstageDefender(atkKey);
+                                        }}
+                                        onDragStart={() => {
+                                          setDraggingCardKey(`slot-${atkKey}`);
+                                          Haptics.impact({ style: ImpactStyle.Light }).catch(
+                                            () => {},
+                                          );
+                                          room.send('defenderDragging');
+                                        }}
+                                        onDrag={(_, info) => {
+                                          setHoveredAttackerKey(
+                                            pointOverAttacker(info.point.x, info.point.y),
+                                          );
+                                        }}
+                                        onDragEnd={(_, info) => {
+                                          const target = pointOverAttacker(
+                                            info.point.x,
+                                            info.point.y,
+                                          );
+                                          setDraggingCardKey(null);
+                                          setHoveredAttackerKey(null);
+                                          room.send('defenderDragEnd');
+                                          if (target && target !== atkKey) {
+                                            stageDefender(target, staged);
+                                          }
+                                        }}
+                                      >
+                                        <div className="pointer-events-none">
+                                          <UICard card={staged} compact />
+                                        </div>
+                                      </motion.div>
+                                    ) : showGhost ? (
+                                      <motion.div
+                                        key={`ghost-${atkKey}`}
+                                        initial={{ opacity: 0, scale: 0.6 }}
+                                        animate={{ opacity: 0.95, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.5 }}
+                                        transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                                        className="absolute inset-0 rounded-md ring-1 ring-white/20"
+                                        style={{
+                                          background:
+                                            'repeating-linear-gradient(45deg,#7f1d1d 0 6px,#991b1b 6px 12px)',
+                                        }}
+                                      >
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <span className="text-white/80 text-lg">★</span>
+                                        </div>
+                                      </motion.div>
+                                    ) : (
+                                      <span
+                                        className={`text-2xl font-thin select-none transition-colors ${
+                                          isHovered ? 'text-yellow-300' : 'text-white/20'
+                                        }`}
+                                      >
+                                        +
+                                      </span>
+                                    )}
+                                  </div>
+                                  {/* Attacker card — the card that must be beaten */}
+                                  <UICard card={p.atk} compact />
+                                </div>
+                              ) : (
+                                /* ── Resolved pair: attacker with defender overlaid ── */
+                                <div className="relative">
+                                  <UICard card={p.atk} compact />
+                                  {p.def && (
+                                    <motion.div
+                                      initial={{ opacity: 0, x: -6, y: -6, rotate: -8 }}
+                                      animate={{ opacity: 1, x: 0, y: 0, rotate: 8 }}
+                                      transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                                      className="absolute left-3 top-3 ring-1 ring-green-400/50 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
+                                    >
+                                      <UICard card={p.def} compact />
+                                    </motion.div>
+                                  )}
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        });
+                      })()}
+                  </AnimatePresence>
+
+                  {/* Defense reveal — 1.5s window after round ends, before discard animation */}
+                  <AnimatePresence>
+                    {defenseRevealPairs && !discardedCards && (
+                      <motion.div
+                        key="defense-reveal"
+                        initial={{ opacity: 0, scale: 0.88 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
+                        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      >
+                        <div className="flex items-center justify-center gap-3 flex-wrap">
+                          {(defenseRevealPairs as RevealPair[]).map((pair, i) => (
+                            <div key={i} className="relative flex-shrink-0">
+                              <UICard card={pair.atk as unknown as SharedCard} compact />
+                              {/* Defender card flips in — rotateY -90→0 simulates flipping face-up */}
+                              <motion.div
+                                initial={{ rotateY: -90 }}
+                                animate={{ rotateY: 0 }}
+                                transition={{
+                                  duration: 0.42,
+                                  ease: [0.25, 0.46, 0.45, 0.94],
+                                  delay: i * 0.1,
+                                }}
+                                style={{ transformPerspective: 900, rotate: 8 }}
+                                className="absolute left-3 top-3 ring-1 ring-green-400/60 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                              >
+                                <UICard card={pair.def as unknown as SharedCard} compact />
+                              </motion.div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Discard animation — shown briefly after a successful defense round */}
+                  <AnimatePresence>
+                    {discardedCards &&
+                      discardedCards.length > 0 &&
+                      (() => {
+                        // Server sends raw tableStacks (each card appears twice in a chain — as the
+                        // def in one pair and the atk in the next) plus activeAttackCards (the latest
+                        // defs again). Dedupe so the discard pile is clean.
+                        const seen = new Set<string>();
+                        const uniqueDiscarded = discardedCards.filter((c) => {
+                          const k = `${c.suit}:${c.rank}`;
+                          if (seen.has(k)) return false;
+                          seen.add(k);
+                          return true;
+                        });
+                        return (
+                          <motion.div
+                            key="discard-pile"
+                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                          >
+                            {uniqueDiscarded.map((card, i) => (
+                              <motion.div
+                                key={`discard-${card.suit}-${card.rank}-${i}`}
+                                initial={{
+                                  opacity: 1,
+                                  y: 0,
+                                  scale: 1,
+                                  rotate:
+                                    (i % 2 === 0 ? -3 : 3) + (i * 1.5 - uniqueDiscarded.length),
+                                }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{
+                                  opacity: 0,
+                                  y: -55,
+                                  scale: 0.45,
+                                  rotate: i % 2 === 0 ? -15 : 15,
+                                  transition: { duration: 0.38, delay: i * 0.035, ease: 'easeIn' },
+                                }}
+                                style={{ marginLeft: i > 0 ? '-28px' : 0, zIndex: i }}
+                                className="flex-shrink-0"
+                              >
+                                <UICard card={card as unknown as SharedCard} compact />
+                              </motion.div>
+                            ))}
+                          </motion.div>
+                        );
+                      })()}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
-          );
-        })}
 
-        {/* Dev mode: show opponent hands inline (simplified for oval) */}
-        {isDevMode &&
-          opponents.map(({ id, player }, i) => {
-            const pos = seatPositions[i] || { top: '10%', left: '50%' };
-            return (
-              <div
-                key={`dev-${id}`}
-                className="absolute z-20 -translate-x-1/2"
-                style={{
-                  top: `calc(${pos.top} + 70px)`,
-                  left: pos.left,
-                }}
-              >
-                <div className="flex gap-0.5 bg-black/60 p-1 rounded border border-red-500/30">
-                  {Array.from(player.hand)
-                    .filter((c): c is SharedCard => c !== undefined)
-                    .map((c, ci) => (
-                      <div
-                        key={ci}
-                        onClick={() => handleDevCardClick(id, c)}
-                        className={`${!isHost ? 'pointer-events-none' : 'cursor-pointer'} ${
-                          (devSelectedCards[id] || []).find(
-                            (sc) => sc.suit === c.suit && sc.rank === c.rank,
-                          )
-                            ? 'ring-1 ring-yellow-400 -translate-y-1'
-                            : ''
-                        }`}
+            {/* ── Opponent Seats (clockwise around the oval) ── */}
+            {opponents.map(({ id, player }, i) => {
+              const pos = seatPositions[i] || { top: '10%', left: '50%' };
+              const isPlaying = gameState.currentTurn === id;
+
+              return (
+                <div
+                  key={id}
+                  className="absolute z-10 flex flex-col items-center -translate-x-1/2"
+                  style={{ top: pos.top, left: pos.left }}
+                >
+                  <div
+                    className="flex flex-col items-center transition-all"
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 14,
+                      background: isPlaying
+                        ? 'linear-gradient(180deg, rgba(212,175,55,0.18), rgba(139,105,20,0.12))'
+                        : 'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
+                      border: isPlaying ? '1.5px solid #d4af37' : '1px solid rgba(212,175,55,0.18)',
+                      boxShadow: isPlaying
+                        ? '0 0 20px rgba(212,175,55,0.5), inset 0 1px 0 rgba(255,255,255,0.06)'
+                        : '0 4px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: 2,
+                        borderRadius: '50%',
+                        background: isPlaying
+                          ? 'linear-gradient(135deg, #f4d774, #d4af37 50%, #8b6914)'
+                          : 'linear-gradient(135deg, rgba(212,175,55,0.5), rgba(139,105,20,0.5))',
+                      }}
+                    >
+                      {player.avatarUrl ? (
+                        <img
+                          src={player.avatarUrl}
+                          alt={player.username || id}
+                          className="w-7 h-7 md:w-9 md:h-9 rounded-full"
+                          style={{ display: 'block' }}
+                        />
+                      ) : (
+                        <div
+                          className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center"
+                          style={{
+                            background: 'linear-gradient(180deg, #07261a, #04150e)',
+                            color: '#d8c89c',
+                            fontFamily: "'Cinzel', Georgia, serif",
+                            fontWeight: 700,
+                            fontSize: 11,
+                          }}
+                        >
+                          {(player.username || id).slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className="truncate max-w-[60px] md:max-w-[110px]"
+                      style={{
+                        marginTop: 4,
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: isPlaying ? '#f4d774' : '#d8c89c',
+                        letterSpacing: 0.5,
+                        textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                      }}
+                    >
+                      {player.username || id.slice(0, 6)}
+                    </span>
+                    <span
+                      style={{
+                        marginTop: 3,
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: '#f5ead0',
+                        background: 'rgba(0,0,0,0.55)',
+                        border: '1px solid rgba(212,175,55,0.3)',
+                        padding: '1px 8px',
+                        borderRadius: 999,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      🃏{player.handCount}
+                    </span>
+                    {gameState.mode === 'teams' && (
+                      <span
+                        style={{
+                          marginTop: 3,
+                          fontSize: 8,
+                          fontWeight: 800,
+                          letterSpacing: 1,
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background:
+                            player.team === 0
+                              ? 'linear-gradient(135deg, #1e3a8a, #0a1a4a)'
+                              : 'linear-gradient(135deg, #8b2121, #2a0a0a)',
+                          color: player.team === 0 ? '#dbeafe' : '#fde2e2',
+                          border: player.team === 0 ? '1px solid #3b82f6' : '1px solid #b13030',
+                        }}
                       >
-                        <UICard card={c} compact />
-                      </div>
-                    ))}
+                        {player.team === 0 ? 'BLU' : 'RED'}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-0.5 mt-0.5 justify-center">
-                  <button
-                    disabled={!isHost}
-                    onClick={() => handleDevAction(id, 'attack')}
-                    className="bg-red-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              );
+            })}
+
+            {/* Dev mode: show opponent hands inline (simplified for oval) */}
+            {isDevMode &&
+              opponents.map(({ id, player }, i) => {
+                const pos = seatPositions[i] || { top: '10%', left: '50%' };
+                return (
+                  <div
+                    key={`dev-${id}`}
+                    className="absolute z-20 -translate-x-1/2"
+                    style={{
+                      top: `calc(${pos.top} + 70px)`,
+                      left: pos.left,
+                    }}
                   >
-                    Atk
-                  </button>
-                  <button
-                    disabled={!isHost}
-                    onClick={() => handleDevAction(id, 'defend')}
-                    className="bg-green-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Def
-                  </button>
-                  <button
-                    disabled={!isHost}
-                    onClick={() => handleDevAction(id, 'pickUp')}
-                    className="bg-yellow-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Pick
-                  </button>
-                  <button
-                    disabled={!isHost}
-                    onClick={() => handleDevAction(id, 'swapHuzur')}
-                    className="bg-purple-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Swap
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    <div className="flex gap-0.5 bg-black/60 p-1 rounded border border-red-500/30">
+                      {Array.from(player.hand || [])
+                        .filter((c): c is SharedCard => c !== undefined)
+                        .map((c, ci) => (
+                          <div
+                            key={ci}
+                            onClick={() => handleDevCardClick(id, c)}
+                            className={`${!isHost ? 'pointer-events-none' : 'cursor-pointer'} ${
+                              (devSelectedCards[id] || []).find(
+                                (sc) => sc.suit === c.suit && sc.rank === c.rank,
+                              )
+                                ? 'ring-1 ring-yellow-400 -translate-y-1'
+                                : ''
+                            }`}
+                          >
+                            <UICard card={c} compact />
+                          </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-0.5 mt-0.5 justify-center">
+                      <button
+                        disabled={!isHost}
+                        onClick={() => handleDevAction(id, 'attack')}
+                        className="bg-red-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Atk
+                      </button>
+                      <button
+                        disabled={!isHost}
+                        onClick={() => handleDevAction(id, 'defend')}
+                        className="bg-green-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Def
+                      </button>
+                      <button
+                        disabled={!isHost}
+                        onClick={() => handleDevAction(id, 'pickUp')}
+                        className="bg-yellow-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Pick
+                      </button>
+                      <button
+                        disabled={!isHost}
+                        onClick={() => handleDevAction(id, 'swapHuzur')}
+                        className="bg-purple-600 text-[8px] px-1 py-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Swap
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </>
+        )}
       </div>
 
       {/* ── Action Buttons ── */}
@@ -2145,7 +2228,7 @@ export const GameBoard: React.FC = () => {
                       </>
                     );
                   })()}
-                {(gameState.deck?.length || 0) > 0 &&
+                {gameState.deckCount > 0 &&
                   gameState.huzurCard &&
                   (gameState.huzurCard.isJoker
                     ? myHand.some((c) => c.suit === 'Spades' && c.rank === 16) &&
@@ -2201,7 +2284,7 @@ export const GameBoard: React.FC = () => {
                   const canDrag = isMyTurn && !isStaged;
 
                   return (
-                    <motion.div
+                    <HandCard
                       key={cardKey}
                       layoutId={isDraggingThis ? undefined : `card-${card.suit}-${card.rank}`}
                       initial={{ opacity: 0, y: 60, scale: 0.5 }}
@@ -2228,7 +2311,21 @@ export const GameBoard: React.FC = () => {
                       dragElastic={0.4}
                       dragMomentum={false}
                       whileDrag={{ scale: 1.2, zIndex: 200 }}
-                      onTap={() => handleCardClick(card)}
+                      role="button"
+                      tabIndex={isMyTurn ? 0 : -1}
+                      aria-label={`Select ${cardLabel(card)}`}
+                      aria-pressed={isSelected}
+                      aria-disabled={!isMyTurn}
+                      onKeyDown={(event) => {
+                        // Framer Motion already translates Enter into onTap.
+                        if (isMyTurn && event.key === ' ' && !event.repeat) {
+                          event.preventDefault();
+                          handleCardClick(card);
+                        }
+                      }}
+                      onTap={() => {
+                        if (isMyTurn) handleCardClick(card);
+                      }}
                       onDragStart={() => {
                         setDraggingCardKey(cardKey);
                         Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
@@ -2292,7 +2389,7 @@ export const GameBoard: React.FC = () => {
                       <div className="pointer-events-none">
                         <UICard card={card} isPlayable={true} />
                       </div>
-                    </motion.div>
+                    </HandCard>
                   );
                 })}
               </AnimatePresence>
@@ -2415,7 +2512,7 @@ export const GameBoard: React.FC = () => {
             const title = isLoser ? 'You Are the Durak' : isDraw ? 'Draw' : 'You Survived';
             // Determine whose loser name to show
             const loserName =
-              gameState.players.get(gameState.loser ?? '')?.username ??
+              gameState.players.get(gameState.loser ?? '')?.username ||
               gameState.loser?.slice(0, 8);
 
             const deltaColor = eloResult

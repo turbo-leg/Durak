@@ -1,5 +1,5 @@
 // Standard Elo with pairwise comparison for multi-player games.
-// Each pair (winner vs loser, winner vs middle, middle vs durak) is evaluated
+// Each pair with different placements (winner vs loser) is evaluated
 // independently and contributions are averaged over (N-1) opponents so that
 // total Elo movement stays proportional regardless of player count.
 
@@ -39,8 +39,8 @@ export function calculateEloDeltas(players: EloPlayer[]): Map<string, number> {
       const a = players[i];
       const b = players[j];
 
-      // Draws between two middle-placed players — no Elo movement.
-      if (a.placement === 'middle' && b.placement === 'middle') continue;
+      // Players with the same placement (two winning teammates, two losers) tie: no movement.
+      if (a.placement === b.placement) continue;
 
       const sA = placementScore(a.placement);
       const sB = placementScore(b.placement);

@@ -176,12 +176,30 @@ export class DurakEngine {
     deckSize: number,
     targetHandSize: number = 5,
   ): boolean {
+    return DurakEngine.isValidMassAttackForHandCounts(
+      cards,
+      allPlayers.map((p) => p.hand.length),
+      deckSize,
+      targetHandSize,
+    );
+  }
+
+  /**
+   * The same rule from public hand counts, so clients can preview a mass attack
+   * without seeing other players' hands.
+   */
+  static isValidMassAttackForHandCounts(
+    cards: Card[],
+    handCounts: number[],
+    deckSize: number,
+    targetHandSize: number = 5,
+  ): boolean {
     const requiredSize = cards.length;
     if (requiredSize !== 3 && requiredSize !== 5 && requiredSize !== 7) return false;
 
     // Check if everyone has enough cards
-    for (const p of allPlayers) {
-      if (p.hand.length < requiredSize) return false;
+    for (const count of handCounts) {
+      if (count < requiredSize) return false;
     }
 
     if (requiredSize === 3) {

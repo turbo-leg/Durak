@@ -319,13 +319,6 @@ const DIFFICULTIES = [
     accent: '#3f8a4a',
   },
   {
-    key: 'medium',
-    label: 'Gentleman',
-    icon: 'badge_gentleman.png',
-    desc: 'Plays smart, occasional blunders.',
-    accent: colors.gold[500],
-  },
-  {
     key: 'hard',
     label: 'High Roller',
     icon: 'badge_high_roller.png',
@@ -345,7 +338,7 @@ function SinglePlayerSheet() {
       isPrivate: true,
       mode: 'classic',
       teamSelection: 'random',
-      handSize: 6,
+      handSize: 5,
       botDifficulty: difficulty,
     });
     setLoading(null);
@@ -607,9 +600,9 @@ function CustomLobbySheet({
             <SectionLabel>Invitation Code</SectionLabel>
             <TextInput
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onChange={(e) => setJoinCode(e.target.value)}
               placeholder="ABC123"
-              maxLength={8}
+              maxLength={64}
               style={{
                 letterSpacing: 6,
                 fontSize: 22,

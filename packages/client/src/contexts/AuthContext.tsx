@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { isSessionTokenCurrent } from '../game/sessionToken';
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID || '123456789012345678';
 const STORAGE_KEY = 'durak_auth';
@@ -54,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const parsed = JSON.parse(saved) as AuthUser;
         // Invalidate old Discord sessions that stored a raw Discord access_token
         // instead of a server-signed JWT. Server JWTs are always 3-part dot-separated.
-        if (parsed.method === 'discord' && parsed.token && parsed.token.split('.').length !== 3) {
+        if (!parsed.token || !isSessionTokenCurrent(parsed.token)) {
           localStorage.removeItem(STORAGE_KEY);
           return null;
         }

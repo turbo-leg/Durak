@@ -44,6 +44,7 @@ vi.mock('framer-motion', () => ({
     get: (_target, tag: string) => makeMotionComponent(tag),
   }),
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+  useIsPresent: () => true,
 }));
 
 vi.mock('@capacitor/haptics', () => ({
@@ -92,6 +93,7 @@ function makePlayer(
   if (opts.hand) {
     p.hand = new ArraySchema<Card>(...opts.hand);
   }
+  p.handCount = p.hand.length;
   return p;
 }
 
@@ -114,6 +116,7 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
   gs.seatOrder = new ArraySchema<string>();
 
   Object.assign(gs, overrides);
+  gs.deckCount = gs.deck.length;
   return gs;
 }
 
@@ -411,6 +414,7 @@ describe('GameBoard component', () => {
       gs.deck = new ArraySchema<Card>(
         ...Array.from({ length: 20 }, (_, i) => makeCard('Clubs', 7 + (i % 9))),
       );
+      gs.deckCount = gs.deck.length;
       mockGameContext({ room: room as never, gameState: gs });
       render(<GameBoard />);
       // The info bar renders: 🃏 <span className="...">20</span>

@@ -2,6 +2,8 @@
 
 A real-time multiplayer **Durak** (Дурак, "fool") card game built as a [Discord Activity](https://discord.com/developers/docs/activities/overview). Players can launch the game inside any Discord voice channel and play a 2–4 player match without leaving the call.
 
+Current audit and development roadmap: [PROJECT_AUDIT.md](docs/PROJECT_AUDIT.md), [PROJECT_PLAN.md](docs/PROJECT_PLAN.md). The replacement [interactive card room](docs/FRONTEND_REBUILD.md) uses Three.js for home and live play, with spatial card selection, camera orbit, accessible card controls and a 2D fallback. Hands and deck order are filtered on the server, and room identities require verified session tokens. Release validation and remaining dependency work are tracked in the plan.
+
 The stack: **Colyseus** (authoritative game server) + **React/Vite** (client) + **MongoDB** (profiles, stats, achievements) + **Redis** (optional, for multi-instance scaling).
 
 ---
@@ -105,16 +107,16 @@ When the app is opened outside Discord (plain browser), the Discord SDK is bypas
 
 ```bash
 npm test                              # all workspace test suites
-npm run lint                          # eslint across all workspaces
-npx tsc --noEmit -p packages/client/tsconfig.json   # typecheck client
-npx tsc --noEmit -p packages/shared/tsconfig.json   # typecheck shared
+npm run lint                          # eslint for the client (server/shared have no lint scripts)
+npm run typecheck                     # client project references + server/shared including tests
+npm run build                         # client production assets + server/shared type validation
 ```
 
 CI runs lint + typecheck + tests + a production build on every PR. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Deploying to Fly.io
 
-The production app is `durak-discord-activity` in region `iad`. The Dockerfile builds both the client (Vite) and the server (tsc) and runs the server, which serves the built client.
+The production app is configured as `durak-discord-activity` in region `iad`. The Dockerfile builds the client with Vite and runs the server TypeScript through ts-node; the server serves the built client. Server/shared `build` scripts validate types without emitting runtime JavaScript. CI validates all workspace types before building; deployed infrastructure has not been verified by the local audit.
 
 ```bash
 flyctl deploy                         # uses fly.toml + Dockerfile
