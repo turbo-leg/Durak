@@ -1207,6 +1207,9 @@ export class TableRenderer {
     this.hand.position.set(0, CARRY_Y, -depth);
     this.hand.rotation.x = CARRY_TILT;
     this.labels.children.forEach((label) => this.sizeLabel(label as THREE.Sprite));
+    // Resizing clears the canvas, and it is shown before the next frame is drawn: draw the
+    // table now, at its new size, so the view never flashes empty.
+    this.renderer.render(this.scene, this.camera);
     this.requestFrame();
   };
 

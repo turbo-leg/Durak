@@ -694,6 +694,12 @@
   height: auto;
   aspect-ratio: 68 / 96;
 }
+/* Where a card to beat would lie, while the table is clear. */
+.attack-reference .empty-slot {
+  background: transparent;
+  border: 1px dashed #ffffff30;
+  box-shadow: none;
+}
 .attack-reference .card-corner {
   font-size: 13px;
   left: 3px;

@@ -627,24 +627,32 @@ export function CardRoom({
       )}
       {playing && !game.isSpectator && (
         <section className="action-dock">
-          {view.attacks.length > 0 && (
-            <div className="attack-reference" aria-label="Active table cards">
-              <div>
-                <strong>{view.canSelect ? 'To beat' : 'On table'}</strong>
-                <small>
-                  {view.attacks.length} {view.attacks.length === 1 ? 'card' : 'cards'}
-                </small>
-              </div>
-              <div
-                className="attack-cards"
-                style={{ gridTemplateColumns: `repeat(${view.attacks.length}, minmax(0, 42px))` }}
-              >
-                {view.attacks.map((card) => (
-                  <Face key={card.key} card={card} />
-                ))}
-              </div>
+          {/* Always shown while playing: the 3D stage makes room for this row, and it
+              appearing and going each turn resized the table view mid-animation. */}
+          <div className="attack-reference" aria-label="Active table cards">
+            <div>
+              <strong>
+                {view.attacks.length ? (view.canSelect ? 'To beat' : 'On table') : 'Table clear'}
+              </strong>
+              <small>
+                {view.attacks.length
+                  ? `${view.attacks.length} ${view.attacks.length === 1 ? 'card' : 'cards'}`
+                  : 'Nothing to beat'}
+              </small>
             </div>
-          )}
+            <div
+              className="attack-cards"
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(1, view.attacks.length)}, minmax(0, 42px))`,
+              }}
+            >
+              {view.attacks.length ? (
+                view.attacks.map((card) => <Face key={card.key} card={card} />)
+              ) : (
+                <span className="paper-card empty-slot" aria-hidden="true" />
+              )}
+            </div>
+          </div>
           <div className="action-copy">
             <strong>
               {view.canSelect
