@@ -46,7 +46,9 @@ describe('production room debug guards', () => {
       send(host, { action: 'spawn_dummies', difficulty, count: 1 });
       expect(room.state.players.size).toBe(2);
       expect(
-        Array.from(room.state.players.values()).some((p) => p.username === `Bot (${difficulty})`),
+        Array.from(room.state.players.values()).some(
+          (p) => p.control === 'bot' && p.username === 'Orgil',
+        ),
       ).toBe(true);
     },
   );

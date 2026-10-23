@@ -43,7 +43,7 @@ describe('E2E Durak Match', () => {
       expect(room.state.players.size).toBe(2);
       expect(room.state.players.get(client.sessionId)?.hand.length).toBe(5);
       const bot = Array.from(room.state.players.values()).find((p) => p.id !== client.sessionId);
-      expect(bot?.username).toBe(`Bot (${botDifficulty})`);
+      expect(bot?.username).toBe('Orgil');
       expect(bot?.isReady).toBe(true);
       expect(room.state.seatOrder.length).toBe(2);
     },
