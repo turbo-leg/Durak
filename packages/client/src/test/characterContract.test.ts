@@ -45,12 +45,13 @@ describe('Durak character contract', () => {
       expect(scene.getObjectByName(`Socket${name}`)?.parent?.name, name).toBe(socket.bone);
   });
 
-  it('sizes the hands to the held card, with an opposable three-bone thumb', async () => {
+  it('gives real adult hands next to a real card, with an opposable three-bone thumb', async () => {
     const scene = await shipped();
     for (const side of SIDES) {
       const palm = position(scene, `Hand${side}`).distanceTo(position(scene, `Middle1${side}`));
-      expect(palm / CARD_HEIGHT).toBeGreaterThan(0.85);
-      expect(palm / CARD_HEIGHT).toBeLessThan(1.05);
+      // A 10.8 cm palm beside an 8.9 cm card.
+      expect(palm / CARD_HEIGHT).toBeGreaterThan(1.1);
+      expect(palm / CARD_HEIGHT).toBeLessThan(1.35);
       for (const finger of FINGERS) {
         const length = position(scene, `${finger}1${side}`).distanceTo(
           position(scene, `${finger}Tip${side}`),
@@ -59,9 +60,10 @@ describe('Durak character contract', () => {
       }
       const thumb = [1, 2, 3].map((i) => scene.getObjectByName(`Thumb${i}${side}`));
       expect(thumb.every(Boolean)).toBe(true);
-      // Four fingers side by side are about as wide as a card, not twice as wide.
+      // Four fingers side by side span about 8 cm: a quarter wider than a card.
       const span = position(scene, `Index1${side}`).distanceTo(position(scene, `Pinky1${side}`));
-      expect(span + 2 * HAND.fingerRadius).toBeLessThan(CARD_WIDTH * 1.05);
+      expect((span + 2 * HAND.fingerRadius) / CARD_WIDTH).toBeGreaterThan(1.1);
+      expect((span + 2 * HAND.fingerRadius) / CARD_WIDTH).toBeLessThan(1.45);
     }
   });
 

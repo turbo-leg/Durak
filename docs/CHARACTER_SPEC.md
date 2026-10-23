@@ -12,14 +12,20 @@ authored once and reused.
 
 ## Space and bind pose
 
-- Normalized character units; the table draws characters at `CHARACTER_SCALE` (1.6).
+- Metres, at real adult size (1.72 m stature). The scene draws everything at
+  `CHARACTER_SCALE` (3.3 world units per metre), and the room shares those metres
+  (`CharacterSpace.ts`):
+  - an oval table 1.6 × 1.1 m and 74 cm high;
+  - chairs 38 cm back from its edge;
+  - standard 63.5 × 88.9 mm playing cards, both held and on the table;
+  - the fan carried 40 cm in front of the eyes and 25 cm below them.
 - Seated bind pose, facing +Z, character's left on +X. Arms: upper arm down, forearm
   forward, hand forward with the palm toward the midline and the thumb up.
 - Every bone's bind rotation is the identity. Clip rotations are therefore in
   world-aligned joint frames: "rotate `UpperArmR` about X" means the same thing on every
   character.
-- The `Head` pivot and the `Eyes` socket match the previous camera exactly, so the seated
-  view and the card carry frame (`carryMatrix`) do not move.
+- The seated eyes are 76 cm above the seat (45 cm high). The first-person camera sits at
+  the `Eyes` socket and the card carry frame (`carryMatrix`) hangs from it.
 
 ## Bones
 
@@ -32,13 +38,15 @@ authored once and reused.
 
 ## Proportions (hard requirements)
 
-| Measure                              |               Value | Why                                  |
-| ------------------------------------ | ------------------: | ------------------------------------ |
-| Held card height / width             |        0.18 / 0.123 | The fan as rendered                  |
-| Palm, wrist to middle knuckle        |                0.17 | About one card high                  |
-| Middle finger                        |               0.156 | Fingers fit behind a card            |
-| Thumb (metacarpal, proximal, distal) | 0.068 / 0.05 / 0.04 | Three bones so the thumb opposes     |
-| Finger / thumb radius                |     0.0155 / 0.0175 | A thin web: card edges fit the pinch |
+| Measure                              |                Value (m) | Why                                  |
+| ------------------------------------ | -----------------------: | ------------------------------------ |
+| Card height / width                  |          0.0889 / 0.0635 | A standard poker card                |
+| Stature; eyes above the seat         |               1.72; 0.76 | An average adult, seated             |
+| Shoulder width; upper arm; forearm   |         0.38; 0.33; 0.26 | Real reach to the table centre       |
+| Palm, wrist to middle knuckle        |                    0.108 | Real hand: about 1.2 card heights    |
+| Middle finger                        | 0.086 (0.04/0.025/0.021) | Fingers wrap behind the fan's base   |
+| Thumb (metacarpal, proximal, distal) |    0.046 / 0.032 / 0.026 | Three bones so the thumb opposes     |
+| Finger / thumb radius                |          0.0085 / 0.0105 | A thin web: card edges fit the pinch |
 
 ## Sockets
 
@@ -66,9 +74,13 @@ share one asset. Weights are normalized, four influences at most.
    every card it covers, and the thumb turns at its base until it rests on the frontmost
    face. The left hand rests and does the card actions and most gestures; when a gesture
    needs the right hand (touching the right ear) the left takes the fan over, arriving
-   from below so the cards pass between thumb and fingers.
+   from below so the cards pass between thumb and fingers. Reactions such as crying use
+   the free hand too while cards are held.
 4. **Clips:** arm keys are reach targets solved with two-bone IK (limbs never stretch; far
-   targets stop at a natural extension), blended over the hold by the clip's fade.
+   targets stop at a natural extension), blended over the hold by the clip's fade. Keys
+   move the effector in straight lines, so a clip steers its own path with waypoints: the
+   face touches start at `REST`, drop beside the hip, rise beside the shoulder and only then
+   come to the face, which keeps the hand clear of the fan wherever the head turns it.
 
 ## Clips and the registry
 
@@ -113,11 +125,12 @@ the contract and proportions; the grip against the rendered fan (1, 2, 3, 5 and 
 12 cards on a narrow screen; centre and both gaze limits; first person and peer) with no
 skin through a card, thumbs resting on faces, fingers straight and apart and hands apart;
 every gesture's contact; every emote, reaction and action for limb length, finger spacing,
-head clearance and an undisturbed holding hand.
+head clearance, an undisturbed holding hand and no skin through the held fan.
 
 ## Review screenshots
 
-Rendered with the real `TableRenderer` and shipped GLB:
+Rendered with the real `TableRenderer` and shipped GLB (taken before the switch to real
+proportions; regenerate them to see today's sizes):
 
 - [The player's own view](character/grip-player-view.jpg): one and five cards, both 65° head
   turns, and a 390×844 phone with five and twelve cards.

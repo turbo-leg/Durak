@@ -4,10 +4,11 @@ import * as THREE from 'three';
  * The Durak character contract. Any character GLB (generated or artist-made) that
  * provides these bones, sockets and proportions works with the runtime unchanged.
  *
- * Units are normalized character units; the table renders characters at
- * CHARACTER_SCALE. The bind pose is seated, facing +Z, with the character's left
- * on +X. Every bone's bind rotation is the identity, so clip rotations are
- * expressed in world-aligned joint frames.
+ * Units are metres (the glTF convention), sized to an average adult of 172 cm; the table
+ * renders characters at CHARACTER_SCALE world units per metre. The bind pose is seated on
+ * a 45 cm chair with the floor at y = 0, facing +Z, with the character's left on +X.
+ * Every bone's bind rotation is the identity, so clip rotations are expressed in
+ * world-aligned joint frames.
  */
 
 export type Side = 'L' | 'R';
@@ -17,29 +18,49 @@ export const DIGITS = ['Thumb', ...FINGERS] as const;
 export type Finger = (typeof FINGERS)[number];
 export type Digit = (typeof DIGITS)[number];
 
-/** Held card height and width in character units (fan card 1.2 x 0.82, scaled 0.8 x 0.3 / 1.6). */
-export const CARD_HEIGHT = 0.18;
-export const CARD_WIDTH = 0.123;
+/** A standard poker-size playing card, 63.5 x 88.9 mm. */
+export const CARD_HEIGHT = 0.0889;
+export const CARD_WIDTH = 0.0635;
 
-/** Hand proportions, sized to the held card so a thumb-and-finger pinch fits it. */
-export const HAND = {
-  /** Wrist to middle knuckle: about one card height. */
-  palm: 0.17,
-  palmWidth: 0.12,
-  palmThickness: 0.05,
-  /** Segment lengths: proximal, middle, distal. */
-  fingers: {
-    Index: [0.068, 0.042, 0.034],
-    Middle: [0.074, 0.046, 0.036],
-    Ring: [0.068, 0.043, 0.034],
-    Pinky: [0.054, 0.034, 0.029],
-  } satisfies Record<Finger, number[]>,
-  fingerRadius: 0.0155,
-  /** Metacarpal, proximal, distal: about a palm long, as on a real hand. The metacarpal
-   * lets the thumb climb in front of a card and oppose the index finger. */
-  thumb: [0.068, 0.05, 0.04],
-  thumbRadius: 0.0175,
+/** Seated adult anthropometrics (metres), averages of adult men and women. */
+export const BODY = {
+  stature: 1.72,
+  seat: 0.45,
+  /** Seated eye height above the seat. */
+  eyesAboveSeat: 0.76,
+  shoulderWidth: 0.38,
+  upperArm: 0.33,
+  forearm: 0.26,
+  thigh: 0.43,
+  shin: 0.42,
 } as const;
+
+/** Real hand proportions: 19 cm long, the palm a little longer than a card. */
+export const HAND = {
+  /** Wrist to middle knuckle. */
+  palm: 0.108,
+  palmWidth: 0.085,
+  palmThickness: 0.03,
+  /** Segment lengths: proximal, middle, distal (to the fingertip). */
+  fingers: {
+    Index: [0.036, 0.022, 0.019],
+    Middle: [0.04, 0.025, 0.021],
+    Ring: [0.037, 0.024, 0.02],
+    Pinky: [0.029, 0.017, 0.017],
+  } satisfies Record<Finger, number[]>,
+  fingerRadius: 0.0085,
+  /** Metacarpal, proximal, distal. The metacarpal lets the thumb climb in front of a card
+   * and oppose the index finger. */
+  thumb: [0.046, 0.032, 0.026],
+  thumbRadius: 0.0105,
+} as const;
+
+/** The skull, as an ellipsoid relative to the Head joint (the top of the neck). */
+export const SKULL = {
+  centre: [0, 0.075, 0.012] as [number, number, number],
+  /** Half width, half height (chin to crown 23 cm), half depth. */
+  radii: [0.077, 0.115, 0.098] as [number, number, number],
+};
 
 type Joint = { name: string; parent: string; at: [number, number, number] };
 
@@ -53,24 +74,27 @@ const mirror = (side: Side, [x, y, z]: [number, number, number]): [number, numbe
 function limbs(side: Side): Joint[] {
   const s = (name: string) => `${name}${side}`;
   const p = (x: number, y: number, z: number) => mirror(side, [x, y, z]);
-  // Upper arm 0.39 and forearm 0.44: the held fan is reached with a relaxed elbow.
-  const wrist: [number, number, number] = [-0.37, 1.7, 0.54];
+  // Upper arm hangs; the forearm reaches forward toward the table.
+  const shoulder = [-BODY.shoulderWidth / 2, 1.04, -0.01] as const;
+  const elbow = [-0.21, shoulder[1] - BODY.upperArm, 0] as const;
+  const wrist: [number, number, number] = [elbow[0], elbow[1] + 0.01, BODY.forearm];
+  const knee = [-0.1, 0.48, 0.45] as const;
   const joints: Joint[] = [
-    { name: s('Shoulder'), parent: 'Chest', at: p(-0.08, 2.05, 0.1) },
-    { name: s('UpperArm'), parent: s('Shoulder'), at: p(-0.29, 2.08, 0.1) },
-    { name: s('LowerArm'), parent: s('UpperArm'), at: p(-0.37, 1.7, 0.1) },
+    { name: s('Shoulder'), parent: 'Chest', at: p(-0.02, 1.02, 0.03) },
+    { name: s('UpperArm'), parent: s('Shoulder'), at: p(...shoulder) },
+    { name: s('LowerArm'), parent: s('UpperArm'), at: p(...elbow) },
     { name: s('Hand'), parent: s('LowerArm'), at: p(...wrist) },
-    { name: s('UpperLeg'), parent: 'Hips', at: p(-0.2, 1.1, 0.1) },
-    { name: s('LowerLeg'), parent: s('UpperLeg'), at: p(-0.2, 0.85, 0.62) },
-    { name: s('Foot'), parent: s('LowerLeg'), at: p(-0.2, -0.25, 0.72) },
-    { name: s('Toe'), parent: s('Foot'), at: p(-0.2, -0.3, 0.92) },
+    { name: s('UpperLeg'), parent: 'Hips', at: p(-0.09, 0.53, 0.02) },
+    { name: s('LowerLeg'), parent: s('UpperLeg'), at: p(...knee) },
+    { name: s('Foot'), parent: s('LowerLeg'), at: p(-0.11, 0.07, 0.5) },
+    { name: s('Toe'), parent: s('Foot'), at: p(-0.11, 0.02, 0.68) },
   ];
   // The hand points forward (+Z), palm toward the body's midline, thumb up.
   const knuckles: Record<Finger, [number, number]> = {
-    Index: [0.045, 0.17],
-    Middle: [0.015, 0.175],
-    Ring: [-0.016, 0.168],
-    Pinky: [-0.045, 0.155],
+    Index: [0.03, 0.1],
+    Middle: [0.01, HAND.palm],
+    Ring: [-0.012, 0.1],
+    Pinky: [-0.032, 0.092],
   };
   for (const finger of FINGERS) {
     const [height, reach] = knuckles[finger];
@@ -91,7 +115,7 @@ function limbs(side: Side): Joint[] {
     [0.2, 0.08, 0.98],
   ];
   // The metacarpal starts at the radial (thumb-side) edge of the wrist.
-  let at: [number, number, number] = [wrist[0] + 0.01, wrist[1] + 0.036, wrist[2] + 0.02];
+  let at: [number, number, number] = [wrist[0] + 0.006, wrist[1] + 0.024, wrist[2] + 0.012];
   let parent = s('Hand');
   HAND.thumb.forEach((length, i) => {
     const name = s(`Thumb${i + 1}`);
@@ -104,29 +128,31 @@ function limbs(side: Side): Joint[] {
   return joints;
 }
 
+/** Head joint at the top of the neck (the atlas), level with the base of the nose. */
+const HEAD: [number, number, number] = [0, BODY.seat + BODY.eyesAboveSeat - 0.075, 0];
+
 /** Every joint in parent-before-child order, with seated bind positions. */
 export const SKELETON: readonly Joint[] = [
   { name: 'Root', parent: '', at: [0, 0, 0] },
-  { name: 'Hips', parent: 'Root', at: [0, 1.05, 0.1] },
-  { name: 'Abdomen', parent: 'Hips', at: [0, 1.25, 0.09] },
-  { name: 'Chest', parent: 'Abdomen', at: [0, 1.7, 0.08] },
-  { name: 'Neck', parent: 'Chest', at: [0, 2.235, 0.083] },
-  { name: 'Head', parent: 'Neck', at: [0, 2.383, 0.083] },
-  { name: 'HeadTop', parent: 'Head', at: [0, 2.9, 0.083] },
+  { name: 'Hips', parent: 'Root', at: [0, 0.54, 0] },
+  { name: 'Abdomen', parent: 'Hips', at: [0, 0.65, -0.01] },
+  { name: 'Chest', parent: 'Abdomen', at: [0, 0.86, -0.01] },
+  { name: 'Neck', parent: 'Chest', at: [0, 1.06, -0.02] },
+  { name: 'Head', parent: 'Neck', at: HEAD },
+  { name: 'HeadTop', parent: 'Head', at: [0, HEAD[1] + 0.19, 0.01] },
   ...limbs('R'),
   ...limbs('L'),
 ];
 
 /**
- * Named attachment points, as offsets in their bone's bind frame. Face sockets keep
- * the landmarks the camera and gestures already use, so the seated eye position and
- * card carry frame do not move.
+ * Named attachment points, as offsets in their bone's bind frame. `Eyes` is the midpoint
+ * between the eyes, where the seated camera sits.
  */
 export const SOCKETS: Readonly<Record<string, { bone: string; at: [number, number, number] }>> = {
-  Eyes: { bone: 'Head', at: [0, 0.2106, 0.1947] },
-  Nose: { bone: 'Head', at: [0, 0.111, 0.254] },
-  EarL: { bone: 'Head', at: [0.204, 0.205, 0.058] },
-  EarR: { bone: 'Head', at: [-0.204, 0.205, 0.058] },
+  Eyes: { bone: 'Head', at: [0, 0.075, 0.095] },
+  Nose: { bone: 'Head', at: [0, 0.04, 0.122] },
+  EarL: { bone: 'Head', at: [0.078, 0.065, -0.002] },
+  EarR: { bone: 'Head', at: [-0.078, 0.065, -0.002] },
   GripR: { bone: 'Thumb3R', at: thumbPad('R') },
   GripL: { bone: 'Thumb3L', at: thumbPad('L') },
   // Centre of the palm surface, where a carried card rests.

@@ -1,19 +1,28 @@
 import * as THREE from 'three';
-import { bindPosition, SOCKETS } from '../../character/spec.ts';
+import { bindPosition, CARD_HEIGHT, SOCKETS } from '../../character/spec.ts';
 
-/** Shared seated proportions. Character landmarks come from the character contract
- * (character/spec.ts), in normalized character coordinates. Character forward is +Z;
- * a Three camera looks along -Z.
+/**
+ * The room at real size. Characters are built in metres (character/spec.ts) and drawn at
+ * CHARACTER_SCALE world units per metre; table, seating, cards and the carry distance are
+ * all real measurements. Character forward is +Z; a Three camera looks along -Z.
  */
-export const CHARACTER_SCALE = 1.6;
-export const CARD_HOLD_HEIGHT = 0.4;
-export const CHARACTER_FLOOR = CARD_HOLD_HEIGHT - 1.6 * CHARACTER_SCALE;
-export const SEAT_RADIUS_Z = 4.65;
+export const CHARACTER_SCALE = 3.3;
+const m = (metres: number) => metres * CHARACTER_SCALE;
+/** The felt surface, in world units. */
+export const TABLE_TOP = 0.075;
+/** An oval card table, 160 x 110 cm and 74 cm high. */
+export const TABLE = { height: 0.74, radiusX: 0.8, radiusZ: 0.55 } as const;
+export const TABLE_RADIUS_X = m(TABLE.radiusX);
+export const TABLE_RADIUS_Z = m(TABLE.radiusZ);
+export const CHARACTER_FLOOR = TABLE_TOP - m(TABLE.height);
+/** Chairs stand 38 cm back from the table's edge. */
+export const SEAT_RADIUS_X = m(TABLE.radiusX + 0.38);
+export const SEAT_RADIUS_Z = m(TABLE.radiusZ + 0.38);
 export const NEUTRAL_LOOK_DOWN = 0.22;
-export const CARRY_DEPTH = 0.85;
-export const CARRY_SCALE = 0.3;
+/** A hand of cards is held 40 cm in front of the eyes and 25 cm below them. */
+export const CARRY_DEPTH = m(0.4);
 export const CARRY_TILT = -0.1;
-export const CARRY_Y = -0.55;
+export const CARRY_Y = -m(0.25);
 
 export function headLook(yaw: number, pitch: number) {
   return new THREE.Quaternion().setFromEuler(
@@ -44,6 +53,10 @@ export const HELD_CARD_SCALE = 0.8;
 /** Held card geometry before its scale: a flattened card bowed toward its face at both ends. */
 export const HELD_CARD = { width: 0.82, height: 1.2, thickness: 0.035 * 0.35, bow: 0.025 };
 export const heldCardBow = (z: number) => HELD_CARD.bow * (z / (HELD_CARD.height / 2)) ** 2;
+/** Carry-frame units per world unit, so a held card is a real 88.9 mm tall. */
+export const CARRY_SCALE = m(CARD_HEIGHT) / (HELD_CARD.height * HELD_CARD_SCALE);
+/** Table cards share the 1.2-tall card geometry, scaled to the same real card. */
+export const TABLE_CARD_SCALE = m(CARD_HEIGHT) / HELD_CARD.height;
 export const HELD_FAN_RADIUS = 1.35;
 
 /** Angle between neighbouring held cards; narrow local viewports compress large hands. */

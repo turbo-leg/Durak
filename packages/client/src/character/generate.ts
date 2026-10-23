@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FINGERS, HAND, SIDES, SKELETON, SOCKETS, bindPosition, type Side } from './spec.ts';
+import { FINGERS, HAND, SIDES, SKELETON, SKULL, SOCKETS, bindPosition, type Side } from './spec.ts';
 
 /**
  * Builds the Durak character from the contract in spec.ts: a skeleton, a skinned body,
@@ -350,12 +350,12 @@ function addArm(body: Builder, side: Side) {
   // Sleeve to the wrist, then the skin of the wrist itself.
   body.tube(
     [
-      { at: at(s('UpperArm')).add(V(sign * 0.02, 0.01, 0)), r: 0.072, bone: s('UpperArm') },
-      { at: at(s('LowerArm')), r: 0.058, bone: s('LowerArm') },
-      { at: wrist.clone().add(V(0, 0, 0.012)), r: [0.034, 0.042], bone: s('Hand') },
+      { at: at(s('UpperArm')).add(V(sign * 0.01, 0.005, 0)), r: 0.048, bone: s('UpperArm') },
+      { at: at(s('LowerArm')), r: 0.037, bone: s('LowerArm') },
+      { at: wrist.clone().add(V(0, 0, 0.006)), r: [0.022, 0.027], bone: s('Hand') },
     ],
     {
-      region: (d, length) => (d > length - 0.03 ? 'skin' : 'shirt'),
+      region: (d, length) => (d > length - 0.018 ? 'skin' : 'shirt'),
       up: V(0, 0, 1),
       parent: s('Shoulder'),
       sides: 12,
@@ -371,7 +371,7 @@ function addArm(body: Builder, side: Side) {
     [HAND.palmThickness / 2, HAND.palmWidth / 2, HAND.palm * 0.56],
     (p) => {
       // The heel of the hand follows the forearm slightly.
-      const t = THREE.MathUtils.clamp((p.z - wrist.z) / 0.04, 0, 1);
+      const t = THREE.MathUtils.clamp((p.z - wrist.z) / 0.02, 0, 1);
       return t >= 1
         ? [[s('Hand'), 1]]
         : [
@@ -397,7 +397,7 @@ function addArm(body: Builder, side: Side) {
     const r = HAND.fingerRadius * (finger === 'Pinky' ? 0.85 : finger === 'Middle' ? 1.05 : 1);
     body.tube(
       [
-        { at: at(joints[0]!).add(V(0, 0, -0.03)), r, bone: joints[0]! },
+        { at: at(joints[0]!).add(V(0, 0, -0.016)), r, bone: joints[0]! },
         { at: at(joints[1]!), r: r * 0.92, bone: joints[1]! },
         { at: at(joints[2]!), r: r * 0.85, bone: joints[2]! },
         { at: at(s(`${finger}Tip`)).add(V(0, 0, -r * 0.7)), r: r * 0.78, bone: joints[2]! },
@@ -445,9 +445,9 @@ function addLegs(body: Builder, side: Side) {
   const s = (n: string) => `${n}${side}`;
   body.tube(
     [
-      { at: at(s('UpperLeg')).add(V(0, 0, -0.04)), r: 0.12, bone: s('UpperLeg') },
-      { at: at(s('LowerLeg')), r: 0.095, bone: s('LowerLeg') },
-      { at: at(s('Foot')).add(V(0, 0.05, 0)), r: 0.07, bone: s('Foot') },
+      { at: at(s('UpperLeg')).add(V(0, 0, -0.03)), r: 0.078, bone: s('UpperLeg') },
+      { at: at(s('LowerLeg')), r: 0.052, bone: s('LowerLeg') },
+      { at: at(s('Foot')).add(V(0, 0.03, 0)), r: 0.038, bone: s('Foot') },
     ],
     { region: 'trousers', up: V(1, 0, 0), parent: 'Hips', sides: 10, steps: 4, capStart: true },
   );
@@ -456,9 +456,9 @@ function addLegs(body: Builder, side: Side) {
   body.ellipsoid(
     foot
       .clone()
-      .lerp(toe, 0.45)
-      .add(V(0, -0.02, 0)),
-    [0.075, 0.06, 0.16],
+      .lerp(toe, 0.4)
+      .add(V(0, -0.025, 0)),
+    [0.045, 0.04, 0.13],
     [[s('Foot'), 1]],
     'shoes',
     [10, 6],
@@ -466,35 +466,37 @@ function addLegs(body: Builder, side: Side) {
 }
 
 function addTorso(body: Builder) {
+  // Half-widths up the body: hips 33 cm, waist, chest, 36 cm across the shoulders.
   const profile: [number, number][] = [
-    [0.0, 0.96],
-    [0.22, 0.97],
-    [0.27, 1.06],
-    [0.26, 1.25],
-    [0.25, 1.45],
-    [0.27, 1.7],
-    [0.3, 1.92],
-    [0.3, 2.05],
-    [0.24, 2.14],
-    [0.12, 2.2],
-    [0.075, 2.24],
+    [0.0, 0.455],
+    [0.15, 0.46],
+    [0.175, 0.52],
+    [0.168, 0.6],
+    [0.152, 0.7],
+    [0.16, 0.82],
+    [0.175, 0.93],
+    [0.18, 1.0],
+    [0.15, 1.055],
+    [0.08, 1.095],
+    [0.055, 1.115],
   ];
   const sides = 16;
+  const centre = -0.005;
   const weights = (p: THREE.Vector3): Weights => {
     const spine: Weights =
-      p.y < 1.25
+      p.y < 0.66
         ? [
-            ['Hips', 1 - smooth((p.y - 1.2) / 0.08)],
-            ['Abdomen', smooth((p.y - 1.2) / 0.08)],
+            ['Hips', 1 - smooth((p.y - 0.62) / 0.04)],
+            ['Abdomen', smooth((p.y - 0.62) / 0.04)],
           ]
-        : p.y < 1.7
+        : p.y < 0.86
           ? [
-              ['Abdomen', 1 - smooth((p.y - 1.62) / 0.12)],
-              ['Chest', smooth((p.y - 1.62) / 0.12)],
+              ['Abdomen', 1 - smooth((p.y - 0.8) / 0.06)],
+              ['Chest', smooth((p.y - 0.8) / 0.06)],
             ]
           : [['Chest', 1]];
     // The tops of the shoulders follow the collarbones.
-    const shoulder = smooth((Math.abs(p.x) - 0.14) / 0.08) * smooth((p.y - 1.95) / 0.1);
+    const shoulder = smooth((Math.abs(p.x) - 0.08) / 0.05) * smooth((p.y - 0.95) / 0.05);
     if (shoulder > 0.01)
       return [
         ...spine.map(([b, w]) => [b, w * (1 - shoulder)] as [string, number]),
@@ -505,31 +507,35 @@ function addTorso(body: Builder) {
   const rings = profile.map(([r, y]) =>
     Array.from({ length: sides }, (_, k) => {
       const a = (k / sides) * Math.PI * 2;
-      const p = V(Math.sin(a) * r, y, Math.cos(a) * r * 0.6 + 0.085);
-      return body.vertex(p, weights(p), y < 1.16 ? 'trousers' : 'shirt', V(0, y, 0.085));
+      // About 22 cm deep through the chest.
+      const p = V(Math.sin(a) * r, y, Math.cos(a) * r * 0.62 + centre);
+      return body.vertex(p, weights(p), y < 0.57 ? 'trousers' : 'shirt', V(0, y, centre));
     }),
   );
   for (let i = 0; i + 1 < rings.length; i++) body.stitch(rings[i]!, rings[i + 1]!);
-  body.fan(rings[0]!, body.vertex(V(0, 0.95, 0.085), [['Hips', 1]], 'trousers', V(0, 1.1, 0.085)));
-  const top = V(0, 2.25, 0.085);
-  body.fan(rings.at(-1)!, body.vertex(top, weights(top), 'shirt', V(0, 2.1, 0.085)));
+  body.fan(
+    rings[0]!,
+    body.vertex(V(0, 0.45, centre), [['Hips', 1]], 'trousers', V(0, 0.52, centre)),
+  );
+  const top = V(0, 1.12, centre);
+  body.fan(rings.at(-1)!, body.vertex(top, weights(top), 'shirt', V(0, 1.05, centre)));
   body.tube(
     [
-      { at: V(0, 2.16, 0.083), r: [0.07, 0.064], bone: 'Neck' },
-      { at: at('Head').add(V(0, 0.06, 0)), r: [0.066, 0.06], bone: 'Head' },
+      { at: V(0, 1.04, -0.02), r: [0.06, 0.055], bone: 'Neck' },
+      { at: at('Head').add(V(0, 0.03, 0)), r: [0.055, 0.05], bone: 'Head' },
     ],
     { region: 'skin', up: V(0, 0, 1), parent: 'Chest', sides: 10, steps: 3 },
   );
 }
 
-/** Face landmarks follow the sockets; the skull is centred above the Head pivot. */
+/** Face landmarks follow the sockets; the skull is the contract's ellipsoid. */
 function addHead(head: Builder) {
   const pivot = at('Head');
   const w: Weights = [['Head', 1]];
   const socket = (name: string) => V(...SOCKETS[name]!.at).add(pivot);
   head.ellipsoid(
-    pivot.clone().add(V(0, 0.19, 0.0)),
-    [0.19, 0.24, 0.2],
+    V(...SKULL.centre).add(pivot),
+    SKULL.radii,
     w,
     'skin',
     [20, 14],
@@ -544,14 +550,15 @@ function addHead(head: Builder) {
       );
     },
   );
+  // Eyes 6.4 cm apart, at the surface of the face.
   const eyes = socket('Eyes');
-  for (const x of [-0.068, 0.068]) {
-    const centre = eyes.clone().add(V(x, 0, -0.012));
-    head.ellipsoid(centre, [0.034, 0.024, 0.02], w, 'eyeWhite', [10, 6]);
-    head.ellipsoid(centre.clone().add(V(0, 0, 0.017)), [0.015, 0.017, 0.007], w, 'iris', [8, 5]);
+  for (const x of [-0.032, 0.032]) {
+    const centre = eyes.clone().add(V(x, 0, -0.004));
+    head.ellipsoid(centre, [0.0135, 0.0095, 0.0085], w, 'eyeWhite', [10, 6]);
+    head.ellipsoid(centre.clone().add(V(0, 0, 0.0075)), [0.006, 0.0068, 0.003], w, 'iris', [8, 5]);
     head.ellipsoid(
-      centre.clone().add(V(0, 0.042, 0.006)),
-      [0.042, 0.009, 0.012],
+      centre.clone().add(V(0, 0.017, 0.003)),
+      [0.017, 0.0035, 0.005],
       w,
       'hair',
       [8, 4],
@@ -559,26 +566,32 @@ function addHead(head: Builder) {
     );
   }
   const nose = socket('Nose');
-  head.ellipsoid(nose.clone().add(V(0, 0.01, -0.025)), [0.026, 0.036, 0.028], w, 'skin', [8, 6]);
-  head.ellipsoid(nose.clone().add(V(0, -0.07, -0.032)), [0.042, 0.009, 0.012], w, 'lip', [10, 4]);
+  head.ellipsoid(nose.clone().add(V(0, 0.004, -0.012)), [0.011, 0.017, 0.013], w, 'skin', [8, 6]);
+  head.ellipsoid(nose.clone().add(V(0, -0.03, -0.014)), [0.022, 0.0045, 0.006], w, 'lip', [10, 4]);
   for (const ear of ['EarL', 'EarR']) {
-    const centre = socket(ear).add(V(ear === 'EarL' ? -0.012 : 0.012, -0.01, -0.01));
-    head.ellipsoid(centre, [0.022, 0.048, 0.032], w, 'skin', [8, 6]);
+    const centre = socket(ear).add(V(ear === 'EarL' ? -0.004 : 0.004, -0.004, -0.004));
+    head.ellipsoid(centre, [0.009, 0.03, 0.016], w, 'skin', [8, 6]);
   }
 }
 
-/** Hair styles, translated from the original procedural presets into this head. */
+/** Hair styles from the original procedural presets, fitted to the skull per axis. */
 function addHair(hair: Builder, style: number) {
   const pivot = at('Head');
   const w: Weights = [['Head', 1]];
-  const centre = pivot.clone().add(V(0, 0.19, 0));
-  const scale = 0.465;
+  const centre = V(...SKULL.centre).add(pivot);
+  // The presets were drawn on a head of radii (0.43, 0.53, 0.38) centred at y = 0.35.
+  const scale = V(SKULL.radii[0] / 0.43, SKULL.radii[1] / 0.53, SKULL.radii[2] / 0.38);
   const map = (x: number, y: number, z: number) =>
-    V(x * scale, (y - 0.35) * scale, z * scale).add(centre);
+    V(x * scale.x, (y - 0.35) * scale.y, z * scale.z).add(centre);
+  const size = (r: [number, number, number]): [number, number, number] => [
+    r[0] * scale.x,
+    r[1] * scale.y,
+    r[2] * scale.z,
+  ];
   // Cap: the upper skull, lifted at the front so the forehead stays clear.
   hair.ellipsoid(
     map(0, 0.48, -0.025),
-    [0.445 * scale * 1.07, 0.43 * scale * 1.12, 0.395 * scale * 1.1],
+    size([0.445 * 1.07, 0.43 * 1.12, 0.395 * 1.1]),
     w,
     'hair',
     [16, 10],
@@ -586,14 +599,7 @@ function addHair(hair: Builder, style: number) {
     (u) => (u.y < 0 ? V(u.x, u.y * 0.15, u.z) : u),
   );
   const ball = (p: [number, number, number], r: [number, number, number], rz = 0) =>
-    hair.ellipsoid(
-      map(...p),
-      [r[0] * scale, r[1] * scale, r[2] * scale],
-      w,
-      'hair',
-      [10, 6],
-      new THREE.Euler(0, 0, rz),
-    );
+    hair.ellipsoid(map(...p), size(r), w, 'hair', [10, 6], new THREE.Euler(0, 0, rz));
   if (style === 0) ball([-0.07, 0.83, 0.12], [0.33, 0.12, 0.26], -0.14);
   if (style === 1) {
     ball([0, 0.35, -0.28], [0.435, 0.46, 0.17]);

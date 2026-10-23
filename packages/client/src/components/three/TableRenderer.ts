@@ -7,7 +7,6 @@ import { SELF, tableEvents, type TableEvent } from '../../game/tableEvents';
 import { cardFaceUrl, highResolutionCardFaceUrl } from '../../game/cardArt';
 import {
   CHARACTER_SCALE,
-  CARD_HOLD_HEIGHT,
   CHARACTER_FLOOR,
   CARRY_DEPTH,
   CARRY_SCALE,
@@ -19,6 +18,12 @@ import {
   HELD_CARD,
   heldCardBow,
   HELD_CARD_SCALE,
+  SEAT_RADIUS_X,
+  SEAT_RADIUS_Z,
+  TABLE_CARD_SCALE,
+  TABLE_RADIUS_X,
+  TABLE_RADIUS_Z,
+  TABLE_TOP,
 } from './CharacterSpace';
 
 const RANKS: Record<number, string> = {
@@ -31,12 +36,24 @@ const RANKS: Record<number, string> = {
   17: 'BJ',
   18: 'RJ',
 };
-const TABLE_CENTRE = new THREE.Vector3(0.25, 0.3, -0.35);
-const DECK_TOP = new THREE.Vector3(-4.15, 0.4, 0.1);
+// Real-size table layout, in world units: centimetres times CHARACTER_SCALE / 100.
+const cm = (value: number) => (value * CHARACTER_SCALE) / 100;
+/** Where the deck, trump and discard lie, and how far apart table cards sit. */
+const LAYOUT = {
+  deck: new THREE.Vector3(-cm(42), TABLE_TOP, cm(1)),
+  trump: new THREE.Vector3(-cm(30), TABLE_TOP, cm(10)),
+  discard: new THREE.Vector3(cm(42), TABLE_TOP, cm(1)),
+  spacing: cm(9.5),
+  attackZ: cm(2),
+  historyZ: -cm(14),
+};
+const TABLE_CENTRE = new THREE.Vector3(cm(2), TABLE_TOP + cm(3), -cm(4));
+const DECK_TOP = LAYOUT.deck.clone().setY(TABLE_TOP + cm(4));
 const SUITS: Record<string, string> = { Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣' };
 // Grow seated players around the held-card height, keeping their grip at the table.
 const SEATED_PLAYER_SCALE = CHARACTER_SCALE;
-const SEATED_CARD_HEIGHT = CARD_HOLD_HEIGHT;
+/** Seat labels float just above a seated player's head. */
+const LABEL_HEIGHT = CHARACTER_FLOOR + cm(150);
 type AnimatedCard = {
   mesh: THREE.Mesh;
   target: THREE.Vector3;
@@ -128,7 +145,7 @@ export class TableRenderer {
       key.position.set(-3, 9, 4);
       key.castShadow = true;
       key.shadow.mapSize.set(this.mobileQuality ? 512 : 1024, this.mobileQuality ? 512 : 1024);
-      Object.assign(key.shadow.camera, { left: -8, right: 8, top: 7, bottom: -7 });
+      Object.assign(key.shadow.camera, { left: -6, right: 6, top: 5, bottom: -5 });
       key.shadow.bias = -0.001;
       this.scene.add(key);
       this.scene.add(this.labels);
@@ -136,8 +153,15 @@ export class TableRenderer {
       const fill = new THREE.DirectionalLight('#a8d9fa', 1.4);
       fill.position.set(5, 4, -5);
       this.scene.add(fill);
-      this.surface(6.0, 3.7, -0.3, 0.44, '#38251f', 0.7);
-      const rail = this.surface(5.96, 3.66, -0.06, 0.12, '#ffffff', 0.65);
+      this.surface(TABLE_RADIUS_X + cm(13), TABLE_RADIUS_Z + cm(13), -0.3, 0.44, '#38251f', 0.7);
+      const rail = this.surface(
+        TABLE_RADIUS_X + cm(12),
+        TABLE_RADIUS_Z + cm(12),
+        -0.06,
+        0.12,
+        '#ffffff',
+        0.65,
+      );
       rail.material.map = this.texture(
         (ctx) => {
           ctx.fillStyle = '#6a4939';
@@ -154,8 +178,8 @@ export class TableRenderer {
         1024,
         1024,
       );
-      this.surface(5.61, 3.31, 0.005, 0.06, '#c69c72', 0.4);
-      const felt = this.surface(5.56, 3.26, 0.045, 0.06, '#ffffff', 1);
+      this.surface(TABLE_RADIUS_X + cm(1.5), TABLE_RADIUS_Z + cm(1.5), 0.005, 0.06, '#c69c72', 0.4);
+      const felt = this.surface(TABLE_RADIUS_X, TABLE_RADIUS_Z, 0.045, 0.06, '#ffffff', 1);
       felt.material.map = this.feltTexture();
       felt.material.needsUpdate = true;
       // Camera-parented hand meshes must be in the scene graph to render.
@@ -497,7 +521,11 @@ export class TableRenderer {
       const index = snapshot.seats.findIndex((seat) => seat.id === id);
       const count = ringCount;
       const angle = ((index + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
-      return new THREE.Vector3(Math.sin(angle) * 6.6, 0.4, Math.cos(angle) * 4.65);
+      return new THREE.Vector3(
+        Math.sin(angle) * SEAT_RADIUS_X,
+        TABLE_TOP + cm(25),
+        Math.cos(angle) * SEAT_RADIUS_Z,
+      );
     };
     this.canSelect = snapshot.canSelect;
     this.controls.setSpectator(Boolean(snapshot.spectator));
@@ -583,8 +611,8 @@ export class TableRenderer {
         if (handKey) {
           mesh.rotation.order = 'ZYX';
           mesh.scale.setScalar(HELD_CARD_SCALE);
-        }
-        mesh.position.set(-4.2, 0.6, -0.1);
+        } else mesh.scale.setScalar(TABLE_CARD_SCALE);
+        mesh.position.copy(DECK_TOP);
         const sourceSeat = previous?.seats.find((seat) => seat.active);
         const player = card ? playedBy.get(card.key) : undefined;
         const palm = player
@@ -609,7 +637,7 @@ export class TableRenderer {
       }
       if (card) {
         item.mesh.geometry = handKey ? this.heldGeometry : this.cardGeometry;
-        item.mesh.scale.setScalar(handKey ? HELD_CARD_SCALE : 1);
+        item.mesh.scale.setScalar(handKey ? HELD_CARD_SCALE : TABLE_CARD_SCALE);
         item.mesh.rotation.reorder(handKey ? 'ZYX' : 'XYZ');
         item.mesh.material = [this.edge, this.face(card, id.startsWith('huzur:')), this.back];
         item.mesh.userData.cardKey = card.key;
@@ -623,38 +651,73 @@ export class TableRenderer {
       item.tilt = tilt;
     };
     for (let i = 0; i < Math.min(12, snapshot.deckCount); i++) {
-      put(`deck:${i}`, null, -4.15, 0.12 + i * 0.025, 0.1);
+      put(
+        `deck:${i}`,
+        null,
+        LAYOUT.deck.x,
+        TABLE_TOP + cm(0.3) + i * cm(0.25),
+        LAYOUT.deck.z,
+        0,
+        undefined,
+        0,
+      );
     }
     if (snapshot.deckCount > 0)
       // The felt top is y=0.075. Keep the entire card above it, including its corners.
-      put(`huzur:${snapshot.huzur.key}`, snapshot.huzur, -2.9, 0.21, 0.75, -0.12, undefined, 0.17);
+      put(
+        `huzur:${snapshot.huzur.key}`,
+        snapshot.huzur,
+        LAYOUT.trump.x,
+        TABLE_TOP + cm(0.3),
+        LAYOUT.trump.z,
+        -0.12,
+        undefined,
+        0,
+      );
     // The DOM caption already supplies the deck count at every camera angle.
     if (snapshot.discardCount > 0) {
       for (let i = 0; i < 3; i++)
-        put(`discard:${i}`, null, 4.3 + i * 0.025, 0.13 + i * 0.03, 0.1, -0.12);
-      if (refreshLabels) this.label(`${snapshot.discardCount} discarded`, 3.2, 0.3, 1.2);
+        put(
+          `discard:${i}`,
+          null,
+          LAYOUT.discard.x + i * cm(0.3),
+          TABLE_TOP + cm(0.3) + i * cm(0.3),
+          LAYOUT.discard.z,
+          -0.12,
+          undefined,
+          0,
+        );
+      if (refreshLabels)
+        this.label(
+          `${snapshot.discardCount} discarded`,
+          LAYOUT.discard.x,
+          TABLE_TOP + cm(12),
+          LAYOUT.discard.z + cm(12),
+        );
     }
     snapshot.history.slice(-14).forEach((card, i, history) => {
       const pair = Math.floor(i / 2);
       put(
         `history:${card.key}`,
         card,
-        (pair - (Math.ceil(history.length / 2) - 1) / 2) * 0.88 + 0.25 + (i % 2) * 0.16,
-        0.14 + (i % 2) * 0.05,
-        -0.5 + (i % 2) * 0.25,
+        (pair - (Math.ceil(history.length / 2) - 1) / 2) * LAYOUT.spacing + (i % 2) * cm(1.8),
+        TABLE_TOP + cm(0.3) + (i % 2) * cm(0.3),
+        LAYOUT.historyZ + (i % 2) * cm(3),
         (i % 2) * -0.12,
+        undefined,
+        0,
       );
     });
     snapshot.attacks.forEach((card, i) =>
       put(
         `attack:${card.key}`,
         card,
-        (i - (snapshot.attacks.length - 1) / 2) * 0.9 + 0.25,
-        0.5,
-        -0.35,
+        (i - (snapshot.attacks.length - 1) / 2) * LAYOUT.spacing,
+        TABLE_TOP + cm(0.3),
+        LAYOUT.attackZ,
         0,
         undefined,
-        0.7,
+        0,
       ),
     );
     const handStep = fanStep(snapshot.hand.length, this.camera.aspect);
@@ -687,8 +750,8 @@ export class TableRenderer {
     snapshot.seats.forEach((seat, i) => {
       const count = ringCount;
       const angle = ((i + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
-      const x = Math.sin(angle) * 6.6;
-      const z = Math.cos(angle) * 4.65;
+      const x = Math.sin(angle) * SEAT_RADIUS_X;
+      const z = Math.cos(angle) * SEAT_RADIUS_Z;
       const facing = angle + Math.PI;
       let rig = this.avatars.get(seat.id);
       const preset = seat.preset || 'copper';
@@ -713,9 +776,9 @@ export class TableRenderer {
             ? 0
             : ((active + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
         const target = new THREE.Vector3(
-          Math.sin(targetAngle) * 6.6 - x,
+          Math.sin(targetAngle) * SEAT_RADIUS_X - x,
           0,
-          Math.cos(targetAngle) * 4.65 - z,
+          Math.cos(targetAngle) * SEAT_RADIUS_Z - z,
         );
         yaw = THREE.MathUtils.clamp(
           THREE.MathUtils.euclideanModulo(
@@ -751,7 +814,7 @@ export class TableRenderer {
         this.label(
           `${snapshot.teamMode ? (seat.team === 0 ? '◆ Blue · ' : '● Red · ') : ''}${seat.name.slice(0, 20)} · ${seatStatus(seat, snapshot.betweenGames)}`,
           x,
-          SEATED_CARD_HEIGHT + (2.15 - SEATED_CARD_HEIGHT) * SEATED_PLAYER_SCALE,
+          LABEL_HEIGHT,
           z,
           seat.active,
         );
@@ -761,7 +824,12 @@ export class TableRenderer {
       const offset = snapshot.spectator ? 0 : 1;
       for (let i = snapshot.seats.length + offset; i < ringCount; i++) {
         const angle = (i * Math.PI * 2) / ringCount;
-        this.label('Empty seat', Math.sin(angle) * 6.6, 1.2, Math.cos(angle) * 4.65);
+        this.label(
+          'Empty seat',
+          Math.sin(angle) * SEAT_RADIUS_X,
+          CHARACTER_FLOOR + cm(110),
+          Math.cos(angle) * SEAT_RADIUS_Z,
+        );
       }
     }
     for (const [id, card] of this.cards) {
@@ -792,7 +860,7 @@ export class TableRenderer {
           // The identity becomes private again on pickup; only the back is shown.
           card.mesh.material = this.back;
         } else if (snapshot.discardCount > (previous?.discardCount ?? 0)) {
-          card.target.set(4.3, 0.2, 0);
+          card.target.copy(LAYOUT.discard).setY(TABLE_TOP + cm(1));
         } else {
           // No public destination is known (e.g. a round reset); avoid inventing a discard.
           card.mesh.removeFromParent();

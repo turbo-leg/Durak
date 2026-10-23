@@ -1,5 +1,12 @@
 import { GESTURE_DURATION_MS } from '@durak/shared';
-import { mirrorClip, type Clip, type HandShape, type Reach, type Vec3 } from '../animation.ts';
+import {
+  mirrorClip,
+  REST,
+  type Clip,
+  type HandShape,
+  type Reach,
+  type Vec3,
+} from '../animation.ts';
 import { FINGERS } from '../spec.ts';
 
 /**
@@ -22,7 +29,7 @@ const count = (fingers: number): Clip => ({
       t: 0,
       R: {
         target: 'body',
-        at: [-0.44, 2.16, 0.46],
+        at: [-0.22, 1.25, 0.22],
         finger: [0, 1, 0],
         thumb: [1, 0, 0],
         shape: { ...extended(fingers), spread: 0.08 },
@@ -31,27 +38,67 @@ const count = (fingers: number): Clip => ({
   ],
 });
 
-/** The right index fingertip on a face socket; the hand turns with the head. */
+/**
+ * The right index fingertip on a face socket; the hand turns with the head. It arrives
+ * around the fan, via its own shoulder and then `approach` (metres in the head's frame, beside the ear or
+ * the face), and leaves the same way, so the hand passes neither the fan nor the face.
+ */
+/** Waypoints out of the way of the held fan wherever the head turns it: low and out to the
+ * side, then raised beside the shoulder. */
+const BELOW_FAN: Reach = {
+  target: 'body',
+  at: [-0.34, 0.7, -0.03],
+  effector: 'IndexTip',
+  finger: [0, -0.4, 1],
+  thumb: [1, 0, 0],
+  shape: extended(1),
+};
+const BESIDE_SHOULDER = {
+  target: 'body',
+  at: [-0.3, 1.02, 0.08] as Vec3,
+  effector: 'IndexTip' as const,
+  shape: extended(1),
+};
+
 const touch = (
   socket: string,
   finger: [number, number, number],
   thumb: [number, number, number],
+  approach: [number, number, number],
 ): Clip => ({
   duration: GESTURE_DURATION_MS,
   keys: [
+    { t: 0, R: REST },
+    { t: 250, R: BELOW_FAN },
+    { t: 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
     {
-      t: 0,
+      t: 600,
+      R: { target: socket, at: approach, effector: 'IndexTip', finger, thumb, shape: extended(1) },
+    },
+    {
+      t: 750,
       R: { target: socket, effector: 'IndexTip', finger, thumb, shape: extended(1) },
     },
+    {
+      t: GESTURE_DURATION_MS - 750,
+      R: { target: socket, effector: 'IndexTip', finger, thumb, shape: extended(1) },
+    },
+    {
+      t: GESTURE_DURATION_MS - 600,
+      R: { target: socket, at: approach, effector: 'IndexTip', finger, thumb, shape: extended(1) },
+    },
+    { t: GESTURE_DURATION_MS - 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
+    { t: GESTURE_DURATION_MS - 250, R: BELOW_FAN },
+    { t: GESTURE_DURATION_MS, R: REST },
   ],
 });
 
-const earRight = touch('EarR', [0.7, 0.75, -0.4], [0.85, -0.62, 0.32]);
+const earRight = touch('EarR', [0.7, 0.75, -0.4], [0.85, -0.62, 0.32], [-0.07, -0.02, 0.02]);
 
 /** The right palm over the eyes, rubbing; the head bows and the chest sobs. */
 const coverEyes = (x: number): Reach => ({
   target: 'Eyes',
-  at: [x, -0.01, 0.08],
+  at: [x, -0.005, 0.045],
   effector: 'Palm',
   // Fingers up across the brow, palm toward the face, thumb out to the side.
   finger: [0.35, 0.9, -0.1],
@@ -73,10 +120,10 @@ const cry: Clip = {
   fade: 300,
   peak: 900,
   keys: [
-    { t: 0, R: coverEyes(-0.04) },
-    { t: 700, R: coverEyes(-0.02) },
-    { t: 1000, R: coverEyes(-0.05) },
-    { t: 1300, R: coverEyes(-0.02) },
+    { t: 0, R: coverEyes(-0.02) },
+    { t: 700, R: coverEyes(-0.01) },
+    { t: 1000, R: coverEyes(-0.025) },
+    { t: 1300, R: coverEyes(-0.01) },
     ...[0, 250, 450, 650, 850, 1050, 1250, 1450, 1650].map((t, i) => sob(t, i % 2 === 1)),
   ],
 };
@@ -84,7 +131,7 @@ const cry: Clip = {
 /** A fist pumped above the shoulder, leaning back a little. */
 const pump = (height: number): Reach => ({
   target: 'body',
-  at: [-0.32, height, 0.28],
+  at: [-0.16, height, 0.13],
   finger: [0.1, 1, 0.1],
   thumb: [1, 0, 0.2],
   shape: { curl: { Index: 1, Middle: 1, Ring: 1, Pinky: 1 }, thumb: 1 },
@@ -94,7 +141,7 @@ const cheer: Clip = {
   peak: 400,
   keys: [0, 400, 650, 900, 1150, 1400].map((t, i) => ({
     t,
-    R: pump(i % 2 ? 2.68 : 2.52),
+    R: pump(i % 2 ? 1.46 : 1.38),
     bones: { Chest: [-0.06, 0, 0] as Vec3, Head: [-0.1, 0, 0] as Vec3 },
   })),
 };
@@ -108,7 +155,7 @@ const shrug: Clip = {
       t: 0,
       R: {
         target: 'body',
-        at: [-0.42, 1.86, 0.42],
+        at: [-0.22, 0.9, 0.2],
         finger: [-0.5, 0.1, 1],
         thumb: [-0.89, 0, -0.45],
         shape: { curl: { Index: 0.1, Middle: 0.15, Ring: 0.2, Pinky: 0.25 } },
@@ -131,7 +178,7 @@ export const EMOTES: Readonly<Record<string, Clip>> = {
   two: count(2),
   three: count(3),
   four: count(4),
-  nose: touch('Nose', [0, 0.88, -0.47], [1, 0, 0]),
+  nose: touch('Nose', [0, 0.88, -0.47], [1, 0, 0], [-0.18, -0.06, 0.06]),
   'ear-right': earRight,
   'ear-left': mirrorClip(earRight),
   cry,
@@ -168,7 +215,7 @@ const gathering: HandShape = {
 };
 const toChest: Reach = {
   target: 'body',
-  at: [-0.22, 1.82, 0.5],
+  at: [-0.11, 0.95, 0.24],
   effector: 'Palm',
   finger: [0.4, 0.3, 1],
   thumb: [0.4, 1, 0],
@@ -188,9 +235,9 @@ const play: Clip = {
   fade: 200,
   peak: 450,
   keys: [
-    { t: 150, R: onTable('table', [0, 0.3, 0], flat) },
-    { t: 450, R: onTable('table', [0, 0.04, 0], flat), bones: { Chest: [0.1, 0, 0] } },
-    { t: 700, R: onTable('table', [0, 0.25, 0], flat) },
+    { t: 150, R: onTable('table', [0, 0.14, 0], flat) },
+    { t: 450, R: onTable('table', [0, 0.02, 0], flat), bones: { Chest: [0.1, 0, 0] } },
+    { t: 700, R: onTable('table', [0, 0.12, 0], flat) },
     { t: 900, bones: { Chest: [0, 0, 0] } },
   ],
 };
@@ -201,8 +248,8 @@ const pickup: Clip = {
   fade: 220,
   peak: 550,
   keys: [
-    { t: 250, R: onTable('table', [0.25, 0.05, 0], flat), bones: { Chest: [0.12, 0, 0] } },
-    { t: 550, R: onTable('table', [-0.2, 0.05, 0], gathering) },
+    { t: 250, R: onTable('table', [0.12, 0.025, 0], flat), bones: { Chest: [0.12, 0, 0] } },
+    { t: 550, R: onTable('table', [-0.1, 0.025, 0], gathering) },
     { t: 900, R: toChest, bones: { Chest: [0, 0, 0] } },
   ],
 };
@@ -213,8 +260,8 @@ const draw: Clip = {
   fade: 200,
   peak: 400,
   keys: [
-    { t: 250, R: onTable('deck', [0, 0.12, 0], flat) },
-    { t: 450, R: onTable('deck', [0, 0.06, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
+    { t: 250, R: onTable('deck', [0, 0.06, 0], flat) },
+    { t: 450, R: onTable('deck', [0, 0.03, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
     { t: 800, R: toChest, bones: { Chest: [0, 0, 0] } },
   ],
 };

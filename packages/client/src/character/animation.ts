@@ -51,6 +51,16 @@ export interface Clip {
   keys: Key[];
 }
 
+/** Empty-handed: wrists rest on the table edge, fingers relaxed. */
+export const REST: Reach = {
+  target: 'body',
+  // Wrists rest on the table's edge, 38 cm in front of the chair.
+  at: [-0.15, 0.77, 0.36],
+  finger: [0, -0.25, 1],
+  thumb: [1, 0, 0],
+  shape: { curl: { Index: 0.3, Middle: 0.35, Ring: 0.4, Pinky: 0.45 }, thumb: 0.15 },
+};
+
 const SIDE_NAME = /(L|R)$/;
 const swapName = (name: string) => name.replace(SIDE_NAME, (side) => (side === 'L' ? 'R' : 'L'));
 const flip = ([x, y, z]: Vec3): Vec3 => [-x, y, z];

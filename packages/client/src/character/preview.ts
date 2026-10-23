@@ -8,6 +8,10 @@ import {
   fanStep,
   heldCard,
   HELD_CARD_SCALE,
+  SEAT_RADIUS_Z,
+  TABLE_CARD_SCALE,
+  TABLE_RADIUS_Z,
+  TABLE_TOP,
 } from '../components/three/CharacterSpace.ts';
 
 /**
@@ -36,15 +40,15 @@ const sun = new THREE.DirectionalLight('#ffe2bf', 2.4);
 sun.position.set(-3, 8, 6);
 scene.add(sun);
 const table = new THREE.Mesh(
-  new THREE.CylinderGeometry(4.4, 4.4, 0.15, 64),
+  new THREE.CylinderGeometry(TABLE_RADIUS_Z, TABLE_RADIUS_Z, 0.15, 64),
   new THREE.MeshStandardMaterial({ color: '#2f6382', roughness: 0.95 }),
 );
 scene.add(table);
 const deck = new THREE.Mesh(
-  new THREE.BoxGeometry(0.82, 0.3, 1.2),
+  new THREE.BoxGeometry(0.82 * TABLE_CARD_SCALE, 0.3 * TABLE_CARD_SCALE, 1.2 * TABLE_CARD_SCALE),
   new THREE.MeshStandardMaterial({ color: '#203a52' }),
 );
-deck.position.set(-2.5, 0.22, 2.4);
+deck.position.set(-1.1, TABLE_TOP + 0.05, 1.1);
 scene.add(deck);
 const camera = new THREE.PerspectiveCamera(38, 1, 0.02, 60);
 
@@ -56,7 +60,7 @@ function seat() {
   // Clips start once the body has loaded; actions need its hands.
   character = new SeatedCharacter(state.preset, () => (start(), frame()));
   // The chair faces the table centre from +Z, like a seat across from the viewer.
-  character.root.position.set(0, CHARACTER_FLOOR, 4.65);
+  character.root.position.set(0, CHARACTER_FLOOR, SEAT_RADIUS_Z);
   character.root.rotation.y = Math.PI;
   character.root.scale.setScalar(CHARACTER_SCALE);
   scene.add(character.root);
@@ -88,7 +92,10 @@ function start() {
   if (kind === 'action')
     character.act(
       id as keyof typeof ACTIONS,
-      { table: new THREE.Vector3(0.3, 0.12, 0.6), deck: deck.position.clone().setY(0.4) },
+      {
+        table: new THREE.Vector3(0.1, TABLE_TOP + 0.02, 0.3),
+        deck: deck.position.clone().setY(TABLE_TOP + 0.06),
+      },
       now,
     );
 }
@@ -99,11 +106,11 @@ const gesture = (id: string) => ({
 });
 
 const VIEWS: Record<string, [THREE.Vector3, THREE.Vector3]> = {
-  // The seated head is about 1.65 above the table top, the held fan about 1.2.
-  front: [new THREE.Vector3(0, 1.55, 0.6), new THREE.Vector3(0, 1.05, 4.6)],
-  close: [new THREE.Vector3(0.5, 1.45, 2.7), new THREE.Vector3(0, 1.15, 4.6)],
-  side: [new THREE.Vector3(3, 1.4, 3.7), new THREE.Vector3(0, 1.05, 4.4)],
-  holder: [new THREE.Vector3(0.6, 2.6, 6.3), new THREE.Vector3(0, 0.8, 3.4)],
+  // World units: the seated eyes are about 1.6 above the floor's origin, the fan about 0.8.
+  front: [new THREE.Vector3(0, 1.8, -1.2), new THREE.Vector3(0, 1.1, SEAT_RADIUS_Z)],
+  close: [new THREE.Vector3(0.9, 1.7, 0.4), new THREE.Vector3(0, 1.2, SEAT_RADIUS_Z)],
+  side: [new THREE.Vector3(3.4, 1.4, 1.6), new THREE.Vector3(0, 0.9, SEAT_RADIUS_Z - 0.6)],
+  holder: [new THREE.Vector3(0.9, 1.5, -0.4), new THREE.Vector3(-0.1, 0.85, 1.75)],
 };
 function frame() {
   const { width, height } = renderer.domElement.parentElement!.getBoundingClientRect();

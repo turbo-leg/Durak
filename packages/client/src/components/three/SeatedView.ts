@@ -52,10 +52,11 @@ export class SeatedView {
   };
   private apply() {
     if (this.spectator) {
+      // Spectators look down on the table from beyond the chairs, above head height.
       this.camera.position.set(
-        Math.sin(this.yaw) * 11.5,
-        9 + this.pitch * 4,
-        Math.cos(this.yaw) * 11.5,
+        Math.sin(this.yaw) * 5.6,
+        4.3 + this.pitch * 2,
+        Math.cos(this.yaw) * 5.6,
       );
       this.camera.lookAt(0, 0, 0);
     } else {

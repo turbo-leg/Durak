@@ -36,8 +36,9 @@ export default function GesturePreview({
     light.position.set(-2, 5, 4);
     scene.add(light);
     const camera = new THREE.PerspectiveCamera(32, 144 / 188, 0.1, 20);
-    camera.position.set(0, 2.2, 3.9);
-    camera.lookAt(0, 2.16, 0);
+    // The character stands at the origin in metres: frame the head, hands and cards.
+    camera.position.set(0, 1.12, 1.75);
+    camera.lookAt(0, 1.06, 0);
     let timer: ReturnType<typeof setTimeout>;
     let disposed = false;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');

@@ -167,7 +167,9 @@ abstract class CharacterBody {
 
   /** A local reaction to the public game, such as crying when left holding the cards. */
   react(id: ReactionId, now = this.clock()) {
-    if (this.pose) this.actions.push({ clip: REACTIONS[id], start: now, targets: {} });
+    // Holding cards, a reaction that suits either hand uses the free one.
+    const clip = (this.count > 0 && FREE_HAND_EMOTES[id]) || REACTIONS[id];
+    if (this.pose) this.actions.push({ clip, start: now, targets: {} });
   }
 
   /** Where a card leaves (or reaches) the hand acting toward `target`, in world space. */

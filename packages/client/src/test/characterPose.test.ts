@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
 import { ACTIONS, EMOTES, FREE_HAND_EMOTES, REACTIONS } from '../character/animations/registry';
 import { holdingHand } from '../character/CharacterPose';
+import { BODY, SKULL } from '../character/spec';
 import {
   FirstPersonCharacter,
   SeatedCharacter,
@@ -70,7 +71,7 @@ describe('Character card grip', () => {
             expect(thumb, `${label} ${side} thumb over a card`).toBeDefined();
             if (!thumb) continue;
             expect(thumb.front, label).toBeGreaterThan(0);
-            expect(thumb.gap, label).toBeLessThan(0.045);
+            expect(thumb.gap, label).toBeLessThan(0.03);
             for (const part of ['Palm', 'Index', 'Middle', 'Ring', 'Pinky'])
               expect(sides.get(`${side}:${part}`)?.front ?? 0, `${label} ${side} ${part}`).toBe(0);
             // Fingers keep their natural spacing: none folds into a neighbour.
@@ -79,7 +80,7 @@ describe('Character card grip', () => {
               if (!pair.startsWith('Thumb'))
                 expect(distance, `${label} ${side} ${pair}`).toBeGreaterThan(rest[pair]! * 0.8);
           }
-          expect(handGap(sample, scene), label).toBeGreaterThan(0.02);
+          expect(handGap(sample, scene), label).toBeGreaterThan(0.01);
         }
       if (firstPerson) scene.parent?.clear();
     },
@@ -198,13 +199,19 @@ describe('Character gestures', () => {
 
 describe('Every emote and reaction', () => {
   const clips = [
-    ...Object.entries(EMOTES).map(([id, clip]) => [id, clip, 5] as const),
+    // Holding cards, hand-neutral emotes use the free left hand, as the rig does.
+    ...Object.entries(EMOTES).map(([id, clip]) => [id, FREE_HAND_EMOTES[id] ?? clip, 5] as const),
     ...Object.entries(REACTIONS).map(
-      ([id, clip]) => [`reaction ${id}`, clip, id === 'victory' ? 0 : 5] as const,
+      ([id, clip]) =>
+        [
+          `reaction ${id}`,
+          id === 'victory' ? clip : (FREE_HAND_EMOTES[id] ?? clip),
+          id === 'victory' ? 0 : 5,
+        ] as const,
     ),
   ];
   it.each(clips)(
-    '%s keeps limbs whole, fingers apart and hands outside the head',
+    '%s keeps limbs whole, fingers apart and hands outside the head and the fan',
     async (_id, clip, count) => {
       const { scene, pose } = await loadCharacter(false);
       pose.look(0, 0);
@@ -216,8 +223,11 @@ describe('Every emote and reaction', () => {
       const bind = { L: arm('L'), R: arm('R') };
       const head = scene.getObjectByName('Head')!;
       for (let time = 0; time < clip.duration; time += clip.duration / 10) {
-        pose.pose({ yaw: 0.3, pitch: 0, reduced: false, count, clips: [{ clip, time }] });
+        const frame = viewFrame(pose, 0.3, 0);
+        pose.pose({ yaw: 0.3, pitch: 0, reduced: false, count, frame, clips: [{ clip, time }] });
         const label = `${_id} at ${time.toFixed(0)} ms`;
+        if (count)
+          expect(cardIntersections(skin(scene), fanCards(frame, count)), label).toEqual([]);
         for (const side of ['L', 'R'] as const) {
           arm(side).forEach((length, i) => expect(length, label).toBeCloseTo(bind[side][i]!, 5));
           const clearance = digitClearance(scene, side);
@@ -232,7 +242,9 @@ describe('Every emote and reaction', () => {
         const inside = sample.positions.filter((p, i) => {
           if (!/:(Palm|Thumb|Index|Middle|Ring|Pinky)$/.test(sample.labels[i]!)) return false;
           const q = p.clone().applyMatrix4(toHead);
-          return (q.x / 0.19) ** 2 + ((q.y - 0.19) / 0.24) ** 2 + (q.z / 0.2) ** 2 < 0.85;
+          const [cx, cy, cz] = SKULL.centre;
+          const [rx, ry, rz] = SKULL.radii;
+          return ((q.x - cx) / rx) ** 2 + ((q.y - cy) / ry) ** 2 + ((q.z - cz) / rz) ** 2 < 0.85;
         });
         expect(inside.length, label).toBe(0);
       }
@@ -247,7 +259,8 @@ describe('Character card actions', () => {
     async (id) => {
       const { scene, pose } = await loadCharacter(false);
       // A table target well beyond reach, in front and to the right of the seat.
-      const target = new THREE.Matrix4().makeTranslation(-0.6, 1.5, 2.4);
+      const far = new THREE.Vector3(-0.3, 0.74, 1.2);
+      const target = new THREE.Matrix4().makeTranslation(far.x, far.y, far.z);
       const targets = { table: target, deck: target };
       for (const count of [1, 5]) {
         // The right hand holds the fan; the free left hand acts.
@@ -257,9 +270,7 @@ describe('Character card actions', () => {
         const frame = viewFrame(pose, 0, 0);
         pose.pose({ yaw: 0, pitch: 0, reduced: true, count, frame });
         const shoulder = at(scene, `UpperArm${acting}`);
-        const restDistance = at(scene, `SocketPalm${acting}`).distanceTo(
-          new THREE.Vector3(-0.6, 1.5, 2.4),
-        );
+        const restDistance = at(scene, `SocketPalm${acting}`).distanceTo(far);
         for (let time = 0; time < clip.duration; time += clip.duration / 10) {
           pose.pose({
             yaw: 0,
@@ -279,7 +290,7 @@ describe('Character card actions', () => {
           ).toEqual([]);
           expect(
             at(scene, `UpperArm${acting}`).distanceTo(at(scene, `LowerArm${acting}`)),
-          ).toBeCloseTo(0.388, 2);
+          ).toBeCloseTo(BODY.upperArm, 2);
         }
         // At its peak the palm has moved well toward the far target.
         pose.pose({
@@ -290,11 +301,9 @@ describe('Character card actions', () => {
           frame,
           clips: [{ clip, time: clip.peak!, targets }],
         });
-        const distance = at(scene, `SocketPalm${acting}`).distanceTo(
-          new THREE.Vector3(-0.6, 1.5, 2.4),
-        );
-        expect(distance, `${id} ${count}`).toBeLessThan(restDistance - 0.25);
-        expect(at(scene, `UpperArm${acting}`).distanceTo(shoulder)).toBeLessThan(0.2);
+        const distance = at(scene, `SocketPalm${acting}`).distanceTo(far);
+        expect(distance, `${id} ${count}`).toBeLessThan(restDistance - 0.12);
+        expect(at(scene, `UpperArm${acting}`).distanceTo(shoulder)).toBeLessThan(0.1);
       }
     },
     120000,
