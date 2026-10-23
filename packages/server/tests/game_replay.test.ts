@@ -84,7 +84,7 @@ describe('Game loop regression (#119)', () => {
       room.state.phase = 'playing';
     });
 
-    it('declares the remaining player as loser when deck is empty and one hand empties', () => {
+    it('ends the game when the first player runs out of cards with the deck empty', () => {
       room.state.deck.splice(0, room.state.deck.length);
       // Both players have cards — not finished yet
       room.state.players.get('p1')!.hand.push(new Card('Clubs', 7));
@@ -94,14 +94,48 @@ describe('Game loop regression (#119)', () => {
 
       expect(room.state.phase).toBe('playing'); // still ongoing
 
-      // p1 empties their hand → p1 wins, p2 is the loser
+      // p1 empties their hand → p1 is the only winner
       room.state.players.get('p1')!.hand.splice(0, 1);
 
       (room as any).checkGameOver();
 
       expect(room.state.phase).toBe('finished');
-      expect(Array.from(room.state.winners)).toContain('p1');
-      expect(room.state.loser).toBe('p2');
+      expect(Array.from(room.state.winners)).toEqual(['p1']);
+      expect(room.state.outcome).toBe('win');
+      expect(room.broadcast).toHaveBeenCalledWith('gameOver', { winner: 'p1', winnerTeam: -1 });
+    });
+
+    it('in free-for-all the first player out is the only winner; the others do not play on', () => {
+      setupPlayers(room, ['p1', 'p2', 'p3']);
+      room.state.deck.splice(0, room.state.deck.length);
+      room.state.players.get('p1')!.hand.push(new Card('Clubs', 7));
+      room.state.players.get('p3')!.hand.push(new Card('Hearts', 7));
+      room.state.players.get('p2')!.username = 'Bo';
+
+      (room as any).checkGameOver();
+
+      expect(room.state.phase).toBe('finished');
+      expect(Array.from(room.state.winners)).toEqual(['p2']);
+      expect(room.state.winnerName).toBe('Bo');
+      expect(room.state.loser).toBe('');
+    });
+
+    it('in teams the first player out wins for the whole team, and Horse marks the other team', () => {
+      setupPlayers(room, ['a1', 'b1', 'a2', 'b2']);
+      room.state.mode = 'horse';
+      ['a1', 'a2'].forEach((id) => (room.state.players.get(id)!.team = 0));
+      ['b1', 'b2'].forEach((id) => (room.state.players.get(id)!.team = 1));
+      room.state.deck.splice(0, room.state.deck.length);
+      for (const id of ['a1', 'b1', 'b2'])
+        room.state.players.get(id)!.hand.push(new Card('Clubs', 7));
+
+      (room as any).checkGameOver();
+
+      expect(room.state.phase).toBe('finished');
+      expect(Array.from(room.state.winners)).toEqual(['a1', 'a2']);
+      expect(room.state.winnerTeam).toBe(0);
+      expect(room.state.horseTeamA).toBe('');
+      expect(room.state.horseTeamB).toBe('H');
     });
 
     it('does not trigger while deck still has cards even if a hand is empty', () => {
@@ -122,8 +156,8 @@ describe('Game loop regression (#119)', () => {
       expect(room.state.phase).toBe('finished');
       expect(Array.from(room.state.winners)).toContain('p1');
       expect(Array.from(room.state.winners)).toContain('p2');
-      expect(room.state.loser).toBe(''); // no single loser
-      expect(room.broadcast).toHaveBeenCalledWith('gameOver', { loser: null, draw: true });
+      expect(room.state.outcome).toBe('draw');
+      expect(room.broadcast).toHaveBeenCalledWith('gameOver', { draw: true });
     });
   });
 

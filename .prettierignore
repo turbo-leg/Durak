@@ -3,3 +3,11 @@ dist/
 coverage/
 packages/*/dist/
 .env
+package-lock.json
+output/
+packages/client/android/
+packages/client/ios/
+packages/client/public/
+*.glb
+docs/archive/
+.claude/

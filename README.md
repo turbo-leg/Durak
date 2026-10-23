@@ -1,6 +1,8 @@
 # Durak Discord Activity
 
-A real-time multiplayer **Durak** (Дурак, "fool") card game built as a [Discord Activity](https://discord.com/developers/docs/activities/overview). Players can launch the game inside any Discord voice channel and play a 2–4 player match without leaving the call.
+A real-time multiplayer **Durak** (Дурак, "fool") card game built as a [Discord Activity](https://discord.com/developers/docs/activities/overview). Players can launch the game inside any Discord voice channel and play a match of 2 to 6 players, against friends or bots, without leaving the call.
+
+Roadmap: [PROJECT_PLAN.md](docs/PROJECT_PLAN.md). Developer guide: [CONTRIBUTING.md](CONTRIBUTING.md). The interactive card room uses Three.js for home and live play, with spatial card selection, camera orbit, accessible card controls and a 2D fallback. Hands and deck order are filtered on the server, and room identities require verified session tokens. Release validation and remaining dependency work are tracked in the plan.
 
 The stack: **Colyseus** (authoritative game server) + **React/Vite** (client) + **MongoDB** (profiles, stats, achievements) + **Redis** (optional, for multi-instance scaling).
 
@@ -18,7 +20,7 @@ npm run dev                           # server :2567 + client :5173
 
 Open `http://localhost:5173` for the standalone web build (Discord SDK is no-oped outside the embed).
 
-For the full Docker-based setup (server + Redis), see [Running locally → Docker](#docker).
+For the production image with MongoDB and Redis, see [Running locally → Docker](#docker).
 
 ## Architecture
 
@@ -39,7 +41,7 @@ For the full Docker-based setup (server + Redis), see [Running locally → Docke
 
 The client is served by the Colyseus server in production (single Fly app). In development the Vite dev server runs separately at `:5173` and proxies `/colyseus` and `/api` to the server at `:2567`.
 
-Deeper architecture notes: [ARCHITECTURE.md](ARCHITECTURE.md). Game rules: [GAME_RULES.md](GAME_RULES.md). Move notation: [GAME_NOTATION.md](GAME_NOTATION.md).
+Code layout: [CONTRIBUTING.md](CONTRIBUTING.md) and [the client README](packages/client/README.md). Game rules: [GAME_RULES.md](GAME_RULES.md). Move notation: [GAME_NOTATION.md](GAME_NOTATION.md).
 
 ## Environment variables
 
@@ -61,21 +63,14 @@ Client variables live in `packages/client/.env.local`.
 
 ### Docker
 
-Spins up the Colyseus server + Redis. The fastest way to get a production-shaped backend running:
+Runs the production image with MongoDB and Redis: the closest local match to the deployed game. `.env` is optional here; without one, the server uses the compose database.
 
 ```bash
 docker compose up --build -d
 docker compose logs -f server
 ```
 
-Server: `http://localhost:2567`.
-
-Then run the Vite client locally for hot reload:
-
-```bash
-npm install
-npm run dev:client                    # http://localhost:5173
-```
+The game is served at `http://localhost:2567`.
 
 ### Without Docker
 
@@ -104,17 +99,15 @@ When the app is opened outside Discord (plain browser), the Discord SDK is bypas
 ## Running tests
 
 ```bash
-npm test                              # all workspace test suites
-npm run lint                          # eslint across all workspaces
-npx tsc --noEmit -p packages/client/tsconfig.json   # typecheck client
-npx tsc --noEmit -p packages/shared/tsconfig.json   # typecheck shared
+npm run check                         # lint, typecheck and every test
+npm run build                         # client production assets + server/shared type validation
 ```
 
-CI runs lint + typecheck + tests + a production build on every PR. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+CI also checks formatting and unused code (knip), then builds, on every PR. Every command is listed in [CONTRIBUTING.md](CONTRIBUTING.md). See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Deploying to Fly.io
 
-The production app is `durak-discord-activity` in region `iad`. The Dockerfile builds both the client (Vite) and the server (tsc) and runs the server, which serves the built client.
+The production app is configured as `durak-discord-activity` in region `iad`. The Dockerfile builds the client with Vite and runs the server TypeScript through ts-node; the server serves the built client. Server/shared `build` scripts validate types without emitting runtime JavaScript. CI validates all workspace types before building; deployed infrastructure has not been verified by the local audit.
 
 ```bash
 flyctl deploy                         # uses fly.toml + Dockerfile
@@ -132,11 +125,10 @@ flyctl logs                           # tail logs
 - **OAuth callback fails inside Discord** — confirm the URL mapping in the Developer Portal matches the URL Discord is loading, and that `DISCORD_CLIENT_SECRET` is set on the server.
 - **MongoDB `MongoNotConnectedError`** — verify `MONGO_URI` is reachable from your machine / Fly app. Atlas users: allow the source IP in Atlas → Network Access.
 - **Rooms desync across two server instances** — set `REDIS_URL` so Colyseus can share presence; without it, each instance keeps its own room registry.
-- **Tests hang on Node 20** — pointer events in `@testing-library/user-event` can be flaky on Node 20; use `fireEvent.click` for click interactions in new tests.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. TL;DR: fork → branch off `main` → keep PRs small → ensure `npm run lint && npm test` pass → open a PR referencing the issue (`Closes #N`).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. In short: branch off `main`, keep PRs small, make sure `npm run check` passes, and open a PR referencing the issue (`Closes #N`).
 
 ## License
 

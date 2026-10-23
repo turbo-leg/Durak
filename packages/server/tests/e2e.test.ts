@@ -1,6 +1,7 @@
-import { describe, it, beforeAll, afterAll, expect, beforeEach } from 'vitest';
+import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
 import { ColyseusTestServer, boot } from '@colyseus/testing';
 import { DurakRoom } from '../src/rooms/DurakRoom';
+import { BOT_NAMES } from '../src/rooms/botNames';
 import { GameState } from '@durak/shared/src/state/GameState';
 import { Card } from '@durak/shared/src/state/Card';
 
@@ -8,7 +9,7 @@ const appConfig = {
   initializeGameServer: (gameServer: any) => {
     gameServer.define('durak', DurakRoom);
   },
-  initializeExpress: (app: any) => {},
+  initializeExpress: () => {},
 };
 
 describe('E2E Durak Match', () => {
@@ -21,6 +22,33 @@ describe('E2E Durak Match', () => {
   afterAll(async () => {
     await testingServer.cleanup();
   });
+
+  it.each(['easy', 'hard'])(
+    'starts a Solo match with a live %s bot from room options',
+    async (botDifficulty) => {
+      const room = await testingServer.createRoom<GameState>('durak', {
+        isPrivate: true,
+        maxPlayers: 2,
+        handSize: 5,
+        mode: 'classic',
+        botDifficulty,
+        lifecycleTiming: { openingMs: 150 },
+      });
+      const client = await testingServer.connectTo(room);
+      // Practice deals at once, then shows the opening before the first turn.
+      await vi.waitFor(() => expect(room.state.phase).toBe('opening'));
+      expect(room.state.turnStartTime).toBe(0);
+      await vi.waitFor(() => expect(room.state.phase).toBe('playing'));
+      expect(room.state.turnStartTime).toBeGreaterThan(0);
+      expect(room.state.targetHandSize).toBe(5);
+      expect(room.state.players.size).toBe(2);
+      expect(room.state.players.get(client.sessionId)?.hand.length).toBe(5);
+      const bot = Array.from(room.state.players.values()).find((p) => p.id !== client.sessionId);
+      expect(BOT_NAMES).toContain(bot?.username);
+      expect(bot?.isReady).toBe(true);
+      expect(room.state.seatOrder.length).toBe(2);
+    },
+  );
 
   it('spins up server, joins 2 players, starts game, performs attack, defend, and pickup', async () => {
     const room = await testingServer.createRoom<GameState>('durak', {});
@@ -48,18 +76,19 @@ describe('E2E Durak Match', () => {
     const defenderPlayer = room.state.players.get(defenderClient.sessionId)!;
 
     // ----- ATTACK -----
-    const cardToPlay = attackerPlayer.hand[0];
+    // Lead with a non-Joker so the Red Joker below can always beat it.
+    const cardToPlay = Array.from(attackerPlayer.hand).find((c) => c && !c.isJoker);
+    if (!cardToPlay) throw new Error('Expected the attacker to have a dealt card');
     attackerClient.send('attack', { cards: [cardToPlay] });
     await room.waitForNextPatch();
 
     expect(room.state.activeAttackCards.length).toBe(1);
-    expect(room.state.activeAttackCards[0].rank).toBe(cardToPlay.rank);
+    expect(room.state.activeAttackCards[0]?.rank).toBe(cardToPlay.rank);
     expect(room.state.currentTurn).toBe(defenderClient.sessionId);
 
     // ----- DEFEND -----
-    const trumpSuit = room.state.huzurSuit;
-    // Cheat a Joker into defender's hand so they can beat anything
-    const defenseCard = new Card(trumpSuit, 15, true);
+    // Cheat the Red Joker into defender's hand so they can beat any non-Joker lead
+    const defenseCard = new Card('None', 18, true);
     defenderPlayer.hand.push(defenseCard);
 
     defenderClient.send('defend', {
@@ -85,11 +114,12 @@ describe('E2E Durak Match', () => {
 
     // ----- SECOND ATTACK (Defender starts a new trick) -----
     const cardToPlay2 = defenderPlayer.hand[0];
+    if (!cardToPlay2) throw new Error('Expected the defender to have a replenished card');
     defenderClient.send('attack', { cards: [cardToPlay2] });
     await room.waitForNextPatch();
 
     expect(room.state.activeAttackCards.length).toBe(1);
-    expect(room.state.activeAttackCards[0].rank).toBe(cardToPlay2.rank);
+    expect(room.state.activeAttackCards[0]?.rank).toBe(cardToPlay2.rank);
 
     // Now it's the other player's turn (attackerClient). They pick up!
     const attackerHandSizeBefore = attackerPlayer.hand.length;

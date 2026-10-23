@@ -9,7 +9,7 @@
     "build:mobile": "npm run build && npx cap sync",
     "open:ios": "npx cap open ios",
     "open:android": "npx cap open android",
-    "lint": "eslint .",
+    "typecheck": "tsc -b",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -17,7 +17,6 @@
   "dependencies": {
     "@capacitor/android": "^8.3.1",
     "@capacitor/core": "^8.3.1",
-    "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.3.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
@@ -26,30 +25,23 @@
     "@sentry/react": "^10.53.1",
     "@tailwindcss/vite": "^4.2.2",
     "colyseus.js": "^0.15.0",
-    "framer-motion": "^12.38.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "tailwindcss": "^4.2.2"
+    "tailwindcss": "^4.2.2",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.1",
-    "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.5",
-    "eslint": "^9.39.4",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.4.0",
     "jsdom": "^29.1.1",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.58.0",
     "vite": "^8.0.4",
     "vitest": "^4.1.5"
   }

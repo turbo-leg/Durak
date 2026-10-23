@@ -11,6 +11,8 @@
     "vitest": "^4.1.4"
   },
   "scripts": {
+    "build": "npm run typecheck",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   }
 }

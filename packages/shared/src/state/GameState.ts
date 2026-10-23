@@ -1,10 +1,15 @@
-import { type, Schema, MapSchema, ArraySchema } from '@colyseus/schema';
+import { type, filter, Schema, MapSchema, ArraySchema } from '@colyseus/schema';
 import { Player } from './Player';
 import { Card } from './Card';
+import { OpeningDraw } from './OpeningDraw';
+import { SeatRequest } from './SeatRequest';
 
 export class GameState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
-  @type([Card]) deck = new ArraySchema<Card>();
+  // Never send deck order to players or spectators, including debug clients.
+  @filter(() => false)
+  @type([Card])
+  deck = new ArraySchema<Card>();
   @type([Card]) discardPile = new ArraySchema<Card>();
   @type([Card]) table = new ArraySchema<Card>();
   @type([Card]) tableStacks = new ArraySchema<Card>(); // Pairs of [attacker, defender] for visual history
@@ -28,15 +33,24 @@ export class GameState extends Schema {
 
   @type(['string']) seatOrder = new ArraySchema<string>(); // Used for turn progression and team alternating seats
 
-  @type(['string']) winners = new ArraySchema<string>(); // List of sessionIds who finished their hand
-  @type('string') loser = ''; // sessionId of the Durak
+  // The first player out once the deck is empty wins and the game ends there.
+  // In Teams and Horse every member of that player's team is a winner.
+  @type(['string']) winners = new ArraySchema<string>();
+  @type('string') loser = ''; // Unused since the first-out rule: no single Durak is named.
+  @type('string') outcome = ''; // '' while playing, then 'win' or 'draw'
+  // Kept with the result: a departed winner's seat is released when the game ends.
+  @type('string') winnerName = '';
+  @type('number') winnerTeam: number = -1;
 
   // Issue #80: drive client-side 5s visibility window for newly played defense cards.
   // (Client compares Date.now() against this value.)
   @type('number') lastDefenseAt: number = 0;
 
   // Developer Mode: Full turn-by-turn game log for easy e2e test export
-  @type(['string']) actionLog = new ArraySchema<string>();
+  // Replay includes initial hands and private draws; persistence remains server-side.
+  @filter(() => false)
+  @type(['string'])
+  actionLog = new ArraySchema<string>();
 
   @type('number') spectatorCount: number = 0;
 
@@ -47,4 +61,13 @@ export class GameState extends Schema {
   @type('string') horseTeamA: string = '';
   @type('string') horseTeamB: string = '';
   @type('number') horseGame: number = 1;
+
+  @type('number') deckCount: number = 0;
+
+  // Private-table lifecycle: server deadline (ms since epoch) for 'countdown'
+  // and 'opening', and the public Suhuh reveals shown during the opening.
+  @type('number') phaseEndsAt: number = 0;
+  @type([OpeningDraw]) openingDraws = new ArraySchema<OpeningDraw>();
+  // Watchers who asked to join, seated in order as seats open between games.
+  @type([SeatRequest]) seatRequests = new ArraySchema<SeatRequest>();
 }

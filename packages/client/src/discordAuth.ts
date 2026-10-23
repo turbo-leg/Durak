@@ -8,6 +8,15 @@ export const isEmbedded =
 
 // Only instantiate the DiscordSDK if we are actually embedded in Discord
 export const discordSdk = isEmbedded && clientId ? new DiscordSDK(clientId) : null;
+let embeddedSessionToken: string | undefined;
+
+export function getDiscordSessionToken() {
+  return embeddedSessionToken;
+}
+
+export function clearDiscordSessionToken() {
+  embeddedSessionToken = undefined;
+}
 
 export async function setupDiscordSdk() {
   if (!discordSdk || !clientId) return null;
@@ -47,6 +56,16 @@ export async function setupDiscordSdk() {
   if (auth == null) {
     throw new Error('Authenticate command failed');
   }
+
+  const sessionResponse = await fetch('/api/auth/discord/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token }),
+  });
+  if (!sessionResponse.ok) throw new Error('Failed to verify Discord session');
+  const session = await sessionResponse.json();
+  if (typeof session.token !== 'string') throw new Error('Missing verified Discord session');
+  embeddedSessionToken = session.token;
 
   return auth;
 }

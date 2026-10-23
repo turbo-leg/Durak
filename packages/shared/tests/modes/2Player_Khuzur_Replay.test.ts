@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DurakEngine } from '../../src/engine/DurakEngine';
 import { Card } from '../../src/state/Card';
 import { GameState } from '../../src/state/GameState';
-import { Player } from '../../src/state/Player';
 
 describe('2-Player Khuzur E2E Game Replay', () => {
   let state: GameState;
@@ -74,13 +73,13 @@ describe('2-Player Khuzur E2E Game Replay', () => {
     // --- TURN 1 ---
     // p2 attacks with 10s
     expect(state.currentTurn).toBe('p2');
-    let atk1 = findCard('p2', 10, 'spades')!;
+    const atk1 = findCard('p2', 10, 'spades')!;
     removeCard('p2', 10, 'spades');
     state.activeAttackCards.push(new Card(atk1.suit, atk1.rank));
 
     // Set turn to p1 for defense
     state.currentTurn = 'p1';
-    let def1 = findCard('p1', 11, 'spades')!; // Js
+    const def1 = findCard('p1', 11, 'spades')!; // Js
     const validDef = DurakEngine.canDefendMass([def1], [atk1], state.huzurSuit);
     expect(validDef).toBe(true);
 
@@ -131,7 +130,7 @@ describe('2-Player Khuzur E2E Game Replay', () => {
       { suit: 'hearts', rank: 11 },
       { suit: 'spades', rank: 8 },
     ]);
-    let atksT3 = [
+    const atksT3 = [
       findCard('p2', 11, 'clubs')!,
       findCard('p2', 11, 'hearts')!,
       findCard('p2', 8, 'spades')!,
@@ -144,8 +143,8 @@ describe('2-Player Khuzur E2E Game Replay', () => {
     // turn 4: p2: -Ah, +9s; p1: - 10d
     injectCards('p2', [{ suit: 'hearts', rank: 14 }]); // Ah
     injectCards('p1', [{ suit: 'diamonds', rank: 10 }]); // 10d (Trump)
-    let atksT4 = [findCard('p2', 14, 'hearts')!];
-    let defsT4 = [findCard('p1', 10, 'diamonds')!];
+    const atksT4 = [findCard('p2', 14, 'hearts')!];
+    const defsT4 = [findCard('p1', 10, 'diamonds')!];
     expect(DurakEngine.canDefendMass(defsT4, atksT4, state.huzurSuit)).toBe(true);
 
     // --- TURN 5 ---
@@ -162,12 +161,12 @@ describe('2-Player Khuzur E2E Game Replay', () => {
       { suit: 'hearts', rank: 9 },
       { suit: 'clubs', rank: 14 },
     ]); // fixed 8c to 9h to make math valid
-    let atksT5 = [
+    const atksT5 = [
       findCard('p1', 8, 'spades')!,
       findCard('p1', 8, 'hearts')!,
       findCard('p1', 7, 'clubs')!,
     ];
-    let defsT5 = [
+    const defsT5 = [
       findCard('p2', 9, 'spades')!,
       findCard('p2', 9, 'hearts')!,
       findCard('p2', 14, 'clubs')!,
@@ -188,12 +187,12 @@ describe('2-Player Khuzur E2E Game Replay', () => {
       { suit: 'clubs', rank: 11 },
       { suit: 'hearts', rank: 11 },
     ]);
-    let atksT6 = [
+    const atksT6 = [
       findCard('p2', 9, 'diamonds')!,
       findCard('p2', 9, 'clubs')!,
       findCard('p2', 9, 'hearts')!,
     ];
-    let defsT6 = [
+    const defsT6 = [
       findCard('p1', 14, 'diamonds')!,
       findCard('p1', 11, 'clubs')!,
       findCard('p1', 11, 'hearts')!,
@@ -209,7 +208,7 @@ describe('2-Player Khuzur E2E Game Replay', () => {
       { suit: 'hearts', rank: 3 },
       { suit: 'hearts', rank: 7 },
     ]);
-    let atksT7 = [
+    const atksT7 = [
       findCard('p1', 3, 'spades')!,
       findCard('p1', 3, 'hearts')!,
       findCard('p1', 7, 'hearts')!,
@@ -244,12 +243,12 @@ describe('2-Player Khuzur E2E Game Replay', () => {
       { suit: 'spades', rank: 4 },
       { suit: 'diamonds', rank: 2 },
     ]); // Kd, 4s, 2d (trumps over 7h)
-    let atksT9 = [
+    const atksT9 = [
       findCard('p2', 3, 'hearts')!,
       findCard('p2', 3, 'spades')!,
       findCard('p2', 7, 'hearts')!,
     ];
-    let defsT9 = [
+    const defsT9 = [
       findCard('p1', 13, 'diamonds')!,
       findCard('p1', 4, 'spades')!,
       findCard('p1', 2, 'diamonds')!,
@@ -265,7 +264,7 @@ describe('2-Player Khuzur E2E Game Replay', () => {
       { suit: 'hearts', rank: 13 },
       { suit: 'clubs', rank: 10 },
     ]);
-    let atksT10 = [
+    const atksT10 = [
       findCard('p1', 13, 'clubs')!,
       findCard('p1', 13, 'hearts')!,
       findCard('p1', 10, 'clubs')!,

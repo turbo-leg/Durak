@@ -1,0 +1,16 @@
+# Text files are stored and checked out with LF, so Windows and CI agree and Git stops
+# warning about line-ending conversion on every commit.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.glb binary
+*.ico binary
+*.woff2 binary
+*.mp3 binary
+*.ogg binary
+*.jar binary
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

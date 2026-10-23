@@ -28,7 +28,6 @@ describe('DurakRoom unit handlers (#190)', () => {
   let room: DurakRoom;
   let attacker: FakeClient;
   let defender: FakeClient;
-  let third: FakeClient;
 
   beforeEach(() => {
     room = new DurakRoom();
@@ -42,7 +41,7 @@ describe('DurakRoom unit handlers (#190)', () => {
 
     attacker = makeClient('atk');
     defender = makeClient('def');
-    third = makeClient('thr');
+    makeClient('thr');
 
     // Two seated players + trump = Spades.
     const pA = new Player('atk');
@@ -78,8 +77,8 @@ describe('DurakRoom unit handlers (#190)', () => {
       (room as any).handleAttack(attacker, { cards: [asMsg(card)] });
 
       expect(room.state.activeAttackCards.length).toBe(1);
-      expect(room.state.activeAttackCards[0].suit).toBe(Suit.Hearts);
-      expect(room.state.activeAttackCards[0].rank).toBe(10);
+      expect(room.state.activeAttackCards[0]?.suit).toBe(Suit.Hearts);
+      expect(room.state.activeAttackCards[0]?.rank).toBe(10);
       expect(room.state.players.get('atk')!.hand.length).toBe(0);
       expect(room.state.currentTurn).toBe('def');
     });
@@ -125,6 +124,16 @@ describe('DurakRoom unit handlers (#190)', () => {
       expect(room.state.activeAttackCards.length).toBe(0);
     });
 
+    it('rejects a forged Joker flag on a card the player actually holds', () => {
+      room.state.players.get('atk')!.hand.push(new Card(Suit.Hearts, 10));
+      (room as any).handleAttack(attacker, {
+        cards: [{ suit: Suit.Hearts, rank: 10, isJoker: true }],
+      });
+      expect(attacker.send).toHaveBeenCalledWith('error', expect.stringMatching(/do not have/i));
+      expect(room.state.activeAttackCards.length).toBe(0);
+      expect(room.state.players.get('atk')!.hand[0]?.isJoker).toBe(false);
+    });
+
     it('rejects a follow-up attack of a rank not present on the table', () => {
       // simulate prior activeAttackCard of rank 10
       room.state.activeAttackCards.push(new Card(Suit.Hearts, 10));
@@ -161,10 +170,10 @@ describe('DurakRoom unit handlers (#190)', () => {
 
       // attack card resolved into table history
       expect(room.state.table.length).toBe(1);
-      expect(room.state.table[0].rank).toBe(8);
+      expect(room.state.table[0]?.rank).toBe(8);
       // defense card became the new activeAttackCard
       expect(room.state.activeAttackCards.length).toBe(1);
-      expect(room.state.activeAttackCards[0].rank).toBe(10);
+      expect(room.state.activeAttackCards[0]?.rank).toBe(10);
       expect(room.state.players.get('def')!.hand.length).toBe(0);
     });
 
@@ -178,7 +187,7 @@ describe('DurakRoom unit handlers (#190)', () => {
 
       expect(room.state.table.length).toBe(1);
       expect(room.state.activeAttackCards.length).toBe(1);
-      expect(room.state.activeAttackCards[0].suit).toBe(Suit.Spades);
+      expect(room.state.activeAttackCards[0]?.suit).toBe(Suit.Spades);
     });
 
     it('rejects defend with a lower card of the same suit', () => {
@@ -192,7 +201,7 @@ describe('DurakRoom unit handlers (#190)', () => {
       expect(defender.send).toHaveBeenCalledWith('error', expect.stringMatching(/cannot beat/i));
       // state unchanged
       expect(room.state.activeAttackCards.length).toBe(1);
-      expect(room.state.activeAttackCards[0].rank).toBe(10);
+      expect(room.state.activeAttackCards[0]?.rank).toBe(10);
       expect(room.state.table.length).toBe(0);
       expect(room.state.players.get('def')!.hand.length).toBe(1);
     });
@@ -314,15 +323,13 @@ describe('DurakRoom unit handlers (#190)', () => {
 
       (room as any).handleAttack(attacker, { cards: [asMsg(winningCard)] });
 
-      // After the attack, atk has no cards and deck is empty → atk wins, def is durak
-      expect(room.state.winners.length).toBeGreaterThanOrEqual(1);
-      expect(Array.from(room.state.winners)).toContain('atk');
-      expect(room.state.loser).toBe('def');
+      // After the attack, atk has no cards and deck is empty → atk wins and the game ends
+      expect(Array.from(room.state.winners)).toEqual(['atk']);
       expect(room.state.phase).toBe('finished');
       expect(saveSpy).toHaveBeenCalled();
     });
 
-    it('checkGameOver assigns winner placement and durak placement on game completion', () => {
+    it('checkGameOver names the first player out as the winner on game completion', () => {
       const saveSpy = vi.spyOn(room as any, 'saveGameLog').mockResolvedValue(undefined);
 
       // Two players, deck empty, atk has no cards (already empty), def still has cards
@@ -332,8 +339,7 @@ describe('DurakRoom unit handlers (#190)', () => {
       (room as any).checkGameOver();
 
       expect(room.state.phase).toBe('finished');
-      expect(Array.from(room.state.winners)).toContain('atk');
-      expect(room.state.loser).toBe('def');
+      expect(Array.from(room.state.winners)).toEqual(['atk']);
       expect(saveSpy).toHaveBeenCalled();
     });
   });
