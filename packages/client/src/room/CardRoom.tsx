@@ -22,6 +22,8 @@ import { AccountPanel, RoomDialog, RulesPanel } from './RoomDialog';
 import './card-room.css';
 
 const ThreeTable = lazy(() => import('../components/three/ThreeTable'));
+// Developer tools exist only in dev builds; production drops the import entirely.
+const DevPanel = import.meta.env.DEV ? lazy(() => import('./DevPanel')) : null;
 const demoCard = (suit: string, rank: number): TableCard => ({
   suit,
   rank,
@@ -757,6 +759,11 @@ export function CardRoom({
         </RoomDialog>
       )}
       {modal === 'account' && <AccountPanel playerName={playerName} close={() => setModal(null)} />}
+      {DevPanel && (
+        <Suspense fallback={null}>
+          <DevPanel />
+        </Suspense>
+      )}
     </main>
   );
 }

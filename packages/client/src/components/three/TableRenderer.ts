@@ -1072,6 +1072,8 @@ export class TableRenderer {
       this.host.dataset.geometries = String(this.renderer.info.memory.geometries);
       this.host.dataset.textures = String(this.renderer.info.memory.textures);
       this.host.dataset.avatarCount = String(this.avatars.size);
+      // Frames drawn so far; the dev panel turns this into frames per second.
+      this.host.dataset.frames = String(Number(this.host.dataset.frames ?? 0) + 1);
     }
     if (moving) this.idleTimer = setTimeout(this.requestFrame, 16);
     // Seated players keep breathing: slow, small motion that reads smoothly at 20 fps.
