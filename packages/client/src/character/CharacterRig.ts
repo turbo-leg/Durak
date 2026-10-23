@@ -163,7 +163,7 @@ abstract class CharacterBody {
    * are framed by the seat's facing so the same clip works from every chair.
    */
   act(id: ActionId, targets: Record<string, THREE.Vector3>, now = this.clock()) {
-    if (!this.pose) return;
+    if (!this.pose) return undefined;
     this.root.updateWorldMatrix(true, false);
     const rotation = this.root.getWorldQuaternion(new THREE.Quaternion());
     const scale = this.model!.getWorldScale(new THREE.Vector3());
@@ -175,6 +175,8 @@ abstract class CharacterBody {
     );
     const side = this.actingSide(Object.values(targets)[0]);
     this.actions.push({ clip: ACTIONS[id][side], start: now, targets: frames });
+    // Cards the hand carries follow this same hand, however the held count changes meanwhile.
+    return side;
   }
 
   /** A local reaction to the public game, such as crying when left holding the cards. */
@@ -191,10 +193,8 @@ abstract class CharacterBody {
   }
 
   /** Where a card leaves (or reaches) the hand acting toward `target`, in world space. */
-  palm(target?: THREE.Vector3) {
-    return this.model
-      ?.getObjectByName(`SocketPalm${this.actingSide(target)}`)
-      ?.getWorldPosition(new THREE.Vector3());
+  palm(target?: THREE.Vector3, side: 'L' | 'R' = this.actingSide(target)) {
+    return this.model?.getObjectByName(`SocketPalm${side}`)?.getWorldPosition(new THREE.Vector3());
   }
 
   protected clips(): ActiveClip[] {
@@ -294,14 +294,17 @@ export class SeatedCharacter extends CharacterBody {
     this.animate(0, true);
   }
 
-  update(yaw: number, pitch: number) {
+  update(yaw: number, pitch: number, now = performance.now() / 1000) {
+    // A new look is followed from now. The head first catches up to now toward the old one;
+    // otherwise the next frame would turn it toward the new look for the whole time since the
+    // last frame (often an idle 50 ms), and the body would leap ahead.
+    if (this.pose && (yaw !== this.yaw || pitch !== this.pitch)) this.follow(now, false);
     this.yaw = yaw;
     this.pitch = pitch;
   }
 
-  /** Pose for `now` (seconds); returns whether the body is still visibly moving. */
-  animate(now: number, reduced: boolean) {
-    if (!this.pose) return false;
+  /** Turns the head and torso toward the look up to `now` (seconds); the time it took. */
+  private follow(now: number, reduced: boolean) {
     const dt = Math.min(0.1, Math.max(0, now - this.lastFrame));
     this.lastFrame = now;
     if (reduced) {
@@ -313,6 +316,13 @@ export class SeatedCharacter extends CharacterBody {
       this.head.pitch.step(this.pitch, dt, 11);
       this.torso.step(this.yaw, dt, 4.5);
     }
+    return dt;
+  }
+
+  /** Pose for `now` (seconds); returns whether the body is still visibly moving. */
+  animate(now: number, reduced: boolean) {
+    if (!this.pose) return false;
+    const dt = this.follow(now, reduced);
     const yaw = this.head.yaw.value;
     const pitch = this.head.pitch.value;
     const motion = { torso: this.torso.value, time: reduced ? undefined : now * 1000 };
@@ -336,6 +346,7 @@ export class SeatedCharacter extends CharacterBody {
       clips: this.clips(),
       motion,
       table: this.table,
+      dt: reduced ? undefined : dt,
       // The eyes reach a new look first; the head turns after them.
       gaze: { yaw: this.yaw - yaw, pitch: this.pitch - pitch },
     });
@@ -361,6 +372,7 @@ export class SeatedCharacter extends CharacterBody {
  */
 export class FirstPersonCharacter extends CharacterBody {
   private half = fanHalfAngle(5);
+  private lastFrame = 0;
 
   constructor(
     presetId: string,
@@ -395,8 +407,10 @@ export class FirstPersonCharacter extends CharacterBody {
     return this.pose.view();
   }
 
-  animate(_now: number, reduced: boolean) {
+  animate(now: number, reduced: boolean) {
     if (!this.pose) return false;
+    const dt = Math.min(0.1, Math.max(0, now - this.lastFrame));
+    this.lastFrame = now;
     const { yaw, pitch } = this.options?.look() ?? { yaw: 0, pitch: 0 };
     const view = this.view(yaw, pitch)!;
     if (this.options) {
@@ -414,6 +428,7 @@ export class FirstPersonCharacter extends CharacterBody {
       frame: this.options?.cards.matrixWorld,
       clips: this.clips(),
       table: this.table,
+      dt: reduced ? undefined : dt,
     });
     // Held low over the table, the cards (a camera child) are raised as far as their grip.
     if (this.options && this.pose.fanLift > 0) {

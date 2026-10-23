@@ -54,11 +54,26 @@ const GRIP = {
   ] as Vec3[],
 };
 
-/** Resting: on the table's edge (time 0), let down by the side (1), leaning back (2). */
+/** Where on the way down from the table's edge the resting hand has just drawn back over it. */
+const OVER_EDGE = 0.45;
+/** A hand rising from the hip to act at the table passes over the edge here, high enough for
+ * its hanging fingers to clear the rail (the held fan is drawn up meanwhile). */
+const OVER_RAIL: Reach = { ...REST, rest: false, at: [-0.24, 0.87, 0.2], finger: [0, -0.4, 1] };
+const OVER_RAIL_LEFT: Reach = { ...OVER_RAIL, at: [0.24, 0.87, 0.2], thumb: [-1, 0, 0] };
+/**
+ * Resting: on the table's edge (time 0), let down by the side (1), leaning back (2). On the
+ * way down the hand first lifts off the edge and draws back over it: straight from the edge
+ * to the hip passed through the table's rim, and pushing it out flipped between up and out.
+ */
 const RESTING: Clip = {
   duration: 2,
   keys: [
     { t: 0, R: REST },
+    {
+      t: OVER_EDGE,
+      // Under a low fan, the fingers hanging back off the rail.
+      R: { ...REST, rest: false, at: [-0.24, 0.81, 0.17], finger: [0, -0.75, 0.65] },
+    },
     { t: 1, R: ASIDE },
     { t: 2, R: BEHIND },
   ],
@@ -77,6 +92,9 @@ const DIGIT_BONES = [
   'Thumb3',
 ];
 const mirror = (side: Side, [x, y, z]: Vec3) => V(side === 'R' ? x : -x, y, z);
+/** The dot product of the hand turns (quaternions) in two track values. */
+const dot = (a: number[], b: number[]) =>
+  a[3]! * b[3]! + a[4]! * b[4]! + a[5]! * b[5]! + a[6]! * b[6]!;
 
 export interface ActiveClip {
   clip: Clip;
@@ -109,6 +127,9 @@ export interface PoseInput {
   gaze?: { yaw: number; pitch: number };
   /** An expression added to the clips' own, such as a preview's. */
   face?: Expression;
+  /** Seconds since the last pose: the fan then rises clear of the table at a hand's pace.
+   * Without it (a still pose) the fan is placed clear at once. */
+  dt?: number;
 }
 
 export interface BodyMotion {
@@ -139,6 +160,7 @@ export class CharacterPose {
   /** How far the last pose raised the fan (world units, straight up) so the hand holding
    * it stays above the table; whoever draws the cards raises them as far. */
   fanLift = 0;
+  private liftSpeed = 0;
 
   constructor(readonly root: THREE.Object3D) {
     root.traverse((node) => {
@@ -582,33 +604,101 @@ export class CharacterPose {
     };
   }
 
-  /** Follow a side's reach keys through `time` and solve the arm. */
-  private perform(side: Side, clip: Clip, time: number, targets: Record<string, THREE.Matrix4>) {
+  /**
+   * A side's reach keys as track values: position, turn and hand shape travel together. Keys
+   * at the rest (`Reach.rest`) take where the hand rests now, `at` along its resting track,
+   * when that is given.
+   */
+  private keyValues(side: Side, clip: Clip, targets: Record<string, THREE.Matrix4>, rest?: number) {
     const keys = clip.keys.filter((key) => key[side]);
     const reaches = keys.map((key) => this.resolve(side, key[side]!, targets));
-    if (reaches.some((reach) => !reach)) return false;
+    if (reaches.some((reach) => !reach)) return undefined;
     const resolved = reaches as NonNullable<(typeof reaches)[number]>[];
+    const resting = rest === undefined ? undefined : this.resting(side, rest);
+    const values = resolved.map(({ point, finger, thumb, shape }, i) =>
+      resting && keys[i]![side]!.rest
+        ? [...resting]
+        : [
+            ...point.toArray(),
+            ...handBasis(finger, thumb).toArray(),
+            shape.spread ?? 0,
+            shape.thumb ?? 0,
+            ...FINGERS.map((f) => shape.curl?.[f] ?? 0),
+          ],
+    );
     // The hand's turn travels as a rotation, each key's on the same side as the last, so it
     // turns once between keys; blending finger and thumb directions apart made it wobble.
-    const turns: THREE.Quaternion[] = [];
-    for (const { finger, thumb } of resolved) {
-      const turn = handBasis(finger, thumb);
-      const before = turns.at(-1);
-      if (before && before.dot(turn) < 0) turn.set(-turn.x, -turn.y, -turn.z, -turn.w);
-      turns.push(turn);
+    for (let i = 1; i < values.length; i++) {
+      const [a, b] = [values[i - 1]!, values[i]!];
+      if (dot(a, b) < 0) for (let c = 3; c < 7; c++) b[c] = -b[c]!;
     }
-    // Position, turn and hand shape travel together on one track.
-    const [x, y, z, qx, qy, qz, qw, spread, fold, ...curl] = track(
+    return { keys, resolved, values };
+  }
+
+  /** The point over the rail a hand rising from the hip passes, as track values, its turn on
+   * the same side as `like`'s. */
+  private overRail(side: Side, like: number[]) {
+    const rail = this.resolve(side, side === 'R' ? OVER_RAIL : OVER_RAIL_LEFT, {})!;
+    const turn = handBasis(rail.finger, rail.thumb).toArray();
+    const flip = dot([0, 0, 0, ...turn], like) < 0 ? -1 : 1;
+    return [
+      ...rail.point.toArray(),
+      ...turn.map((q) => flip * q),
+      rail.shape.spread ?? 0,
+      rail.shape.thumb ?? 0,
+      ...FINGERS.map((f) => rail.shape.curl?.[f] ?? 0),
+    ];
+  }
+
+  /** Where a free hand rests now, as track values: on the table's edge (`at` 0), let down
+   * by the hip (1) or leaning back (2). */
+  private resting(side: Side, at: number): number[] {
+    const { keys, values } = this.keyValues(side, side === 'R' ? RESTING : RESTING_LEFT, {})!;
+    return track(
       keys.map((key) => key.t),
-      resolved.map(({ point, shape }, i) => [
-        ...point.toArray(),
-        ...turns[i]!.toArray(),
-        shape.spread ?? 0,
-        shape.thumb ?? 0,
-        ...FINGERS.map((f) => shape.curl?.[f] ?? 0),
-      ]),
-      time,
-    ) as number[];
+      values,
+      at,
+    );
+  }
+
+  /**
+   * Follow a side's reach keys through `time` and solve the arm. Given `rest`, a clip leaves
+   * from and returns to where the hand actually rests: blending in from the table's edge
+   * while the arm hung by the hip turned the whole arm over partway through the fade.
+   */
+  private perform(
+    side: Side,
+    clip: Clip,
+    time: number,
+    targets: Record<string, THREE.Matrix4>,
+    rest?: number,
+  ) {
+    const values = this.keyValues(side, clip, targets, rest);
+    if (!values) return false;
+    const { keys, resolved } = values;
+    const times = keys.map((key) => key.t);
+    const value = track(times, values.values, time);
+    // A hand resting low by the hip sets off, and comes back, over the table's edge the way
+    // its rest comes down: straight from the hip it ran through the table's rim. Across the
+    // first and last stretches the way bows toward a point over the rail, as far as the hand
+    // rests low; on the table's edge the clip goes as written.
+    const low = rest === undefined ? 0 : THREE.MathUtils.smoothstep(rest, 0.2, OVER_EDGE + 0.15);
+    if (low > 0 && keys.length > 1)
+      for (const [end, next] of [
+        [0, 1],
+        [keys.length - 1, keys.length - 2],
+      ] as const) {
+        const [from, to] = [
+          Math.min(times[end]!, times[next]!),
+          Math.max(times[end]!, times[next]!),
+        ];
+        if (!keys[end]![side]!.rest || time <= from || time >= to) continue;
+        const middle = track(times, values.values, (from + to) / 2);
+        const over = this.overRail(side, middle);
+        const bow = low * Math.sin((Math.PI * (time - from)) / (to - from)) ** 2;
+        value.forEach((v, c) => (value[c] = v + bow * (over[c]! - middle[c]!)));
+      }
+    const [x, y, z, qx, qy, qz, qw, spread, fold, ...curl] = value;
     this.shape(side, {
       curl: Object.fromEntries(FINGERS.map((f, i) => [f, curl[i]!])),
       spread,
@@ -629,7 +719,15 @@ export class CharacterPose {
           ? world(this.socket(`Palm${side}`))
           : world(this.bone(`Hand${side}`));
     const [from, to] = [resolved[previous]!.effector, resolved[next]!.effector];
-    const point = this.within(side, V(x, y, z), to);
+    // The reach slides with the placed part, too: the arm's limit jumped at a key that
+    // changed parts while the target was out of reach.
+    const reach = (effector: string) =>
+      effector === 'Wrist' ? 0 : HAND.palm * (effector === 'Palm' ? 0.5 : 1.8) * this.scale();
+    const point = this.within(
+      side,
+      V(x, y, z),
+      THREE.MathUtils.lerp(reach(from), reach(to), from === to ? 1 : share),
+    );
     this.place(side, rotation, point, () =>
       from === to ? part(to) : part(from).lerp(part(to), share),
     );
@@ -641,22 +739,27 @@ export class CharacterPose {
    * elbow nearly straight: the hand stays low over the table (under a held fan) and the
    * card is tossed the rest of the way. Too far below, it is approached along the line.
    */
-  private within(side: Side, point: THREE.Vector3, effector: string) {
+  private within(side: Side, point: THREE.Vector3, hand: number) {
     const upper = world(this.bone(`UpperArm${side}`));
     const lower = world(this.bone(`LowerArm${side}`));
+    // The arm, and `hand`: how far past the wrist the placed part of the hand lies.
     const length =
-      upper.distanceTo(lower) +
-      lower.distanceTo(world(this.bone(`Hand${side}`))) +
-      (effector === 'Wrist' ? 0 : HAND.palm * (effector === 'Palm' ? 0.5 : 1.8) * this.scale());
+      upper.distanceTo(lower) + lower.distanceTo(world(this.bone(`Hand${side}`))) + hand;
     const offset = point.clone().sub(upper);
     const limit = 0.95 * length;
-    if (offset.length() <= limit) return point;
+    // Near the end of its reach the arm slows into it, and sets off again as gently when the
+    // target comes back: stopping dead at the limit, then catching up at the clip's speed,
+    // jolted the hand and any card in it.
+    const soft = 0.12 * limit;
+    const distance = offset.length();
+    if (distance <= limit - soft) return point;
+    const reach = limit - soft * Math.exp((limit - soft - distance) / soft);
     const up = V(0, 1, 0);
     const drop = offset.dot(up);
     const across = offset.clone().addScaledVector(up, -drop);
-    if (Math.abs(drop) >= limit || across.lengthSq() < 1e-8)
-      return upper.add(offset.setLength(limit));
-    return upper.add(across.setLength(Math.sqrt(limit ** 2 - drop ** 2))).addScaledVector(up, drop);
+    if (Math.abs(drop) >= reach || across.lengthSq() < 1e-8)
+      return upper.add(offset.setLength(reach));
+    return upper.add(across.setLength(Math.sqrt(reach ** 2 - drop ** 2))).addScaledVector(up, drop);
   }
 
   /** Additive spine/head rotations of a clip at `time`, smooth through every key. */
@@ -680,6 +783,7 @@ export class CharacterPose {
     let frame = input.frame ?? carryMatrix(this.view(), undefined, this.scale());
     const half = input.half ?? fanHalfAngle(Math.min(7, input.count));
     let cards = input.count > 0 ? this.fan(frame, input.count, half) : [];
+    const lifted = this.fanLift;
     this.fanLift = 0;
     const active = (input.clips ?? [])
       .map((entry) => ({ ...entry, weight: clipWeight(entry.clip, entry.time, input.reduced) }))
@@ -705,6 +809,7 @@ export class CharacterPose {
         ...active.filter(({ clip }) => sidesOf(clip).includes(side)).map((a) => a.weight),
       );
     const holder = holdingHand(input.count, needs('R') > 0, needs('L') > 0);
+    const restAt = new Map<Side, number>();
     for (const side of ['L', 'R'] as const) {
       // Looking down, or toward a free hand, brings the fan down over that hand's place on
       // the table: the arm lets down beside the hip, out of its way.
@@ -712,7 +817,8 @@ export class CharacterPose {
       const aside =
         input.count > 0 ? THREE.MathUtils.smoothstep(0.4 * toward - input.pitch, 0.05, 0.3) : 0;
       const behind = THREE.MathUtils.smoothstep(toward, 0.5, 0.85);
-      this.perform(side, side === 'R' ? RESTING : RESTING_LEFT, aside * (1 + behind), {});
+      restAt.set(side, aside * (1 + behind));
+      this.perform(side, side === 'R' ? RESTING : RESTING_LEFT, restAt.get(side)!, {});
       if (input.table) this.clearTable(side, input.table);
       // A right hand lending the fan to the left returns into its grip from below.
       if (side === 'R' && holder === 'L')
@@ -731,7 +837,11 @@ export class CharacterPose {
       // Held low over the table, the fan is raised until the hand that grips it clears it.
       if (input.table) {
         this.grip(side, cards, frame);
-        const lift = this.fanClearance(side, input.table, cards, frame, input.count, half);
+        const lift = this.raise(
+          lifted,
+          this.fanClearance(side, input.table, cards, frame, input.count, half),
+          input,
+        );
         if (lift > 0) {
           this.fanLift = lift;
           frame = new THREE.Matrix4().makeTranslation(0, lift, 0).multiply(frame);
@@ -765,7 +875,13 @@ export class CharacterPose {
           this.bone(`${name}${side}`).quaternion.identity();
         this.bone(`Shoulder${side}`).quaternion.copy(this.shoulders[side]);
         this.root.updateWorldMatrix(true, true);
-        return this.perform(side, clip, at, { ...input.targets, ...targets });
+        return this.perform(
+          side,
+          clip,
+          at,
+          { ...input.targets, ...targets },
+          restAt.get(side) ?? 0,
+        );
       });
       for (const name of names) {
         const bone = this.bone(name);
@@ -920,13 +1036,20 @@ export class CharacterPose {
   /** The deepest part of a hand in the table: its shortest way out, or the way straight up
    * when `upward` (zero when clear). */
   private tableDepth(side: Side, table: NonNullable<PoseInput['table']>, upward = false) {
-    const margin = 0.002 * this.scale();
-    let push = V();
+    // The parts are balls a little inside the skin: keep them a few millimetres clear.
+    const margin = 0.004 * this.scale();
+    // As far as the deepest part needs, in a direction weighted toward the deeper parts:
+    // following only the deepest flipped the hand between two parts' ways out (a fingertip
+    // up, the forearm out) as one overtook the other.
+    let deepest = 0;
+    const way = V();
     for (const [point, radius] of this.handVolume(side)) {
       const move = table(point, radius + margin, upward);
-      if (move.lengthSq() > push.lengthSq()) push = move;
+      const depth = move.length();
+      deepest = Math.max(deepest, depth);
+      way.addScaledVector(move, depth ** 3);
     }
-    return push;
+    return deepest > 0 ? way.setLength(deepest) : way;
   }
 
   /** How far straight up a gripped fan must rise for its hand to clear the table. The
@@ -940,7 +1063,8 @@ export class CharacterPose {
     half: number,
   ) {
     let lift = 0;
-    for (let i = 0; i < 4; i++) {
+    // Over a rounded edge each raise clears a little less than the last, so allow a few more.
+    for (let i = 0; i < 6; i++) {
       // The fan only rises, so the hand needs the way out straight up.
       const push = this.tableDepth(side, table, true);
       if (push.length() < 0.0005 * this.scale()) break;
@@ -953,6 +1077,24 @@ export class CharacterPose {
   }
 
   /**
+   * How high the fan is held, moving toward `clear` (the lift that just clears the table).
+   * That lift changes all at once when the gripping hand sways across the table's edge, so
+   * the hand raises or lowers the fan toward it with a critically damped spring instead.
+   */
+  private raise(from: number, clear: number, input: PoseInput) {
+    if (input.dt === undefined || input.reduced) {
+      this.liftSpeed = 0;
+      return clear;
+    }
+    const rate = 26;
+    const offset = from - clear;
+    const decay = Math.exp(-rate * input.dt);
+    const push = (this.liftSpeed + rate * offset) * input.dt;
+    this.liftSpeed = (this.liftSpeed - rate * push) * decay;
+    return Math.max(0, clear + (offset + push) * decay);
+  }
+
+  /**
    * A free hand meeting the table comes to rest on it: the whole hand (keeping its turn and
    * shape) moves up onto the surface, or back off the edge, by the deepest part's shortest way out.
    */
@@ -962,7 +1104,7 @@ export class CharacterPose {
     for (let i = 0; i < 4; i++) {
       const push = this.tableDepth(side, table);
       if (push.length() < 0.0005 * this.scale()) return;
-      this.arm(side, world(hand).add(push), rotation);
+      this.arm(side, world(hand).add(push), rotation, true);
       this.root.updateWorldMatrix(true, true);
     }
   }

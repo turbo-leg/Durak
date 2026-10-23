@@ -25,6 +25,9 @@ export const TABLE_LAYERS = [
   { grow: 0, top: TABLE_TOP, depth: 0.06 },
 ] as const;
 
+/** Each layer's top edge is rounded this much, as a table's edges are. */
+const EDGE_ROUND = m(0.02);
+
 /**
  * The shortest move, up onto the top or outward past the edge, that brings a ball of
  * `radius` at `point` clear of the table (world units); zero when it is already clear.
@@ -35,17 +38,43 @@ export function tableClearance(point: THREE.Vector3, radius = 0, upward = false)
   for (const layer of TABLE_LAYERS) {
     const across = Math.hypot(point.x, point.z);
     const reach = Math.hypot(
-      point.x / (TABLE_RADIUS_X + layer.grow + radius),
-      point.z / (TABLE_RADIUS_Z + layer.grow + radius),
+      point.x / (TABLE_RADIUS_X + layer.grow),
+      point.z / (TABLE_RADIUS_Z + layer.grow),
     );
-    if (reach >= 1 || point.y >= layer.top + radius || point.y <= layer.top - layer.depth - radius)
+    // How far the centre is beyond the layer's edge (out from the middle) and above its top.
+    const beyond = reach > 0 ? (1 - 1 / reach) * across : -Infinity;
+    const above = point.y - layer.top;
+    if (beyond >= radius || above >= radius || point.y <= layer.top - layer.depth - radius)
       continue;
-    const up = layer.top + radius - point.y;
-    const out = reach > 0 ? (1 / reach - 1) * across : Infinity;
-    const move =
-      upward || up <= out
-        ? new THREE.Vector3(0, up, 0)
-        : new THREE.Vector3(point.x, 0, point.z).setLength(out);
+    const outward = new THREE.Vector3(point.x, 0, point.z).normalize();
+    let move: THREE.Vector3;
+    if (beyond > -EDGE_ROUND && (above > -EDGE_ROUND || upward)) {
+      // At the edge, which is rounded: away from the rounding's centre, a way that turns
+      // smoothly from up to out as a hand passes over or into it. Taking the shorter of up
+      // and out flipped between them there, and the hand with it.
+      const [out, up] = [beyond + EDGE_ROUND, above + EDGE_ROUND];
+      const clear = EDGE_ROUND + radius;
+      if (upward) {
+        if (out >= clear) continue;
+        const lift = Math.sqrt(clear ** 2 - out ** 2) - up;
+        if (lift <= 0) continue;
+        move = new THREE.Vector3(0, lift, 0);
+      } else {
+        const gap = Math.hypot(out, up);
+        if (gap >= clear) continue;
+        move =
+          gap > 0
+            ? outward
+                .multiplyScalar(out)
+                .setY(up)
+                .setLength(clear - gap)
+            : new THREE.Vector3(0, clear, 0);
+      }
+    } else {
+      const up = radius - above;
+      const out = radius - beyond;
+      move = upward || up <= out ? new THREE.Vector3(0, up, 0) : outward.multiplyScalar(out);
+    }
     if (move.lengthSq() > push.lengthSq()) push.copy(move);
   }
   return push;

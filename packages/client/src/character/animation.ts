@@ -31,6 +31,9 @@ export interface Reach {
   finger: Vec3;
   thumb: Vec3;
   shape?: HandShape;
+  /** The hand's rest wherever it is now (on the table's edge, or let down by the hip while
+   * a low fan is held toward it); `at` and the directions give the table-edge rest. */
+  rest?: boolean;
 }
 
 /** A facial expression. Every value is 0 at rest; clips playing together add theirs. */
@@ -80,6 +83,7 @@ export const REST: Reach = {
   finger: [0, 0.2, 1],
   thumb: [1, 0, 0],
   shape: { curl: { Index: 0.3, Middle: 0.35, Ring: 0.4, Pinky: 0.45 }, thumb: 0.15 },
+  rest: true,
 };
 
 /** A free arm let down beside the hip, palm to the thigh: out of the way of a low fan. */

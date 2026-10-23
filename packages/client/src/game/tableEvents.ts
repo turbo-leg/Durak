@@ -9,7 +9,7 @@ export const SELF = 'self';
  */
 export type TableEvent =
   | { kind: 'play'; seat: string; cards: string[] }
-  | { kind: 'pickup'; seat: string }
+  | { kind: 'pickup'; seat: string; cards: string[] }
   | { kind: 'draw'; seat: string; count: number }
   | { kind: 'gameOver'; winners: string[]; loser?: string };
 
@@ -24,8 +24,8 @@ export function tableEvents(
   const before = onTable(previous);
   const now = onTable(next);
   const fresh = [...now].filter((key) => !before.has(key));
-  const cleared = [...before].some((key) => !now.has(key));
-  const pickedUp = cleared && next.discardCount === previous.discardCount;
+  const cleared = [...before].filter((key) => !now.has(key));
+  const pickedUp = cleared.length > 0 && next.discardCount === previous.discardCount;
   const drawn = next.deckCount < previous.deckCount;
 
   const people = [
@@ -44,20 +44,38 @@ export function tableEvents(
             count: next.hand.length,
             escaped: Boolean(next.self.escaped),
             was: previous.self
-              ? { played: previous.self.played, count: previous.hand.length }
+              ? {
+                  played: previous.self.played,
+                  count: previous.hand.length,
+                  active: previous.canSelect,
+                }
               : undefined,
           },
         ]
       : []),
   ];
+  // One patch can hold a play and the refill after it, or a pickup and everyone's refill:
+  // what each person gained is their new count plus the cards they just put down.
+  const gains = new Map<string, number>();
   for (const person of people) {
     if (!person.was) continue;
-    if (person.played > (person.was.played ?? 0) && fresh.length)
-      events.push({ kind: 'play', seat: person.id, cards: fresh });
-    const gained = person.count - person.was.count;
-    if (gained <= 0) continue;
-    if (pickedUp) events.push({ kind: 'pickup', seat: person.id });
-    else if (drawn) events.push({ kind: 'draw', seat: person.id, count: gained });
+    const played = person.played > (person.was.played ?? 0) && fresh.length > 0;
+    if (played) events.push({ kind: 'play', seat: person.id, cards: fresh });
+    gains.set(person.id, person.count - person.was.count + (played ? fresh.length : 0));
+  }
+  // The pile goes to one person, the defender if they took at least that many.
+  const taker = pickedUp
+    ? people
+        .filter((person) => (gains.get(person.id) ?? 0) >= cleared.length)
+        .sort((a, b) => Number(Boolean(b.was?.active)) - Number(Boolean(a.was?.active)))[0]
+    : undefined;
+  for (const person of people) {
+    let gained = gains.get(person.id) ?? 0;
+    if (person === taker) {
+      events.push({ kind: 'pickup', seat: person.id, cards: cleared });
+      gained -= cleared.length;
+    }
+    if (gained > 0 && drawn) events.push({ kind: 'draw', seat: person.id, count: gained });
   }
   if (!previous.betweenGames && next.betweenGames) {
     const winners = people.filter((p) => p.escaped).map((p) => p.id);

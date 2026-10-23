@@ -51,7 +51,9 @@ describe('Table events', () => {
   it('tells a pickup (table cleared, nothing discarded) from a draw (deck shrinks)', () => {
     const fought = table({ attacks: [card('x')], history: [card('y'), card('z')] });
     const pickup = table({ seats: [seat('peer', 8)] });
-    expect(tableEvents(fought, pickup)).toEqual([{ kind: 'pickup', seat: 'peer' }]);
+    expect(tableEvents(fought, pickup)).toEqual([
+      { kind: 'pickup', seat: 'peer', cards: ['x', 'y', 'z'] },
+    ]);
     const draw = table({
       seats: [seat('peer', 6)],
       deckCount: 7,
@@ -59,6 +61,33 @@ describe('Table events', () => {
     });
     expect(tableEvents(table(), draw)).toEqual([
       { kind: 'draw', seat: 'peer', count: 1 },
+      { kind: 'draw', seat: SELF, count: 1 },
+    ]);
+  });
+
+  it('sees a refill that arrives in the same patch as the play before it', () => {
+    // The hand still holds two cards: one went to the table, one came from the deck.
+    const after = table({
+      hand: [card('a'), card('c')],
+      attacks: [card('b')],
+      deckCount: 9,
+      self: { preset: 'copper', played: 1 },
+    });
+    expect(tableEvents(table(), after)).toEqual([
+      { kind: 'play', seat: SELF, cards: ['b'] },
+      { kind: 'draw', seat: SELF, count: 1 },
+    ]);
+  });
+
+  it('gives the pile to the one who took it while the others refill', () => {
+    const fought = table({
+      attacks: [card('x')],
+      history: [card('y'), card('z')],
+      hand: [card('a')],
+    });
+    const after = table({ seats: [seat('peer', 8)], hand: [card('a'), card('c')], deckCount: 9 });
+    expect(tableEvents(fought, after)).toEqual([
+      { kind: 'pickup', seat: 'peer', cards: ['x', 'y', 'z'] },
       { kind: 'draw', seat: SELF, count: 1 },
     ]);
   });

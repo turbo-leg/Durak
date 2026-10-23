@@ -325,6 +325,10 @@ const play: Clip = {
 };
 export const PLAY_RELEASE_MS = 540;
 
+/** The pickup hand reaches the pile, and has drawn the gathered cards in to the chest. */
+export const PICKUP_TAKE_MS = 560;
+export const PICKUP_DRAWN_IN_MS = 1100;
+
 /** Reach past the pile, sweep its cards together toward the body and draw them in. */
 const pickup: Clip = {
   duration: 1350,
@@ -345,6 +349,9 @@ const pickup: Clip = {
     { t: 1350, face: {} },
   ],
 };
+
+/** The drawing hand closes on the deck. */
+export const DRAW_TAKE_MS = 450;
 
 /** Reach to the deck, take the top card and draw it back in low, under the fan. */
 const draw: Clip = {
