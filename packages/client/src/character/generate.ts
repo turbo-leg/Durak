@@ -32,7 +32,7 @@ export const REGIONS = [
   'mouth',
 ] as const;
 export type Region = (typeof REGIONS)[number];
-export const HAIR_STYLES = 5;
+export const HAIR_STYLES = 7;
 
 export interface Appearance {
   skin: string;
@@ -41,6 +41,8 @@ export interface Appearance {
   trousers?: string;
   shoes?: string;
   hairStyle: number;
+  /** Lip colour; a shade of the skin unless given. */
+  lip?: string;
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
@@ -60,7 +62,7 @@ export function regionColors(look: Appearance): Record<Region, THREE.Color> {
     hair: new THREE.Color(look.hair),
     eyeWhite: new THREE.Color('#f0e9db'),
     iris: new THREE.Color('#5a4232'),
-    lip: skin.clone().multiplyScalar(0.68),
+    lip: look.lip ? new THREE.Color(look.lip) : skin.clone().multiplyScalar(0.68),
     belt: new THREE.Color('#2a1f19'),
     pupil: new THREE.Color('#110d0b'),
     mouth: new THREE.Color('#3a1715'),
@@ -811,6 +813,44 @@ function addHair(hair: Builder, style: number) {
         [0.1, 0.12, 0.16],
         (i - 3) * 0.12,
       );
+  // Long, straight hair past the shoulders, framing the face, with a side-swept fringe.
+  if (style === 5) {
+    ball([0, 0.1, -0.25], [0.45, 0.72, 0.17]);
+    for (const x of [-1, 1]) ball([x * 0.4, 0.15, 0], [0.1, 0.55, 0.2]);
+    ball([-0.06, 0.76, 0.24], [0.3, 0.09, 0.14], -0.18);
+  }
+  // Drawn back into a ponytail, with a light fringe.
+  if (style === 6) {
+    ball([0, 0.62, -0.38], [0.11, 0.11, 0.1]);
+    ball([0, 0.3, -0.47], [0.1, 0.32, 0.1]);
+    ball([0, -0.02, -0.45], [0.075, 0.2, 0.075]);
+    ball([0.1, 0.78, 0.22], [0.26, 0.08, 0.13], 0.25);
+  }
+  // The women's styles have lashes along each upper lid's edge; they close with the lid.
+  if (style >= 5)
+    for (const side of SIDES) {
+      const out = side === 'L' ? 1 : -1;
+      const eye = V(out * FACE.eye[0], FACE.eye[1], FACE.eye[2]).add(pivot);
+      for (const t of [-0.6, -0.3, 0, 0.3, 0.6, 0.85]) {
+        const depth = 0.0128 * Math.sqrt(1 - t * t);
+        hair.ellipsoid(
+          eye
+            .clone()
+            .add(
+              V(
+                out * t * 0.0165,
+                depth * Math.sin(LID_OPEN) + 0.0006 + (t > 0.7 ? 0.001 : 0),
+                depth * Math.cos(LID_OPEN) + 0.0008,
+              ),
+            ),
+          [0.0042, 0.0011, 0.0026],
+          [[`Lid${side}`, 1]],
+          'hair',
+          [6, 3],
+          new THREE.Euler(-LID_OPEN * 0.5, 0, out * t * 0.4),
+        );
+      }
+    }
 }
 
 /** The complete character: bones, sockets and meshes, in the seated bind pose. */

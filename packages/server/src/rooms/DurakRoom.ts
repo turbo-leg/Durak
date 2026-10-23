@@ -4,7 +4,6 @@ import {
   DurakEngine,
   Card,
   Player,
-  AVATAR_PRESETS,
   isAvatarPreset,
   LOOK_INTERVAL_MS,
   LOOK_YAW_LIMIT,
@@ -30,7 +29,7 @@ import mongoose from 'mongoose';
 import { botEngine, BotDifficulty } from '../ai/BotEngine';
 import { verifyRoomIdentity, type RoomIdentity } from '../auth/session';
 import { isRecord, roomSettings } from './roomSettings';
-import { nextBotName } from './botNames';
+import { nextBot } from './botNames';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -186,8 +185,7 @@ export class DurakRoom extends Room<GameState> {
       }
       const id = `bot-${Math.random().toString(36).substring(2, 9)}`;
       const bot = new Player(id);
-      bot.avatarPreset = AVATAR_PRESETS[this.state.players.size % AVATAR_PRESETS.length]!.id;
-      bot.username = this.botName();
+      this.nameBot(bot);
       bot.isReady = true;
       bot.control = 'bot';
       bot.team = this.balancedTeam();
@@ -290,8 +288,10 @@ export class DurakRoom extends Room<GameState> {
           const prefix = isDummy ? 'dummy' : 'bot';
           const id = `${prefix}-${Math.random().toString(36).substring(2, 7)}`;
           const p = new Player(id);
-          p.avatarPreset = AVATAR_PRESETS[this.state.players.size % AVATAR_PRESETS.length]!.id;
-          p.username = isDummy ? `Dummy` : this.botName();
+          if (isDummy) {
+            p.username = 'Dummy';
+            p.avatarPreset = 'casual';
+          } else this.nameBot(p);
           p.isReady = true;
           p.control = 'bot';
           p.team = this.balancedTeam();
@@ -517,9 +517,13 @@ export class DurakRoom extends Room<GameState> {
     return this.state.isPrivate && client.sessionId === this.state.hostId && this.isBetweenGames();
   }
 
-  /** A bot's name: the first of the bot names nobody at the table has. */
-  private botName() {
-    return nextBotName(Array.from(this.state.players.values(), (player) => player.username));
+  /** Name a new bot the first of the bot names nobody at the table has, with its look. */
+  private nameBot(bot: Player) {
+    const { name, avatarPreset } = nextBot(
+      Array.from(this.state.players.values(), (player) => player.username),
+    );
+    bot.username = name;
+    bot.avatarPreset = avatarPreset;
   }
 
   private balancedTeam() {
@@ -816,8 +820,7 @@ export class DurakRoom extends Room<GameState> {
     if (this.soloDifficulty && this.state.players.size === 1) {
       const botId = `bot-${client.sessionId}`;
       const bot = new Player(botId);
-      bot.avatarPreset = AVATAR_PRESETS[1].id;
-      bot.username = this.botName();
+      this.nameBot(bot);
       bot.isReady = true;
       bot.control = 'bot';
       this.state.players.set(botId, bot);

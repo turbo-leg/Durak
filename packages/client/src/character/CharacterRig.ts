@@ -33,6 +33,7 @@ export function appearanceFor(presetId: string): Appearance {
     hair: preset.hair,
     shirt: preset.shirt,
     hairStyle: preset.id === 'casual' ? 4 : preset.hairStyle,
+    lip: preset.lip,
   };
 }
 

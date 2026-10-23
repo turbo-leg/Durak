@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { avatarPreset, AVATAR_PRESETS } from '@durak/shared';
+import { avatarPreset, AVATAR_PRESETS, BOT_AVATARS } from '@durak/shared';
 import { SeatedCharacter } from './CharacterRig.ts';
 import { ACTIONS, EMOTES, REACTIONS } from './animations/registry.ts';
 import {
@@ -184,7 +184,7 @@ select(
 select('View', Object.keys(VIEWS), state.view, (v) => (state.view = v));
 select(
   'Character',
-  AVATAR_PRESETS.map((p) => p.id),
+  [...AVATAR_PRESETS, ...BOT_AVATARS].map((p) => p.id),
   avatarPreset(state.preset).id,
   (v) => ((state.preset = v), seat()),
 );

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Card, AVATAR_PRESETS, avatarPreset, type PublicGesture } from '@durak/shared';
+import { Card, BOT_AVATARS, avatarPreset, type PublicGesture } from '@durak/shared';
 import { GesturePicker } from './GesturePicker';
 import { AvatarPicker } from './AvatarPicker';
 import { SeatRequest } from './SeatRequest';
@@ -43,10 +43,11 @@ const demo: TableSnapshot = {
   huzur: demoCard('Hearts', 7),
   deckCount: 32,
   discardCount: 0,
-  seats: Array.from({ length: 5 }, (_, i) => ({
+  // The bots keep the table warm until the player sits down.
+  seats: BOT_AVATARS.map((look, i) => ({
     id: `welcome:${i}`,
-    name: ['Sage', 'Indigo', 'Ochre', 'Copper', 'Sage'][i]!,
-    preset: AVATAR_PRESETS[(i + 1) % 4]!.id,
+    name: look.name,
+    preset: look.id,
     count: 5,
     active: i === 2,
     escaped: false,
