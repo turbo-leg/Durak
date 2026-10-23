@@ -76,9 +76,12 @@ export const FACE = {
   /** The eyeball's half-extents: the iris slides over this surface as the eye looks. */
   eyeRadii: [0.015, 0.0108, 0.009] as [number, number, number],
   brow: [0.032, 0.092, 0.094] as [number, number, number],
-  /** Centre of the closed lips, and the lips' half-width. */
-  mouth: [0, 0.01, 0.108] as [number, number, number],
+  /** Centre of the closed lips, set into the face so they stand about 8 mm proud of the
+   * skin, and the lips' half-width. */
+  mouth: [0, 0.01, 0.091] as [number, number, number],
   mouthHalfWidth: 0.022,
+  /** How far the lips curve back toward their corners, following the face. */
+  mouthCurve: 0.006,
   /** The jaw's hinge, below and in front of the ears. */
   jaw: [0, 0.015, 0.005] as [number, number, number],
 };
@@ -164,10 +167,11 @@ function face(): Joint[] {
     HEAD[1] + y,
     HEAD[2] + z,
   ];
+  // Near the lips' ends, where they have curved back with the face.
   const corner: [number, number, number] = [
     FACE.mouthHalfWidth * 0.9,
     FACE.mouth[1],
-    FACE.mouth[2],
+    FACE.mouth[2] - FACE.mouthCurve * 0.9 ** 2,
   ];
   return [
     ...SIDES.flatMap((side) => [

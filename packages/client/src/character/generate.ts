@@ -740,27 +740,41 @@ function addHead(head: Builder) {
         ['Head', (1 - corner) * (1 - lower(p))],
       ];
     };
+  // Lips and mouth bow back toward their ends, following the curve of the face.
+  const curved =
+    ([halfWidth, , depth]: [number, number, number]) =>
+    (u: THREE.Vector3) =>
+      V(u.x, u.y, u.z - (FACE.mouthCurve / depth) * ((u.x * halfWidth) / FACE.mouthHalfWidth) ** 2);
+  const upper: [number, number, number] = [FACE.mouthHalfWidth, 0.0026, 0.006];
   head.ellipsoid(
     mouth.clone().add(V(0, 0.0018, 0)),
-    [FACE.mouthHalfWidth, 0.0026, 0.006],
+    upper,
     lips(() => 0),
     'lip',
     [14, 5],
+    undefined,
+    curved(upper),
   );
+  const lower: [number, number, number] = [FACE.mouthHalfWidth * 0.94, 0.0029, 0.006];
   head.ellipsoid(
     mouth.clone().add(V(0, -0.0019, 0)),
-    [FACE.mouthHalfWidth * 0.94, 0.0029, 0.006],
+    lower,
     lips(() => 1),
     'lip',
     [14, 5],
+    undefined,
+    curved(lower),
   );
   // Inside the mouth, hidden by the closed lips; it shows as the jaw drops.
+  const inside: [number, number, number] = [0.013, 0.0035, 0.004];
   head.ellipsoid(
     mouth.clone().add(V(0, 0, -0.004)),
-    [0.013, 0.0035, 0.004],
+    inside,
     lips((p) => THREE.MathUtils.clamp((mouth.y - p.y) / 0.0035 + 0.5, 0, 1)),
     'mouth',
     [10, 4],
+    undefined,
+    curved(inside),
   );
   for (const ear of ['EarL', 'EarR']) {
     const centre = socket(ear).add(V(ear === 'EarL' ? -0.004 : 0.004, -0.004, -0.004));
