@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { TableRenderer } from '../components/three/TableRenderer';
 import type { TableCard, TableSeat, TableSnapshot } from '../game/tableSnapshot';
-import { DRAW_TAKE_MS, PICKUP_TAKE_MS } from '../character/animations/registry';
+import {
+  DRAW_BACK_MS,
+  DRAW_REACH_MS,
+  DRAW_TAKE_MS,
+  PICKUP_TAKE_MS,
+} from '../character/animations/registry';
 
 const card = (rank: number): TableCard => ({
   key: `Spades:${rank}:0`,
@@ -239,6 +244,41 @@ describe('card identity across presentation zones', () => {
     expect(shown[0]).toBeGreaterThanOrEqual(DRAW_TAKE_MS);
     expect(shown[1]! - shown[0]!).toBeGreaterThan(80);
     expect(shown[2]! - shown[1]!).toBeGreaterThan(80);
+  });
+
+  it('takes drawn cards off the deck in the hand, then lets them into the fan one by one', () => {
+    const { table, update, frame, cards, hand } = fixture();
+    const palm = new THREE.Vector3(-1, 0.6, 2);
+    // The local player's own body: its free hand reaches the deck for the draw.
+    Object.assign(table, {
+      firstHands: {
+        root: new THREE.Group(),
+        setCardCount: vi.fn(),
+        setGesture: vi.fn(),
+        act: vi.fn(() => 'L'),
+        palm: vi.fn(() => palm.clone()),
+      },
+    });
+    clock(0);
+    const self = { preset: 'copper', played: 0 };
+    update(snapshot({ hand: [card(7)], deckCount: 10, self }));
+    const drawn = [card(8), card(9), card(10)];
+    update(snapshot({ hand: [card(7), ...drawn], deckCount: 7, self }));
+    const meshes = drawn.map((c) => cards.get(`card:${c.key}`)!.mesh);
+    const landed: number[] = [];
+    for (let t = 0; t < 3000; t += 16) {
+      frame(t);
+      // Unseen until the hand is over the deck; in the hand once it has closed on them.
+      if (t < DRAW_REACH_MS) expect(meshes.some((mesh) => mesh.visible)).toBe(false);
+      if (t >= DRAW_TAKE_MS && t < DRAW_BACK_MS)
+        meshes.forEach((mesh) => expect(world(mesh).distanceTo(palm)).toBeLessThan(1e-6));
+      meshes.forEach((mesh, i) => {
+        if (mesh.parent === hand && landed[i] === undefined) landed[i] = t;
+      });
+    }
+    expect(landed[0]).toBeGreaterThan(DRAW_BACK_MS);
+    expect(landed[1]! - landed[0]!).toBeGreaterThan(80);
+    expect(landed[2]! - landed[1]!).toBeGreaterThan(80);
   });
 
   it('retains existing history meshes when the fourteen-card display window advances', () => {

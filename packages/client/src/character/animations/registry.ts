@@ -350,8 +350,11 @@ const pickup: Clip = {
   ],
 };
 
-/** The drawing hand closes on the deck. */
-export const DRAW_TAKE_MS = 450;
+/** The drawing hand is over the deck, has closed on its top cards, and has drawn them back
+ * in low under the fan. */
+export const DRAW_REACH_MS = 380;
+export const DRAW_TAKE_MS = 520;
+export const DRAW_BACK_MS = 820;
 
 /** Reach to the deck, take the top card and draw it back in low, under the fan. */
 const draw: Clip = {

@@ -5,6 +5,8 @@ import { avatarPreset } from '@durak/shared';
 import { CARD_SIZE } from '../../character/spec';
 import {
   ACTIONS,
+  DRAW_BACK_MS,
+  DRAW_REACH_MS,
   DRAW_TAKE_MS,
   PICKUP_DRAWN_IN_MS,
   PICKUP_TAKE_MS,
@@ -126,9 +128,6 @@ const DECK_POSE: CardPose = {
   scale: TABLE_CARD_SCALE,
   bend: 0,
 };
-/** Dealt cards leave the deck this far apart, or closer when many are dealt at once. */
-const DEAL_GAP_MS = 130;
-const DEAL_SPAN_MS = 1600;
 
 export class TableRenderer {
   private renderer: THREE.WebGLRenderer;
@@ -1058,10 +1057,9 @@ export class TableRenderer {
         });
       }
     }
-    // Dealing goes round the table a card at a time, starting as each hand reaches the deck.
+    // Each drawing hand takes its cards off the deck together, draws them back under its fan
+    // and lets them into the fan one at a time.
     const draws = events.filter((event) => event.kind === 'draw');
-    const total = draws.reduce((sum, event) => sum + event.count, 0);
-    const gap = Math.min(DEAL_GAP_MS, DEAL_SPAN_MS / Math.max(1, total));
     const taken = new Set([
       ...previous.hand.map((card) => card.key),
       ...events.flatMap((event) => (event.kind === 'pickup' ? event.cards : [])),
@@ -1077,48 +1075,59 @@ export class TableRenderer {
       !snapshot.hand.some((card) => card.key === previous.huzur.key)
         ? this.cards.get(huzurId)
         : undefined;
-    const deals: { seat: string; round: number; start: number }[] = [];
-    let order = 0;
-    for (let round = 0; draws.some((event) => event.count > round); round++)
-      for (const event of draws)
-        if (event.count > round)
-          deals.push({
-            seat: event.seat,
-            round,
-            start: (acts.get(event.seat)?.start ?? now) + DRAW_TAKE_MS + order++ * gap,
-          });
-    const lastPeer = deals.findLast((deal) => deal.seat !== SELF);
-    for (const deal of deals) {
-      const { seat, round, start } = deal;
-      if (seat === SELF) {
-        const item = mine[round];
-        if (!item) continue;
-        item.wait = { until: start };
-        // A card never seen before leaves the deck face down; the Huzur leaves its place.
-        if (created.has(`card:${item.mesh.userData.cardKey}`)) {
-          item.wait.from = DECK_POSE;
-          item.mesh.visible = false;
+    // The last card drawn is the Huzur; a peer drawing last takes it.
+    const lastPeer = draws.findLast((event) => event.seat !== SELF);
+    for (const event of draws) {
+      const start = acts.get(event.seat)?.start ?? now;
+      const carry = palm(event.seat);
+      const gap = Math.min(110, 360 / event.count);
+      for (let i = 0; i < event.count; i++) {
+        // The drawn cards lie on top of the deck, one on another, until the hand comes.
+        const top: CardPose = {
+          ...clonePose(DECK_POSE),
+          position: DECK_TOP.clone().setY(DECK_TOP.y + i * cm(0.25)),
+        };
+        let id: string;
+        let item: AnimatedCard | undefined;
+        if (event.seat === SELF) {
+          item = mine[i];
+          if (!item) continue;
+          id = `card:${item.mesh.userData.cardKey}`;
+        } else if (huzur && event === lastPeer && i === event.count - 1) {
+          [id, item] = [huzurId, huzur];
+        } else {
+          const mesh = new THREE.Mesh(this.cardGeometry, this.back);
+          mesh.castShadow = true;
+          id = `deal:${this.dealt++}`;
+          item = { mesh, home: { ...clonePose(top), parent: this.scene } };
+          this.scene.add(mesh);
+          this.cards.set(id, item);
         }
-        continue;
+        // A card new to the table appears on the deck as the hand reaches it; the Huzur is
+        // taken from its own place.
+        const fresh = id.startsWith('deal:') || created.has(id);
+        if (fresh) {
+          this.scene.add(item.mesh);
+          applyPose(item.mesh, top);
+          item.mesh.visible = false;
+          item.aim = undefined;
+        }
+        if (event.seat !== SELF && !deliver(event.seat, id, item)) continue;
+        if (carry) {
+          item.wait = { until: start + DRAW_REACH_MS, ...(fresh ? { from: top } : {}) };
+          item.carry = {
+            palm: carry,
+            from: start + DRAW_REACH_MS,
+            reach: DRAW_TAKE_MS - DRAW_REACH_MS,
+            release: start + DRAW_BACK_MS + i * gap,
+            turn: true,
+          };
+        } else
+          item.wait = {
+            until: start + DRAW_TAKE_MS + i * gap,
+            ...(fresh ? { from: top } : {}),
+          };
       }
-      if (huzur && deal === lastPeer) {
-        huzur.wait = { until: start };
-        deliver(seat, huzurId, huzur);
-        continue;
-      }
-      const mesh = new THREE.Mesh(this.cardGeometry, this.back);
-      mesh.castShadow = true;
-      mesh.visible = false;
-      applyPose(mesh, DECK_POSE);
-      this.scene.add(mesh);
-      const id = `deal:${this.dealt++}`;
-      const courier: AnimatedCard = {
-        mesh,
-        home: { ...clonePose(DECK_POSE), parent: this.scene },
-        wait: { until: start, from: DECK_POSE },
-      };
-      this.cards.set(id, courier);
-      deliver(seat, id, courier);
     }
   }
 
