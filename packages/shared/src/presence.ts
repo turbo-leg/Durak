@@ -38,11 +38,14 @@ export interface AvatarLook {
   shirt: string;
   hairStyle: number;
   lip?: string;
+  /** Body size against an average adult (1); a smaller body sits on the same chair. */
+  size?: number;
 }
 
 /**
- * The bots, in the order they join a table, each with a look of their own (not offered to
- * players). Jagaa and Tsomo are women, with long hair and a ponytail; Dok is Black.
+ * The bots, each with a look of their own (not offered to players). Jagaa and Tsomo are
+ * women, with long hair and a ponytail; Dok is Black; Buyna is a girl, a lot smaller, in
+ * pigtails.
  */
 export const BOT_AVATARS: readonly AvatarLook[] = [
   {
@@ -79,6 +82,16 @@ export const BOT_AVATARS: readonly AvatarLook[] = [
     shirt: '#7a5ea8',
     hairStyle: 6,
     lip: '#b85a68',
+  },
+  {
+    id: 'bot-buyna',
+    name: 'Buyna',
+    skin: '#f3d0b0',
+    hair: '#1c1612',
+    shirt: '#e0a63c',
+    hairStyle: 7,
+    lip: '#cf7378',
+    size: 0.7,
   },
 ];
 

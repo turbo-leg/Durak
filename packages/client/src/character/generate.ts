@@ -32,7 +32,7 @@ export const REGIONS = [
   'mouth',
 ] as const;
 export type Region = (typeof REGIONS)[number];
-export const HAIR_STYLES = 7;
+export const HAIR_STYLES = 8;
 
 export interface Appearance {
   skin: string;
@@ -825,6 +825,14 @@ function addHair(hair: Builder, style: number) {
     ball([0, 0.3, -0.47], [0.1, 0.32, 0.1]);
     ball([0, -0.02, -0.45], [0.075, 0.2, 0.075]);
     ball([0.1, 0.78, 0.22], [0.26, 0.08, 0.13], 0.25);
+  }
+  // Two pigtails tied behind the ears, with a straight fringe.
+  if (style === 7) {
+    for (const x of [-1, 1]) {
+      ball([x * 0.42, 0.45, -0.15], [0.09, 0.09, 0.09]);
+      ball([x * 0.5, 0.18, -0.17], [0.09, 0.26, 0.09], x * 0.25);
+    }
+    ball([0, 0.76, 0.25], [0.34, 0.09, 0.13]);
   }
   // The women's styles have lashes along each upper lid's edge; they close with the lid.
   if (style >= 5)

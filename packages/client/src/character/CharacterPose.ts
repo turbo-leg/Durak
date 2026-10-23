@@ -99,7 +99,7 @@ export interface PoseInput {
   motion?: BodyMotion;
   /** The table the character sits at: the shortest world-space move that brings a ball at
    * `point` clear of it (zero when clear). Free hands rest on it, never in it. */
-  table?: (point: THREE.Vector3, radius: number) => THREE.Vector3;
+  table?: (point: THREE.Vector3, radius: number, upward?: boolean) => THREE.Vector3;
   /** Where the eyes look beyond the head's turn (radians): they lead a look the head is
    * still turning toward. */
   gaze?: { yaw: number; pitch: number };
@@ -676,7 +676,14 @@ export class CharacterPose {
       if (input.table) this.clearTable(side, input.table);
       // A right hand lending the fan to the left returns into its grip from below.
       if (side === 'R' && holder === 'L')
-        this.grip(side, cards, frame, Math.min(1, needs('R') / 0.25) * 0.17 * this.scale(), 1);
+        this.gripFrom(
+          side,
+          cards,
+          frame,
+          Math.min(1, needs('R') / 0.25) * 0.17 * this.scale(),
+          1,
+          input.table,
+        );
       if (side !== holder) continue;
       const blend = side === 'L' ? needs('R') : 1;
       const names = [...ARM, ...DIGIT_BONES].map((name) => `${name}${side}`);
@@ -693,7 +700,7 @@ export class CharacterPose {
       }
       // A hand taking the fan over first comes to just below it, then slides up into the
       // grip with its thumb already in front: the cards pass between thumb and fingers.
-      this.grip(side, cards, frame, (1 - blend) * 0.17 * this.scale());
+      this.gripFrom(side, cards, frame, (1 - blend) * 0.17 * this.scale(), 0, input.table);
       const approach = Math.min(1, blend * 2.5);
       if (approach < 1) {
         names.forEach((name, i) => {
@@ -826,7 +833,7 @@ export class CharacterPose {
     const elbow = world(this.bone(`LowerArm${side}`));
     const wrist = world(hand);
     const rotation = hand.getWorldQuaternion(new THREE.Quaternion());
-    const balls: [THREE.Vector3, number][] = [0.4, 0.7, 1].map((t) => [
+    const balls: [THREE.Vector3, number][] = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1].map((t) => [
       elbow.clone().lerp(wrist, t),
       THREE.MathUtils.lerp(0.037, 0.026, t) * unit,
     ]);
@@ -850,12 +857,33 @@ export class CharacterPose {
     return balls;
   }
 
-  /** The deepest part of a hand in the table: its shortest way out (zero when clear). */
-  private tableDepth(side: Side, table: NonNullable<PoseInput['table']>) {
+  /** The grip, `slide` below the fan as a hand arrives or leaves; never from inside the
+   * table, so over a low fan the hand starts nearer the cards. */
+  private gripFrom(
+    side: Side,
+    cards: THREE.Matrix4[],
+    frame: THREE.Matrix4,
+    slide: number,
+    aside: number,
+    table?: PoseInput['table'],
+  ) {
+    this.grip(side, cards, frame, slide, aside);
+    if (!table) return;
+    for (let i = 0; i < 3 && slide > 0; i++) {
+      const push = this.tableDepth(side, table, true);
+      if (push.y < 0.0005 * this.scale()) return;
+      slide = Math.max(0, slide - push.y);
+      this.grip(side, cards, frame, slide, aside);
+    }
+  }
+
+  /** The deepest part of a hand in the table: its shortest way out, or the way straight up
+   * when `upward` (zero when clear). */
+  private tableDepth(side: Side, table: NonNullable<PoseInput['table']>, upward = false) {
     const margin = 0.002 * this.scale();
     let push = V();
     for (const [point, radius] of this.handVolume(side)) {
-      const move = table(point, radius + margin);
+      const move = table(point, radius + margin, upward);
       if (move.lengthSq() > push.lengthSq()) push = move;
     }
     return push;
@@ -873,10 +901,10 @@ export class CharacterPose {
   ) {
     let lift = 0;
     for (let i = 0; i < 4; i++) {
-      const push = this.tableDepth(side, table);
+      // The fan only rises, so the hand needs the way out straight up.
+      const push = this.tableDepth(side, table, true);
       if (push.length() < 0.0005 * this.scale()) break;
-      // Rising frees a hand from the top at once, or from under the rail's edge at last.
-      lift += Math.max(push.y, push.length());
+      lift += push.y;
       const raised = new THREE.Matrix4().makeTranslation(0, lift, 0).multiply(frame);
       cards = this.fan(raised, count, half);
       this.grip(side, cards, raised);

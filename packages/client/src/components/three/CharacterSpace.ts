@@ -28,8 +28,9 @@ export const TABLE_LAYERS = [
 /**
  * The shortest move, up onto the top or outward past the edge, that brings a ball of
  * `radius` at `point` clear of the table (world units); zero when it is already clear.
+ * `upward` asks for the move straight up instead, however long.
  */
-export function tableClearance(point: THREE.Vector3, radius = 0) {
+export function tableClearance(point: THREE.Vector3, radius = 0, upward = false) {
   const push = new THREE.Vector3();
   for (const layer of TABLE_LAYERS) {
     const across = Math.hypot(point.x, point.z);
@@ -42,7 +43,7 @@ export function tableClearance(point: THREE.Vector3, radius = 0) {
     const up = layer.top + radius - point.y;
     const out = reach > 0 ? (1 / reach - 1) * across : Infinity;
     const move =
-      up <= out
+      upward || up <= out
         ? new THREE.Vector3(0, up, 0)
         : new THREE.Vector3(point.x, 0, point.z).setLength(out);
     if (move.lengthSq() > push.lengthSq()) push.copy(move);

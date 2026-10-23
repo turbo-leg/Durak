@@ -331,13 +331,20 @@ describe('Character at the table', () => {
     centre: new THREE.Vector3(cm(2), TABLE_TOP + cm(3), -cm(4)),
     deck: new THREE.Vector3(-card(36), TABLE_TOP + cm(4), card(1)),
   };
-  // The near chair (the local player's), one at the side and the far one.
-  const SEATS = [0, Math.PI / 2, Math.PI];
+  // The near chair (the local player's), one at the side and the far one; and a small body
+  // (Buyna) at the near and side chairs.
+  const SEATS = [
+    [0, 1],
+    [Math.PI / 2, 1],
+    [Math.PI, 1],
+    [0, 0.7],
+    [Math.PI / 2, 0.7],
+  ];
 
   it.each(SEATS)(
-    'rests the hands on the table and holds every fan above it, from the chair at %f',
-    async (angle) => {
-      const { scene, pose } = await loadSeated(angle);
+    'rests the hands on the table and holds every fan above it, from the chair at %f, size %f',
+    async (angle, size) => {
+      const { scene, pose } = await loadSeated(angle!, size);
       for (const count of [0, 1, 5, 7])
         for (const [yaw, pitch] of GAZE) {
           const label = `${count} cards, yaw ${yaw.toFixed(2)}, pitch ${pitch.toFixed(2)}`;
@@ -358,15 +365,16 @@ describe('Character at the table', () => {
   );
 
   it.each(SEATS)(
-    'keeps hands out of the table through every emote and card action, from the chair at %f',
-    async (angle) => {
-      const { body, scene, pose } = await loadSeated(angle);
+    'keeps hands out of the table through every emote and card action, from the chair at %f, size %f',
+    async (angle, size) => {
+      const { body, scene, pose } = await loadSeated(angle!, size);
       const rotation = body.getWorldQuaternion(new THREE.Quaternion());
+      // Targets framed as the rig frames them: by the seat's facing and the body's scale.
       const at = (point: THREE.Vector3) =>
         new THREE.Matrix4().compose(
           point,
           rotation,
-          new THREE.Vector3().setScalar(CHARACTER_SCALE),
+          new THREE.Vector3().setScalar(CHARACTER_SCALE * size!),
         );
       const runs: [string, Clip, number, Record<string, THREE.Matrix4>][] = [];
       for (const count of [0, 5]) {

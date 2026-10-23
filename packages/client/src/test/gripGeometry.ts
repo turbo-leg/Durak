@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CharacterPose } from '../character/CharacterPose';
+import { BODY } from '../character/spec';
 import {
   CHARACTER_FLOOR,
   CHARACTER_SCALE,
@@ -46,9 +47,14 @@ export async function loadCharacter(firstPerson: boolean) {
   return { scene, pose: new CharacterPose(scene) };
 }
 
-/** The shipped character in the chair at `angle` around the table, as TableRenderer seats it. */
-export async function loadSeated(angle: number) {
+/**
+ * The shipped character in the chair at `angle` around the table, as TableRenderer seats it;
+ * a `size` below 1 is a smaller body on the same chair, as the rig seats it.
+ */
+export async function loadSeated(angle: number, size = 1) {
   const { scene } = await loadCharacter(false);
+  scene.scale.setScalar(size);
+  scene.position.y = BODY.seat * (1 - size);
   const body = new THREE.Group();
   body.position.set(
     Math.sin(angle) * SEAT_RADIUS_X,

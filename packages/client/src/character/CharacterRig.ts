@@ -115,6 +115,11 @@ abstract class CharacterBody {
         if (this.disposed) return;
         try {
           this.model = instantiate(template, appearanceFor(presetId), firstPerson);
+          // A smaller body sits on the same chair: shrunk about the floor, then raised so
+          // the hips stay on the seat (and the feet hang above the floor).
+          const size = avatarPreset(presetId).size ?? 1;
+          this.model.scale.setScalar(size);
+          this.model.position.y = BODY.seat * (1 - size);
           this.root.add(this.model);
           this.pose = new CharacterPose(this.model);
           this.loaded();
@@ -161,7 +166,7 @@ abstract class CharacterBody {
     if (!this.pose) return;
     this.root.updateWorldMatrix(true, false);
     const rotation = this.root.getWorldQuaternion(new THREE.Quaternion());
-    const scale = this.root.getWorldScale(new THREE.Vector3());
+    const scale = this.model!.getWorldScale(new THREE.Vector3());
     const frames = Object.fromEntries(
       Object.entries(targets).map(([name, point]) => [
         name,
@@ -318,7 +323,8 @@ export class SeatedCharacter extends CharacterBody {
     const frame = carryMatrix(
       this.pose.view(),
       CARRY_Y + CARRY_RAISE * this.cardsRaised(),
-      this.root.getWorldScale(new THREE.Vector3()).x,
+      // A smaller body holds its cards nearer, in smaller hands.
+      this.model!.getWorldScale(new THREE.Vector3()).x,
     );
     const moving = this.pose.pose({
       yaw,

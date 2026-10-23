@@ -1,6 +1,7 @@
 import { describe, it, beforeAll, afterAll, expect, beforeEach, vi } from 'vitest';
 import { ColyseusTestServer, boot } from '@colyseus/testing';
 import { DurakRoom } from '../src/rooms/DurakRoom';
+import { BOT_NAMES } from '../src/rooms/botNames';
 import { GameState } from '@durak/shared/src/state/GameState';
 import { Card } from '@durak/shared/src/state/Card';
 
@@ -43,7 +44,7 @@ describe('E2E Durak Match', () => {
       expect(room.state.players.size).toBe(2);
       expect(room.state.players.get(client.sessionId)?.hand.length).toBe(5);
       const bot = Array.from(room.state.players.values()).find((p) => p.id !== client.sessionId);
-      expect(bot?.username).toBe('Orgil');
+      expect(BOT_NAMES).toContain(bot?.username);
       expect(bot?.isReady).toBe(true);
       expect(room.state.seatOrder.length).toBe(2);
     },

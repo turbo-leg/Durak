@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DurakRoom } from '../src/rooms/DurakRoom';
+import { BOT_NAMES } from '../src/rooms/botNames';
 import { Card, Player } from '@durak/shared';
 
 function createRoom(environment: string, options: Record<string, unknown> = {}) {
@@ -47,7 +48,7 @@ describe('production room debug guards', () => {
       expect(room.state.players.size).toBe(2);
       expect(
         Array.from(room.state.players.values()).some(
-          (p) => p.control === 'bot' && p.username === 'Orgil',
+          (p) => p.control === 'bot' && BOT_NAMES.includes(p.username),
         ),
       ).toBe(true);
     },

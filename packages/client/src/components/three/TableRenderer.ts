@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SeatedView } from './SeatedView';
 import { FirstPersonCharacter, SeatedCharacter } from '../../character/CharacterRig';
+import { avatarPreset } from '@durak/shared';
 import { CARD_SIZE } from '../../character/spec';
 import { PLAY_RELEASE_MS } from '../../character/animations/registry';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -60,7 +61,8 @@ const SUITS: Record<string, string> = { Spades: '♠', Hearts: '♥', Diamonds: 
 // Grow seated players around the held-card height, keeping their grip at the table.
 const SEATED_PLAYER_SCALE = CHARACTER_SCALE;
 /** Seat labels float just above a seated player's head. */
-const LABEL_HEIGHT = CHARACTER_FLOOR + cm(150);
+const labelHeight = (preset: string) =>
+  CHARACTER_FLOOR + cm(45 + 105 * (avatarPreset(preset).size ?? 1));
 type AnimatedCard = {
   mesh: THREE.Mesh;
   target: THREE.Vector3;
@@ -823,7 +825,7 @@ export class TableRenderer {
         this.label(
           `${snapshot.teamMode ? (seat.team === 0 ? '◆ Blue · ' : '● Red · ') : ''}${seat.name.slice(0, 20)} · ${seatStatus(seat, snapshot.betweenGames)}`,
           x,
-          LABEL_HEIGHT,
+          labelHeight(preset),
           z,
           seat.active,
         );
