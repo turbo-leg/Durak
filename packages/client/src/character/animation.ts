@@ -54,9 +54,10 @@ export interface Clip {
 /** Empty-handed: wrists rest on the table edge, fingers relaxed. */
 export const REST: Reach = {
   target: 'body',
-  // Wrists rest on the table's edge, 38 cm in front of the chair.
-  at: [-0.2, 0.77, 0.36],
-  finger: [0, -0.25, 1],
+  // Wrists rest on the table's edge, 38 cm in front of the chair; the hand arches a little,
+  // so its curled fingertips just touch the felt.
+  at: [-0.2, 0.775, 0.36],
+  finger: [0, 0.2, 1],
   thumb: [1, 0, 0],
   shape: { curl: { Index: 0.3, Middle: 0.35, Ring: 0.4, Pinky: 0.45 }, thumb: 0.15 },
 };

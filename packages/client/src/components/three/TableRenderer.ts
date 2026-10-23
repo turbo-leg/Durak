@@ -24,9 +24,11 @@ import {
   SEAT_RADIUS_X,
   SEAT_RADIUS_Z,
   TABLE_CARD_SCALE,
+  TABLE_LAYERS,
   TABLE_RADIUS_X,
   TABLE_RADIUS_Z,
   TABLE_TOP,
+  tableClearance,
 } from './CharacterSpace';
 
 const RANKS: Record<number, string> = {
@@ -160,15 +162,9 @@ export class TableRenderer {
       const fill = new THREE.DirectionalLight('#a8d9fa', 1.4);
       fill.position.set(5, 4, -5);
       this.scene.add(fill);
-      this.surface(TABLE_RADIUS_X + cm(13), TABLE_RADIUS_Z + cm(13), -0.3, 0.44, '#38251f', 0.7);
-      const rail = this.surface(
-        TABLE_RADIUS_X + cm(12),
-        TABLE_RADIUS_Z + cm(12),
-        -0.06,
-        0.12,
-        '#ffffff',
-        0.65,
-      );
+      const [apron, railLayer, trim, feltLayer] = TABLE_LAYERS;
+      this.surface(apron, '#38251f', 0.7);
+      const rail = this.surface(railLayer, '#ffffff', 0.65);
       rail.material.map = this.texture(
         (ctx) => {
           ctx.fillStyle = '#6a4939';
@@ -185,8 +181,8 @@ export class TableRenderer {
         1024,
         1024,
       );
-      this.surface(TABLE_RADIUS_X + cm(1.5), TABLE_RADIUS_Z + cm(1.5), 0.005, 0.06, '#c69c72', 0.4);
-      const felt = this.surface(TABLE_RADIUS_X, TABLE_RADIUS_Z, 0.045, 0.06, '#ffffff', 1);
+      this.surface(trim, '#c69c72', 0.4);
+      const felt = this.surface(feltLayer, '#ffffff', 1);
       felt.material.map = this.feltTexture();
       felt.material.needsUpdate = true;
       // Camera-parented hand meshes must be in the scene graph to render.
@@ -215,10 +211,7 @@ export class TableRenderer {
   }
 
   private surface(
-    x: number,
-    z: number,
-    y: number,
-    depth: number,
+    { grow, top, depth }: (typeof TABLE_LAYERS)[number],
     color: string,
     roughness: number,
   ) {
@@ -231,8 +224,8 @@ export class TableRenderer {
     this.resources.add(geometry);
     this.resources.add(material);
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.scale.set(x, 1, z);
-    mesh.position.y = y;
+    mesh.scale.set(TABLE_RADIUS_X + grow, 1, TABLE_RADIUS_Z + grow);
+    mesh.position.y = top - depth / 2;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
     return mesh;
@@ -546,6 +539,7 @@ export class TableRenderer {
         cards: this.hand,
         look: () => this.controls.getLook(),
       });
+      this.firstHands.table = tableClearance;
       this.scene.add(this.firstHands.root);
       this.controls.setEyeSource?.((yaw, pitch) => this.firstHands?.view(yaw, pitch));
       this.ownPreset = preset;
@@ -776,6 +770,7 @@ export class TableRenderer {
       }
       if (!rig) {
         rig = new SeatedCharacter(preset, () => this.requestFrame());
+        rig.table = tableClearance;
         this.avatars.set(seat.id, rig);
         this.scene.add(rig.root);
       }
@@ -1027,7 +1022,11 @@ export class TableRenderer {
       moving = rig.animate(now / 1000, this.reducedMotion.matches) || moving;
     if (this.firstHands && this.hand.visible) {
       // The local fan is drawn up out of the way while the free hand reaches across.
-      this.hand.position.y = CARRY_Y + CARRY_RAISE * this.firstHands.cardsRaised();
+      this.hand.position.set(
+        0,
+        CARRY_Y + CARRY_RAISE * this.firstHands.cardsRaised(),
+        -CARRY_DEPTH,
+      );
       moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
     }
     for (const [id, card] of this.cards) {

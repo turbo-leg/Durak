@@ -14,6 +14,41 @@ export const TABLE_TOP = 0.075;
 export const TABLE = { height: 0.74, radiusX: 0.8, radiusZ: 0.55 } as const;
 export const TABLE_RADIUS_X = m(TABLE.radiusX);
 export const TABLE_RADIUS_Z = m(TABLE.radiusZ);
+/**
+ * The table as built, outermost first: the wooden apron, the rail on it, the brass trim and
+ * the felt. Each is an oval `grow` wider than the felt, with its top and depth.
+ */
+export const TABLE_LAYERS = [
+  { grow: m(0.13), top: -0.08, depth: 0.44 },
+  { grow: m(0.12), top: 0, depth: 0.12 },
+  { grow: m(0.015), top: 0.035, depth: 0.06 },
+  { grow: 0, top: TABLE_TOP, depth: 0.06 },
+] as const;
+
+/**
+ * The shortest move, up onto the top or outward past the edge, that brings a ball of
+ * `radius` at `point` clear of the table (world units); zero when it is already clear.
+ */
+export function tableClearance(point: THREE.Vector3, radius = 0) {
+  const push = new THREE.Vector3();
+  for (const layer of TABLE_LAYERS) {
+    const across = Math.hypot(point.x, point.z);
+    const reach = Math.hypot(
+      point.x / (TABLE_RADIUS_X + layer.grow + radius),
+      point.z / (TABLE_RADIUS_Z + layer.grow + radius),
+    );
+    if (reach >= 1 || point.y >= layer.top + radius || point.y <= layer.top - layer.depth - radius)
+      continue;
+    const up = layer.top + radius - point.y;
+    const out = reach > 0 ? (1 / reach - 1) * across : Infinity;
+    const move =
+      up <= out
+        ? new THREE.Vector3(0, up, 0)
+        : new THREE.Vector3(point.x, 0, point.z).setLength(out);
+    if (move.lengthSq() > push.lengthSq()) push.copy(move);
+  }
+  return push;
+}
 export const CHARACTER_FLOOR = TABLE_TOP - m(TABLE.height);
 /** Chairs stand 38 cm back from the table's edge. */
 export const SEAT_RADIUS_X = m(TABLE.radiusX + 0.38);

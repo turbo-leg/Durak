@@ -10,8 +10,11 @@ import {
   HELD_CARD_SCALE,
   SEAT_RADIUS_Z,
   TABLE_CARD_SCALE,
+  TABLE_LAYERS,
+  TABLE_RADIUS_X,
   TABLE_RADIUS_Z,
   TABLE_TOP,
+  tableClearance,
 } from '../components/three/CharacterSpace.ts';
 
 /**
@@ -39,11 +42,19 @@ scene.add(new THREE.HemisphereLight('#fff1dc', '#5a6873', 2.2));
 const sun = new THREE.DirectionalLight('#ffe2bf', 2.4);
 sun.position.set(-3, 8, 6);
 scene.add(sun);
-const table = new THREE.Mesh(
-  new THREE.CylinderGeometry(TABLE_RADIUS_Z, TABLE_RADIUS_Z, 0.15, 64),
-  new THREE.MeshStandardMaterial({ color: '#2f6382', roughness: 0.95 }),
-);
-scene.add(table);
+// The game's table, layer for layer, so hands meet it as they do in play.
+TABLE_LAYERS.forEach(({ grow, top, depth }, i) => {
+  const layer = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, depth, 64),
+    new THREE.MeshStandardMaterial({
+      color: ['#38251f', '#6a4939', '#c69c72', '#2f6382'][i],
+      roughness: 0.8,
+    }),
+  );
+  layer.scale.set(TABLE_RADIUS_X + grow, 1, TABLE_RADIUS_Z + grow);
+  layer.position.y = top - depth / 2;
+  scene.add(layer);
+});
 const deck = new THREE.Mesh(
   new THREE.BoxGeometry(0.82 * TABLE_CARD_SCALE, 0.3 * TABLE_CARD_SCALE, 1.2 * TABLE_CARD_SCALE),
   new THREE.MeshStandardMaterial({ color: '#203a52' }),
@@ -59,6 +70,7 @@ function seat() {
   character?.dispose();
   // Clips start once the body has loaded; actions need its hands.
   character = new SeatedCharacter(state.preset, () => (start(), frame()));
+  character.table = tableClearance;
   // The chair faces the table centre from +Z, like a seat across from the viewer.
   character.root.position.set(0, CHARACTER_FLOOR, SEAT_RADIUS_Z);
   character.root.rotation.y = Math.PI;

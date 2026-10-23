@@ -95,6 +95,9 @@ export interface PoseInput {
   targets?: Record<string, THREE.Matrix4>;
   /** The body's own motion; see `look`. */
   motion?: BodyMotion;
+  /** The table the character sits at: the shortest world-space move that brings a ball at
+   * `point` clear of it (zero when clear). Free hands rest on it, never in it. */
+  table?: (point: THREE.Vector3, radius: number) => THREE.Vector3;
 }
 
 export interface BodyMotion {
@@ -117,6 +120,9 @@ export class CharacterPose {
   private shoulders = { L: new THREE.Quaternion(), R: new THREE.Quaternion() };
   /** Each body breathes and sways on its own rhythm (seconds into the cycle). */
   private readonly phase = Math.random() * 60;
+  /** How far the last pose raised the fan (world units, straight up) so the hand holding
+   * it stays above the table; whoever draws the cards raises them as far. */
+  fanLift = 0;
 
   constructor(readonly root: THREE.Object3D) {
     root.traverse((node) => {
@@ -516,7 +522,9 @@ export class CharacterPose {
       if (!target) return undefined;
       frame = target;
     }
-    const rotation = new THREE.Quaternion().setFromRotationMatrix(frame);
+    // Frames carry the character's world scale; only their rotation turns the directions.
+    const rotation = new THREE.Quaternion();
+    frame.decompose(V(), rotation, V());
     return {
       point: V(...(reach.at ?? [0, 0, 0])).applyMatrix4(frame),
       finger: V(...reach.finger)
@@ -617,9 +625,10 @@ export class CharacterPose {
   /** Full pose for a frame; returns whether anything is still moving. */
   pose(input: PoseInput) {
     this.look(input.yaw, input.pitch, input.motion);
-    const frame = input.frame ?? carryMatrix(this.view(), undefined, this.scale());
+    let frame = input.frame ?? carryMatrix(this.view(), undefined, this.scale());
     const half = input.half ?? fanHalfAngle(Math.min(7, input.count));
-    const cards = input.count > 0 ? this.fan(frame, input.count, half) : [];
+    let cards = input.count > 0 ? this.fan(frame, input.count, half) : [];
+    this.fanLift = 0;
     const active = (input.clips ?? [])
       .map((entry) => ({ ...entry, weight: clipWeight(entry.clip, entry.time, input.reduced) }))
       .filter((entry) => entry.weight > 0)
@@ -652,6 +661,7 @@ export class CharacterPose {
         input.count > 0 ? THREE.MathUtils.smoothstep(0.4 * toward - input.pitch, 0.05, 0.3) : 0;
       const behind = THREE.MathUtils.smoothstep(toward, 0.5, 0.85);
       this.perform(side, side === 'R' ? RESTING : RESTING_LEFT, aside * (1 + behind), {});
+      if (input.table) this.clearTable(side, input.table);
       // A right hand lending the fan to the left returns into its grip from below.
       if (side === 'R' && holder === 'L')
         this.grip(side, cards, frame, Math.min(1, needs('R') / 0.25) * 0.17 * this.scale(), 1);
@@ -659,15 +669,29 @@ export class CharacterPose {
       const blend = side === 'L' ? needs('R') : 1;
       const names = [...ARM, ...DIGIT_BONES].map((name) => `${name}${side}`);
       const resting = names.map((name) => this.bone(name).quaternion.clone());
+      // Held low over the table, the fan is raised until the hand that grips it clears it.
+      if (input.table) {
+        this.grip(side, cards, frame);
+        const lift = this.fanClearance(side, input.table, cards, frame, input.count, half);
+        if (lift > 0) {
+          this.fanLift = lift;
+          frame = new THREE.Matrix4().makeTranslation(0, lift, 0).multiply(frame);
+          cards = this.fan(frame, input.count, half);
+        }
+      }
       // A hand taking the fan over first comes to just below it, then slides up into the
       // grip with its thumb already in front: the cards pass between thumb and fingers.
       this.grip(side, cards, frame, (1 - blend) * 0.17 * this.scale());
       const approach = Math.min(1, blend * 2.5);
-      if (approach < 1)
+      if (approach < 1) {
         names.forEach((name, i) => {
           const bone = this.bone(name);
           bone.quaternion.copy(resting[i]!.slerp(bone.quaternion, approach));
         });
+        // On its way up from the table the hand is not yet holding anything.
+        this.root.updateWorldMatrix(true, true);
+        if (input.table) this.clearTable(side, input.table);
+      }
       this.root.updateWorldMatrix(true, true);
     }
     let moving = false;
@@ -696,8 +720,91 @@ export class CharacterPose {
       }
       this.root.updateWorldMatrix(true, true);
     }
+    if (input.table)
+      for (const side of ['L', 'R'] as const)
+        if (side !== holder) this.clearTable(side, input.table);
     this.root.updateWorldMatrix(true, true);
     return moving;
+  }
+
+  /** Balls (world centre and radius) covering a hand and its forearm, as the skin is built. */
+  private handVolume(side: Side) {
+    const unit = this.scale();
+    const hand = this.bone(`Hand${side}`);
+    const elbow = world(this.bone(`LowerArm${side}`));
+    const wrist = world(hand);
+    const rotation = hand.getWorldQuaternion(new THREE.Quaternion());
+    const balls: [THREE.Vector3, number][] = [0.4, 0.7, 1].map((t) => [
+      elbow.clone().lerp(wrist, t),
+      THREE.MathUtils.lerp(0.037, 0.026, t) * unit,
+    ]);
+    for (let z = 0.02; z <= 0.11; z += 0.03)
+      for (const [x, y] of [
+        [HAND.palmThickness / 2, 0],
+        [-HAND.palmThickness / 2, 0],
+        [0, HAND.palmWidth / 2],
+        [0, -HAND.palmWidth / 2],
+      ] as const)
+        balls.push([
+          mirror(side, [x, y, z]).multiplyScalar(unit).applyQuaternion(rotation).add(wrist),
+          0.006 * unit,
+        ]);
+    for (const digit of [...FINGERS, 'Thumb'])
+      for (const joint of [1, 2, 3, 'Tip'])
+        balls.push([
+          world(this.bone(`${digit}${joint}${side}`)),
+          (digit === 'Thumb' ? HAND.thumbRadius : HAND.fingerRadius) * unit,
+        ]);
+    return balls;
+  }
+
+  /** The deepest part of a hand in the table: its shortest way out (zero when clear). */
+  private tableDepth(side: Side, table: NonNullable<PoseInput['table']>) {
+    const margin = 0.002 * this.scale();
+    let push = V();
+    for (const [point, radius] of this.handVolume(side)) {
+      const move = table(point, radius + margin);
+      if (move.lengthSq() > push.lengthSq()) push = move;
+    }
+    return push;
+  }
+
+  /** How far straight up a gripped fan must rise for its hand to clear the table. The
+   * hand is left gripping the raised fan. */
+  private fanClearance(
+    side: Side,
+    table: NonNullable<PoseInput['table']>,
+    cards: THREE.Matrix4[],
+    frame: THREE.Matrix4,
+    count: number,
+    half: number,
+  ) {
+    let lift = 0;
+    for (let i = 0; i < 4; i++) {
+      const push = this.tableDepth(side, table);
+      if (push.length() < 0.0005 * this.scale()) break;
+      // Rising frees a hand from the top at once, or from under the rail's edge at last.
+      lift += Math.max(push.y, push.length());
+      const raised = new THREE.Matrix4().makeTranslation(0, lift, 0).multiply(frame);
+      cards = this.fan(raised, count, half);
+      this.grip(side, cards, raised);
+    }
+    return lift;
+  }
+
+  /**
+   * A free hand meeting the table comes to rest on it: the whole hand (keeping its turn and
+   * shape) moves up onto the surface, or back off the edge, by the deepest part's shortest way out.
+   */
+  private clearTable(side: Side, table: NonNullable<PoseInput['table']>) {
+    const hand = this.bone(`Hand${side}`);
+    const rotation = hand.getWorldQuaternion(new THREE.Quaternion());
+    for (let i = 0; i < 4; i++) {
+      const push = this.tableDepth(side, table);
+      if (push.length() < 0.0005 * this.scale()) return;
+      this.arm(side, world(hand).add(push), rotation);
+      this.root.updateWorldMatrix(true, true);
+    }
   }
 }
 

@@ -6,14 +6,19 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
 import { ACTIONS, EMOTES, FREE_HAND_EMOTES, REACTIONS } from '../character/animations/registry';
 import { holdingHand } from '../character/CharacterPose';
-import { clipWeight } from '../character/animation';
-import { BODY, SKULL } from '../character/spec';
+import { clipWeight, type Clip } from '../character/animation';
+import { BODY, CARD_SIZE, SKULL } from '../character/spec';
 import {
   FirstPersonCharacter,
   SeatedCharacter,
   setCharacterSource,
 } from '../character/CharacterRig';
-import { CHARACTER_SCALE, fanHalfAngle } from '../components/three/CharacterSpace';
+import {
+  CHARACTER_SCALE,
+  fanHalfAngle,
+  TABLE_TOP,
+  tableClearance,
+} from '../components/three/CharacterSpace';
 import {
   cardIntersections,
   cardSides,
@@ -21,7 +26,9 @@ import {
   fanCards,
   handGap,
   loadCharacter,
+  loadSeated,
   skin,
+  tablePenetration,
   viewFrame,
 } from './gripGeometry';
 
@@ -310,6 +317,87 @@ describe('Character card actions', () => {
         expect(distance, `${id} ${count}`).toBeLessThan(restDistance - 0.12);
         expect(at(scene, `UpperArm${acting}`).distanceTo(shoulder)).toBeLessThan(0.1);
       }
+    },
+    120000,
+  );
+});
+
+describe('Character at the table', () => {
+  // TableRenderer's layout: attack slots before the player, the pile's centre and the deck.
+  const cm = (value: number) => (value * CHARACTER_SCALE) / 100;
+  const card = (value: number) => cm(value * CARD_SIZE);
+  const PLACES = {
+    slots: [-2, 0, 2].map((k) => new THREE.Vector3(k * card(9.5), TABLE_TOP + cm(0.3), card(2))),
+    centre: new THREE.Vector3(cm(2), TABLE_TOP + cm(3), -cm(4)),
+    deck: new THREE.Vector3(-card(36), TABLE_TOP + cm(4), card(1)),
+  };
+  // The near chair (the local player's), one at the side and the far one.
+  const SEATS = [0, Math.PI / 2, Math.PI];
+
+  it.each(SEATS)(
+    'rests the hands on the table and holds every fan above it, from the chair at %f',
+    async (angle) => {
+      const { scene, pose } = await loadSeated(angle);
+      for (const count of [0, 1, 5, 7])
+        for (const [yaw, pitch] of GAZE) {
+          const label = `${count} cards, yaw ${yaw.toFixed(2)}, pitch ${pitch.toFixed(2)}`;
+          const frame = viewFrame(pose, yaw, pitch);
+          const half = fanHalfAngle(count);
+          pose.pose({ yaw, pitch, reduced: true, count, half, frame, table: tableClearance });
+          const sample = skin(scene);
+          expect(tablePenetration(sample), label).toEqual([]);
+          if (!count) continue;
+          // A fan raised clear of the table keeps a clean grip in its hand.
+          frame.premultiply(new THREE.Matrix4().makeTranslation(0, pose.fanLift, 0));
+          const cards = fanCards(frame, count);
+          expect(cardIntersections(sample, cards), label).toEqual([]);
+          expect(cardSides(sample, cards).get('R:Thumb')?.front ?? 0, label).toBeGreaterThan(0);
+        }
+    },
+    120000,
+  );
+
+  it.each(SEATS)(
+    'keeps hands out of the table through every emote and card action, from the chair at %f',
+    async (angle) => {
+      const { body, scene, pose } = await loadSeated(angle);
+      const rotation = body.getWorldQuaternion(new THREE.Quaternion());
+      const at = (point: THREE.Vector3) =>
+        new THREE.Matrix4().compose(
+          point,
+          rotation,
+          new THREE.Vector3().setScalar(CHARACTER_SCALE),
+        );
+      const runs: [string, Clip, number, Record<string, THREE.Matrix4>][] = [];
+      for (const count of [0, 5]) {
+        // The rig acts with the free left hand while the right holds cards.
+        const side = count ? 'L' : 'R';
+        PLACES.slots.forEach((slot, i) =>
+          runs.push([`play ${i}`, ACTIONS.play[side], count, { table: at(slot) }]),
+        );
+        runs.push(['pickup', ACTIONS.pickup[side], count, { table: at(PLACES.centre) }]);
+        runs.push(['draw', ACTIONS.draw[side], count, { deck: at(PLACES.deck) }]);
+      }
+      for (const [id, clip] of Object.entries(EMOTES)) {
+        runs.push([id, clip, 0, {}]);
+        runs.push([id, FREE_HAND_EMOTES[id] ?? clip, 5, {}]);
+      }
+      runs.push(['cry', FREE_HAND_EMOTES.cry!, 5, {}], ['victory', REACTIONS.victory, 0, {}]);
+      for (const [id, clip, count, targets] of runs)
+        for (let time = 0; time <= clip.duration; time += clip.duration / 12) {
+          const frame = viewFrame(pose, 0.3, 0, clipWeight(clip, time));
+          pose.pose({
+            yaw: 0.3,
+            pitch: 0,
+            reduced: false,
+            count,
+            frame,
+            clips: [{ clip, time, targets }],
+            table: tableClearance,
+          });
+          const label = `${id}, ${count} cards, ${time.toFixed(0)} ms`;
+          expect(tablePenetration(skin(scene)), label).toEqual([]);
+        }
     },
     120000,
   );

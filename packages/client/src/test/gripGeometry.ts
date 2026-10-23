@@ -7,7 +7,9 @@ import {
   CHARACTER_FLOOR,
   CHARACTER_SCALE,
   HELD_CARD_SCALE,
+  SEAT_RADIUS_X,
   SEAT_RADIUS_Z,
+  tableClearance,
   carryMatrix,
   CARRY_RAISE,
   CARRY_Y,
@@ -42,6 +44,36 @@ export async function loadCharacter(firstPerson: boolean) {
     body.add(scene);
   }
   return { scene, pose: new CharacterPose(scene) };
+}
+
+/** The shipped character in the chair at `angle` around the table, as TableRenderer seats it. */
+export async function loadSeated(angle: number) {
+  const { scene } = await loadCharacter(false);
+  const body = new THREE.Group();
+  body.position.set(
+    Math.sin(angle) * SEAT_RADIUS_X,
+    CHARACTER_FLOOR,
+    Math.cos(angle) * SEAT_RADIUS_Z,
+  );
+  body.rotation.y = angle + Math.PI;
+  body.scale.setScalar(CHARACTER_SCALE);
+  body.add(scene);
+  body.updateWorldMatrix(true, true);
+  return { body, scene, pose: new CharacterPose(scene) };
+}
+
+/** Hand and forearm skin inside the table, as "label: depth in cm", deepest first. */
+export function tablePenetration(sample: Skin, tolerance = 0.1) {
+  const hits = new Map<string, number>();
+  sample.positions.forEach((p, i) => {
+    const label = sample.labels[i]!;
+    if (!isHand(label)) return;
+    const depth = (tableClearance(p).length() / CHARACTER_SCALE) * 100;
+    if (depth > Math.max(tolerance, hits.get(label) ?? 0)) hits.set(label, depth);
+  });
+  return [...hits]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, depth]) => `${label}: ${depth.toFixed(1)} cm`);
 }
 
 /** World matrices of the held cards, laid out exactly like TableRenderer. */

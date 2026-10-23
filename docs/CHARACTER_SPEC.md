@@ -93,6 +93,12 @@ body, head and hair stay under 12,000 triangles.
    `REST`, drop beside the hip, rise beside the shoulder and only then come to the face;
    card actions lift off the table's edge, and a played card rides in the hand until it is
    set down (`PLAY_RELEASE_MS`).
+5. **The table:** the table is solid (`TABLE_LAYERS` and `tableClearance` in
+   `CharacterSpace.ts`, the same shape `TableRenderer` draws). A free hand that would pass
+   into it comes to rest on it instead: the whole hand, keeping its turn and shape, moves
+   up onto the top or back off the edge, whichever is shorter. A fan held low enough for
+   its hand to meet the table is raised straight up until it clears (`fanLift`), and the
+   rig raises the drawn cards as far.
 
 ## Clips and the registry
 
@@ -137,7 +143,9 @@ the contract and proportions; the grip against the rendered fan (1, 2, 3, 5 and 
 12 cards on a narrow screen; centre and both gaze limits; first person and peer) with no
 skin through a card, thumbs resting on faces, fingers straight and apart and hands apart;
 every gesture's contact; every emote, reaction and action for limb length, finger spacing,
-head clearance, an undisturbed holding hand and no skin through the held fan.
+head clearance, an undisturbed holding hand and no skin through the held fan; and, from the
+near, side and far chairs, no hand or forearm skin inside the table at rest (every gaze, 0 to
+7 cards, with a clean grip on a raised fan) or through any emote, reaction or card action.
 
 ## Review screenshots
 

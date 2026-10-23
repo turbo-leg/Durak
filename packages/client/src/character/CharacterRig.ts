@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { avatarPreset, type PublicGesture } from '@durak/shared';
-import { CharacterPose, type ActiveClip } from './CharacterPose.ts';
+import { CharacterPose, type ActiveClip, type PoseInput } from './CharacterPose.ts';
 import {
   ACTIONS,
   EMOTES,
@@ -101,6 +101,8 @@ abstract class CharacterBody {
   protected gesture: PublicGesture = {};
   protected offset = 0;
   protected count = 5;
+  /** The table this body sits at, if any: hands rest on it, never pass into it. */
+  table?: PoseInput['table'];
 
   constructor(
     readonly presetId: string,
@@ -326,7 +328,10 @@ export class SeatedCharacter extends CharacterBody {
       frame,
       clips: this.clips(),
       motion,
+      table: this.table,
     });
+    // Held low over the table, the cards are raised as far as the pose raised its grip.
+    frame.premultiply(new THREE.Matrix4().makeTranslation(0, this.pose.fanLift, 0));
     const local = this.root.matrixWorld.clone().invert().multiply(frame);
     local.decompose(this.fan.position, this.fan.quaternion, this.fan.scale);
     return (
@@ -391,7 +396,7 @@ export class FirstPersonCharacter extends CharacterBody {
       this.options.camera.updateWorldMatrix(true, true);
       this.options.cards.updateWorldMatrix(true, false);
     }
-    return this.pose.pose({
+    const moving = this.pose.pose({
       yaw,
       pitch,
       reduced,
@@ -399,6 +404,17 @@ export class FirstPersonCharacter extends CharacterBody {
       half: this.half,
       frame: this.options?.cards.matrixWorld,
       clips: this.clips(),
+      table: this.table,
     });
+    // Held low over the table, the cards (a camera child) are raised as far as their grip.
+    if (this.options && this.pose.fanLift > 0) {
+      const { camera, cards } = this.options;
+      const up = new THREE.Vector3(0, this.pose.fanLift, 0).applyQuaternion(
+        camera.getWorldQuaternion(new THREE.Quaternion()).invert(),
+      );
+      cards.position.add(up);
+      cards.updateWorldMatrix(false, true);
+    }
+    return moving;
   }
 }
