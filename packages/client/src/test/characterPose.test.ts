@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
 import { ACTIONS, EMOTES, FREE_HAND_EMOTES, REACTIONS } from '../character/animations/registry';
 import { holdingHand } from '../character/CharacterPose';
-import { clipWeight, type Clip } from '../character/animation';
+import { clipWeight, sidesOf, type Clip } from '../character/animation';
 import { BODY, CARD_SIZE, SKULL } from '../character/spec';
 import {
   FirstPersonCharacter,
@@ -316,6 +316,38 @@ describe('Character card actions', () => {
         const distance = at(scene, `SocketPalm${acting}`).distanceTo(far);
         expect(distance, `${id} ${count}`).toBeLessThan(restDistance - 0.12);
         expect(at(scene, `UpperArm${acting}`).distanceTo(shoulder)).toBeLessThan(0.1);
+      }
+    },
+    120000,
+  );
+});
+
+describe('Face touches', () => {
+  it.each(['nose', 'ear-right', 'ear-left'])(
+    '%s travels in front of the body, smoothly, with or without cards',
+    async (id) => {
+      const { body, scene, pose } = await loadSeated(Math.PI / 2);
+      const toBody = body.matrixWorld.clone().invert();
+      const local = (name: string) => at(scene, name).applyMatrix4(toBody);
+      for (const count of [0, 5]) {
+        const clip = (count && FREE_HAND_EMOTES[id]) || EMOTES[id]!;
+        const side = sidesOf(clip)[0]!;
+        let last: THREE.Vector3 | undefined;
+        for (let time = 0; time <= clip.duration; time += 16) {
+          const frame = viewFrame(pose, 0, 0);
+          const clips = [{ clip, time }];
+          pose.pose({ yaw: 0, pitch: 0, reduced: false, count, frame, clips, table: tableClearance });
+          const label = `${id}, ${count} cards, ${time} ms`;
+          // The wrist never swings behind the body, as it did when the route ran below the
+          // fan beside the hip and bent the arm backward.
+          expect(local(`Hand${side}`).z, label).toBeGreaterThan(0);
+          // No whip: at most 6 cm a frame at 60 fps; 8 cm for a right hand that first lets go
+          // of the fan, since it starts from the cards rather than the table.
+          const limit = count && side === 'R' ? 0.08 : 0.06;
+          const tip = local(`IndexTip${side}`);
+          if (last) expect(tip.distanceTo(last), label).toBeLessThan(limit);
+          last = tip;
+        }
       }
     },
     120000,

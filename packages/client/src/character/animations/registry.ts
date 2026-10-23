@@ -45,14 +45,15 @@ const count = (fingers: number): Clip => ({
  * around the fan, via its own shoulder and then `approach` (metres in the head's frame, beside the ear or
  * the face), and leaves the same way, so the hand passes neither the fan nor the face.
  */
-/** Waypoints out of the way of the held fan wherever the head turns it: low and out to the
- * side, then raised beside the shoulder. */
-const BELOW_FAN: Reach = {
+/** Waypoints out of the way of the held fan wherever the head turns it: lifted off the
+ * table and out to the side at chest height, still in front of the body, then raised
+ * beside the shoulder. */
+const OUT_TO_SIDE: Reach = {
   target: 'body',
-  at: [-0.34, 0.7, -0.03],
+  at: [-0.36, 0.9, 0.2],
   effector: 'IndexTip',
-  finger: [0, -0.4, 1],
-  thumb: [1, 0, 0],
+  finger: [-0.2, 0.5, 1],
+  thumb: [1, 0.2, 0],
   shape: extended(1),
 };
 const BESIDE_SHOULDER = {
@@ -71,7 +72,7 @@ const touch = (
   duration: GESTURE_DURATION_MS,
   keys: [
     { t: 0, R: REST },
-    { t: 250, R: BELOW_FAN },
+    { t: 250, R: OUT_TO_SIDE },
     { t: 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
     {
       t: 600,
@@ -90,7 +91,7 @@ const touch = (
       R: { target: socket, at: approach, effector: 'IndexTip', finger, thumb, shape: extended(1) },
     },
     { t: GESTURE_DURATION_MS - 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
-    { t: GESTURE_DURATION_MS - 250, R: BELOW_FAN },
+    { t: GESTURE_DURATION_MS - 250, R: OUT_TO_SIDE },
     { t: GESTURE_DURATION_MS, R: REST },
     // A knowing look: a half smile, eyes narrowed, the brows a touch low.
     { t: 0, face: { smile: 0.3, squint: 0.22, brows: -0.15 } },
