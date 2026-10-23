@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { TableRenderer } from '../components/three/TableRenderer';
 import type { TableCard, TableSeat, TableSnapshot } from '../game/tableSnapshot';
+import { TABLE_TOP } from '../components/three/CharacterSpace';
 import {
   DRAW_BACK_MS,
-  DRAW_REACH_MS,
+  DRAW_SLIDE_MS,
   DRAW_TAKE_MS,
   PICKUP_TAKE_MS,
 } from '../character/animations/registry';
@@ -268,8 +269,11 @@ describe('card identity across presentation zones', () => {
     const landed: number[] = [];
     for (let t = 0; t < 3000; t += 16) {
       frame(t);
-      // Unseen until the hand is over the deck; in the hand once it has closed on them.
-      if (t < DRAW_REACH_MS) expect(meshes.some((mesh) => mesh.visible)).toBe(false);
+      // Unseen until slid off the deck, flat on the felt on the way, in the hand once it has
+      // closed on them.
+      if (t < DRAW_SLIDE_MS) expect(meshes.some((mesh) => mesh.visible)).toBe(false);
+      if (t >= DRAW_SLIDE_MS + 100 && t < DRAW_SLIDE_MS + 200)
+        meshes.forEach((mesh) => expect(world(mesh).y).toBeLessThan(TABLE_TOP + 0.02));
       if (t >= DRAW_TAKE_MS && t < DRAW_BACK_MS)
         meshes.forEach((mesh) => expect(world(mesh).distanceTo(palm)).toBeLessThan(1e-6));
       meshes.forEach((mesh, i) => {

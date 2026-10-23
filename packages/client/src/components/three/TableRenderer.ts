@@ -6,7 +6,7 @@ import { CARD_SIZE } from '../../character/spec';
 import {
   ACTIONS,
   DRAW_BACK_MS,
-  DRAW_REACH_MS,
+  DRAW_SLIDE_MS,
   DRAW_TAKE_MS,
   PICKUP_DRAWN_IN_MS,
   PICKUP_TAKE_MS,
@@ -105,7 +105,8 @@ type AnimatedCard = {
   wait?: { until: number; from?: CardPose };
   /**
    * Taken by a hand: from `from` the card joins the palm over `reach` ms, rides it and is
-   * let go at `release`, turning toward its home on the way when `turn` is set.
+   * let go at `release`, turning toward its home on the way when `turn` is set. A card that
+   * `slide`s is pushed flat across the felt to meet the hand, and turns once it is held.
    */
   carry?: {
     palm: () => THREE.Vector3 | undefined;
@@ -113,6 +114,7 @@ type AnimatedCard = {
     reach: number;
     release: number;
     turn: boolean;
+    slide?: boolean;
     anchor?: CardPose;
   };
   /** The last place drawn, in `frame`, and the speed it was moving at (units per ms). */
@@ -1103,8 +1105,8 @@ export class TableRenderer {
           this.scene.add(mesh);
           this.cards.set(id, item);
         }
-        // A card new to the table appears on the deck as the hand reaches it; the Huzur is
-        // taken from its own place.
+        // A card new to the table appears on the deck as it is slid off toward the hand; the
+        // Huzur is taken from its own place.
         const fresh = id.startsWith('deal:') || created.has(id);
         if (fresh) {
           this.scene.add(item.mesh);
@@ -1114,13 +1116,14 @@ export class TableRenderer {
         }
         if (event.seat !== SELF && !deliver(event.seat, id, item)) continue;
         if (carry) {
-          item.wait = { until: start + DRAW_REACH_MS, ...(fresh ? { from: top } : {}) };
+          item.wait = { until: start + DRAW_SLIDE_MS, ...(fresh ? { from: top } : {}) };
           item.carry = {
             palm: carry,
-            from: start + DRAW_REACH_MS,
-            reach: DRAW_TAKE_MS - DRAW_REACH_MS,
+            from: start + DRAW_SLIDE_MS,
+            reach: DRAW_TAKE_MS - DRAW_SLIDE_MS,
             release: start + DRAW_BACK_MS + i * gap,
             turn: true,
+            slide: true,
           };
         } else
           item.wait = {
@@ -1319,9 +1322,22 @@ export class TableRenderer {
       if (palm) {
         const target = toWorld(home, home.parent);
         const join = THREE.MathUtils.smoothstep(now, carry.from, carry.from + carry.reach);
-        const turn = carry.turn ? THREE.MathUtils.smoothstep(now, carry.from, carry.release) : 0;
+        const held = carry.slide ? carry.from + carry.reach : carry.from;
+        const turn = carry.turn ? THREE.MathUtils.smoothstep(now, held, carry.release) : 0;
+        const position = carry.anchor.position.clone().lerp(palm, join);
+        if (carry.slide)
+          // Down onto the felt, across it, and up into the hand only at the end.
+          position.y = THREE.MathUtils.lerp(
+            THREE.MathUtils.lerp(
+              carry.anchor.position.y,
+              TABLE_TOP + cm(0.4),
+              THREE.MathUtils.smoothstep(join, 0, 0.2),
+            ),
+            palm.y,
+            THREE.MathUtils.smoothstep(join, 0.7, 1),
+          );
         applyPose(card.mesh, {
-          position: carry.anchor.position.clone().lerp(palm, join),
+          position,
           quaternion: carry.anchor.quaternion.clone().slerp(target.quaternion, turn),
           scale: THREE.MathUtils.lerp(carry.anchor.scale, target.scale, turn),
           bend: THREE.MathUtils.lerp(carry.anchor.bend, target.bend, turn),

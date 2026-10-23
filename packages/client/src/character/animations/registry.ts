@@ -350,8 +350,13 @@ const pickup: Clip = {
   ],
 };
 
-/** The drawing hand is over the deck, has closed on its top cards, and has drawn them back
- * in low under the fan. */
+/**
+ * The deck mostly lies beyond a seated player's reach, so its top cards are slid across the
+ * felt toward the drawing hand from `DRAW_SLIDE_MS`; the hand is reaching out by
+ * `DRAW_REACH_MS`, has closed on them by `DRAW_TAKE_MS` and drawn them back in low under the
+ * fan by `DRAW_BACK_MS`.
+ */
+export const DRAW_SLIDE_MS = 150;
 export const DRAW_REACH_MS = 380;
 export const DRAW_TAKE_MS = 520;
 export const DRAW_BACK_MS = 820;
