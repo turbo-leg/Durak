@@ -65,6 +65,10 @@ const RESTING: Clip = {
 };
 const RESTING_LEFT = mirrorClip(RESTING);
 
+/** How much a moving hand's elbow follows the hand's turn, and how much it hangs down,
+ * against the out-and-down rest direction (weight 1). */
+const ELBOW = { hand: 0.6, down: 0.6 };
+
 const ARM = ['Shoulder', 'UpperArm', 'LowerArm', 'Hand'];
 const DIGIT_BONES = [
   ...FINGERS.flatMap((f) => [1, 2, 3].map((i) => `${f}${i}`)),
@@ -300,7 +304,11 @@ export class CharacterPose {
   }
 
   /** Place the wrist with the two-bone arm, then set the hand's world rotation. */
-  private arm(side: Side, wrist: THREE.Vector3, rotation: THREE.Quaternion) {
+  /**
+   * Place the wrist with the two-bone arm, then set the hand's world rotation. With
+   * `follow`, the elbow also follows the hand's turn (see `elbowHint`).
+   */
+  private arm(side: Side, wrist: THREE.Vector3, rotation: THREE.Quaternion, follow = false) {
     // Reaching far, the collarbone swings the shoulder toward the target before the
     // elbow straightens: a natural reach, with no limb stretched.
     const shoulder = this.bone(`Shoulder${side}`);
@@ -317,15 +325,39 @@ export class CharacterPose {
       const axis = collar.clone().cross(wrist.clone().sub(pivot)).normalize();
       if (axis.lengthSq() > 0.5) this.turn(shoulder, axis, Math.min(0.5, excess / collar.length()));
     }
+    // Elbows bend outward and down, as a seated person's do.
+    const outAndDown = this.root.localToWorld(V(side === 'R' ? -0.56 : 0.56, 0.58, 0.12));
     solveLimb(
       this.bone(`UpperArm${side}`),
       this.bone(`LowerArm${side}`),
       this.bone(`Hand${side}`),
       wrist,
-      // Elbows bend outward and down, as a seated person's do.
-      this.root.localToWorld(V(side === 'R' ? -0.56 : 0.56, 0.58, 0.12)),
+      follow ? this.elbowHint(world(upper), outAndDown, rotation) : outAndDown,
     );
     worldRotation(this.bone(`Hand${side}`), rotation);
+  }
+
+  /**
+   * Where a moving hand's elbow points. A real elbow sits away from the thumb and behind
+   * the fingers, so it follows the hand's turn smoothly; out-and-down only steadies it.
+   * A fixed hint alone flips the elbow wherever the reach lines up with it, and the
+   * forearm then wrings the wrist.
+   */
+  private elbowHint(
+    shoulder: THREE.Vector3,
+    outAndDown: THREE.Vector3,
+    rotation: THREE.Quaternion,
+  ) {
+    const thumb = V(0, 1, 0).applyQuaternion(rotation);
+    const finger = V(0, 0, 1).applyQuaternion(rotation);
+    const fromHand = thumb.add(finger).negate().normalize();
+    return outAndDown
+      .clone()
+      .sub(shoulder)
+      .normalize()
+      .addScaledVector(fromHand, ELBOW.hand)
+      .addScaledVector(V(0, -1, 0), ELBOW.down)
+      .add(shoulder);
   }
 
   /** Put `effector` (a point that moves rigidly with the hand) on `target`. */
@@ -336,10 +368,10 @@ export class CharacterPose {
     effector: () => THREE.Vector3,
   ) {
     const hand = this.bone(`Hand${side}`);
-    this.arm(side, target.clone(), rotation);
+    this.arm(side, target.clone(), rotation, true);
     // The hand is rigid: two corrections land the effector (or reach as far as the arm can).
     for (let i = 0; i < 2; i++)
-      this.arm(side, world(hand).add(target.clone().sub(effector())), rotation);
+      this.arm(side, world(hand).add(target.clone().sub(effector())), rotation, true);
   }
 
   /** World matrices of the held cards, laid out like the renderer's fan. */
@@ -556,13 +588,21 @@ export class CharacterPose {
     const reaches = keys.map((key) => this.resolve(side, key[side]!, targets));
     if (reaches.some((reach) => !reach)) return false;
     const resolved = reaches as NonNullable<(typeof reaches)[number]>[];
-    // Position, finger and thumb directions and hand shape travel together on one track.
-    const [x, y, z, fx, fy, fz, tx, ty, tz, spread, fold, ...curl] = track(
+    // The hand's turn travels as a rotation, each key's on the same side as the last, so it
+    // turns once between keys; blending finger and thumb directions apart made it wobble.
+    const turns: THREE.Quaternion[] = [];
+    for (const { finger, thumb } of resolved) {
+      const turn = handBasis(finger, thumb);
+      const before = turns.at(-1);
+      if (before && before.dot(turn) < 0) turn.set(-turn.x, -turn.y, -turn.z, -turn.w);
+      turns.push(turn);
+    }
+    // Position, turn and hand shape travel together on one track.
+    const [x, y, z, qx, qy, qz, qw, spread, fold, ...curl] = track(
       keys.map((key) => key.t),
-      resolved.map(({ point, finger, thumb, shape }) => [
+      resolved.map(({ point, shape }, i) => [
         ...point.toArray(),
-        ...finger.toArray(),
-        ...thumb.toArray(),
+        ...turns[i]!.toArray(),
         shape.spread ?? 0,
         shape.thumb ?? 0,
         ...FINGERS.map((f) => shape.curl?.[f] ?? 0),
@@ -574,7 +614,7 @@ export class CharacterPose {
       spread,
       thumb: fold,
     });
-    const rotation = handBasis(V(fx, fy, fz).normalize(), V(tx, ty, tz).normalize());
+    const rotation = new THREE.Quaternion(qx, qy, qz, qw).normalize();
     // Keys may place different parts of the hand (wrist, palm, fingertip): across a stretch
     // the placed point slides from one to the next, so the hand never jumps at a key.
     let next = keys.findIndex((key) => key.t > time);

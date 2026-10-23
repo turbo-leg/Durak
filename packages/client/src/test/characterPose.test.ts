@@ -333,20 +333,38 @@ describe('Face touches', () => {
         const clip = (count && FREE_HAND_EMOTES[id]) || EMOTES[id]!;
         const side = sidesOf(clip)[0]!;
         let last: THREE.Vector3 | undefined;
+        let lastElbow: THREE.Vector3 | undefined;
+        // A right hand that first lets go of the fan starts from the cards, not the table,
+        // so it may move a little faster.
+        const lending = count > 0 && side === 'R';
         for (let time = 0; time <= clip.duration; time += 16) {
           const frame = viewFrame(pose, 0, 0);
           const clips = [{ clip, time }];
-          pose.pose({ yaw: 0, pitch: 0, reduced: false, count, frame, clips, table: tableClearance });
+          pose.pose({
+            yaw: 0,
+            pitch: 0,
+            reduced: false,
+            count,
+            frame,
+            clips,
+            table: tableClearance,
+          });
           const label = `${id}, ${count} cards, ${time} ms`;
           // The wrist never swings behind the body, as it did when the route ran below the
           // fan beside the hip and bent the arm backward.
           expect(local(`Hand${side}`).z, label).toBeGreaterThan(0);
-          // No whip: at most 6 cm a frame at 60 fps; 8 cm for a right hand that first lets go
-          // of the fan, since it starts from the cards rather than the table.
-          const limit = count && side === 'R' ? 0.08 : 0.06;
+          // No whip: at most 6 cm a frame at 60 fps (8 cm when letting go of the fan).
           const tip = local(`IndexTip${side}`);
-          if (last) expect(tip.distanceTo(last), label).toBeLessThan(limit);
+          if (last) expect(tip.distanceTo(last), label).toBeLessThan(lending ? 0.08 : 0.06);
           last = tip;
+          // No elbow flip: it once jumped 19 cm in a frame where the reach lined up with
+          // its fixed bend direction, wringing the forearm.
+          const elbow = local(`LowerArm${side}`);
+          if (lastElbow)
+            expect(elbow.distanceTo(lastElbow), `${label} elbow`).toBeLessThan(
+              lending ? 0.1 : 0.07,
+            );
+          lastElbow = elbow;
         }
       }
     },
