@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { avatarPreset, type PublicGesture } from '@durak/shared';
 import { CharacterPose, type ActiveClip } from './CharacterPose.ts';
 import {
@@ -11,10 +12,13 @@ import {
   type ActionId,
   type ReactionId,
 } from './animations/registry.ts';
-import type { Clip } from './animation.ts';
+import { clipWeight, type Clip, type Vec3 } from './animation.ts';
+import { BODY } from './spec.ts';
 import { characterMaterial, generateCharacter, paint, type Appearance } from './generate.ts';
 import {
   carryMatrix,
+  CARRY_RAISE,
+  CARRY_Y,
   CHARACTER_FLOOR,
   CHARACTER_SCALE,
   fanHalfAngle,
@@ -172,6 +176,12 @@ abstract class CharacterBody {
     if (this.pose) this.actions.push({ clip, start: now, targets: {} });
   }
 
+  /** How far the held cards are drawn up (0 to 1, times `CARRY_RAISE`) while the free
+   * hand acts at the table, so it passes under them. */
+  cardsRaised(now = this.clock()) {
+    return Math.max(0, ...this.actions.map(({ clip, start }) => clipWeight(clip, now - start)));
+  }
+
   /** Where a card leaves (or reaches) the hand acting toward `target`, in world space. */
   palm(target?: THREE.Vector3) {
     return this.model
@@ -195,19 +205,78 @@ abstract class CharacterBody {
   }
 }
 
-/** Another player at the table, holding their cards in `fan`. */
+/**
+ * A critically damped spring: it sets off gently, travels and settles on `target` without
+ * overshooting, like a head turning to look. `rate` is how quickly (per second).
+ */
+class Spring {
+  velocity = 0;
+  constructor(public value = 0) {}
+
+  step(target: number, dt: number, rate: number) {
+    const offset = this.value - target;
+    const decay = Math.exp(-rate * dt);
+    const push = (this.velocity + rate * offset) * dt;
+    this.value = target + (offset + push) * decay;
+    this.velocity = (this.velocity - rate * push) * decay;
+  }
+
+  snap(target: number) {
+    this.value = target;
+    this.velocity = 0;
+  }
+
+  settled(target: number) {
+    return Math.abs(this.value - target) < 0.002 && Math.abs(this.velocity) < 0.01;
+  }
+}
+
+let chairMesh: THREE.Mesh | undefined;
+/**
+ * A plain wooden chair in the character's frame (metres, facing +Z): seat top at the seat
+ * height, back just behind the sitter. One geometry and material, shared by every seat.
+ */
+function chair() {
+  if (!chairMesh) {
+    const part = (size: Vec3, at: Vec3, tilt = 0) =>
+      new THREE.BoxGeometry(...size).rotateX(tilt).translate(...at);
+    const parts = [
+      part([0.44, 0.04, 0.42], [0, BODY.seat - 0.02, 0.04]),
+      ...[-1, 1].flatMap((x) => [
+        part([0.035, BODY.seat - 0.04, 0.035], [x * 0.19, (BODY.seat - 0.04) / 2, 0.22]),
+        part([0.035, BODY.seat - 0.04, 0.035], [x * 0.19, (BODY.seat - 0.04) / 2, -0.15]),
+        // Back posts, leaning back a little.
+        part([0.035, 0.5, 0.035], [x * 0.19, BODY.seat + 0.22, -0.17], -0.1),
+      ]),
+      part([0.4, 0.09, 0.025], [0, BODY.seat + 0.42, -0.19], -0.1),
+      part([0.4, 0.05, 0.022], [0, BODY.seat + 0.22, -0.17], -0.1),
+    ];
+    chairMesh = new THREE.Mesh(
+      mergeGeometries(parts),
+      new THREE.MeshStandardMaterial({ color: '#6b4a34', roughness: 0.62 }),
+    );
+    parts.forEach((geometry) => geometry.dispose());
+    chairMesh.name = 'chair';
+    chairMesh.castShadow = true;
+    chairMesh.receiveShadow = true;
+  }
+  return chairMesh.clone();
+}
+
+/** Another player at the table, sitting on a chair and holding their cards in `fan`. */
 export class SeatedCharacter extends CharacterBody {
   readonly fan = new THREE.Group();
   private yaw = 0;
   private pitch = 0;
-  private shownYaw = 0;
-  private shownPitch = 0;
+  /** The head turns to a new look quickly; the torso follows more slowly behind it. */
+  private head = { yaw: new Spring(), pitch: new Spring() };
+  private torso = new Spring();
   private lastFrame = 0;
 
   constructor(presetId: string, changed: () => void) {
     super(presetId, false, changed);
     this.root.name = 'seated-character';
-    this.root.add(this.fan);
+    this.root.add(this.fan, chair());
     // Cards wait for the body, rather than floating at the chair.
     this.fan.visible = false;
   }
@@ -222,37 +291,52 @@ export class SeatedCharacter extends CharacterBody {
     this.pitch = pitch;
   }
 
+  /** Pose for `now` (seconds); returns whether the body is still visibly moving. */
   animate(now: number, reduced: boolean) {
     if (!this.pose) return false;
-    const blend = reduced ? 1 : 1 - Math.exp(-12 * Math.min(0.2, now - this.lastFrame));
+    const dt = Math.min(0.1, Math.max(0, now - this.lastFrame));
     this.lastFrame = now;
-    this.shownYaw = THREE.MathUtils.lerp(this.shownYaw, this.yaw, blend);
-    this.shownPitch = THREE.MathUtils.lerp(this.shownPitch, this.pitch, blend);
+    if (reduced) {
+      this.head.yaw.snap(this.yaw);
+      this.head.pitch.snap(this.pitch);
+      this.torso.snap(this.yaw);
+    } else {
+      this.head.yaw.step(this.yaw, dt, 11);
+      this.head.pitch.step(this.pitch, dt, 11);
+      this.torso.step(this.yaw, dt, 4.5);
+    }
+    const yaw = this.head.yaw.value;
+    const pitch = this.head.pitch.value;
+    const motion = { torso: this.torso.value, time: reduced ? undefined : now * 1000 };
     const count = Math.min(7, this.count);
     // The fan is carried in front of the eyes as they look, not as an emote bows the head.
     this.root.updateWorldMatrix(true, true);
-    this.pose.look(this.shownYaw, this.shownPitch);
+    this.pose.look(yaw, pitch, motion);
     const frame = carryMatrix(
       this.pose.view(),
-      undefined,
+      CARRY_Y + CARRY_RAISE * this.cardsRaised(),
       this.root.getWorldScale(new THREE.Vector3()).x,
     );
     const moving = this.pose.pose({
-      yaw: this.shownYaw,
-      pitch: this.shownPitch,
+      yaw,
+      pitch,
       reduced,
       count,
       half: fanHalfAngle(count),
       frame,
       clips: this.clips(),
+      motion,
     });
     const local = this.root.matrixWorld.clone().invert().multiply(frame);
     local.decompose(this.fan.position, this.fan.quaternion, this.fan.scale);
     return (
       moving ||
       (!reduced &&
-        (Math.abs(this.shownYaw - this.yaw) > 0.002 ||
-          Math.abs(this.shownPitch - this.pitch) > 0.002))
+        !(
+          this.head.yaw.settled(this.yaw) &&
+          this.head.pitch.settled(this.pitch) &&
+          this.torso.settled(this.yaw)
+        ))
     );
   }
 }

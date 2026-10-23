@@ -55,9 +55,28 @@ export interface Clip {
 export const REST: Reach = {
   target: 'body',
   // Wrists rest on the table's edge, 38 cm in front of the chair.
-  at: [-0.15, 0.77, 0.36],
+  at: [-0.2, 0.77, 0.36],
   finger: [0, -0.25, 1],
   thumb: [1, 0, 0],
+  shape: { curl: { Index: 0.3, Middle: 0.35, Ring: 0.4, Pinky: 0.45 }, thumb: 0.15 },
+};
+
+/** A free arm let down beside the hip, palm to the thigh: out of the way of a low fan. */
+export const ASIDE: Reach = {
+  target: 'body',
+  at: [-0.3, 0.68, 0.04],
+  finger: [0, -1, 0.35],
+  thumb: [0, 0.35, 1],
+  shape: { curl: { Index: 0.3, Middle: 0.35, Ring: 0.4, Pinky: 0.45 }, thumb: 0.15 },
+};
+
+/** Further back beside the hip, as if leaning on the hand: clear of a fan held low and wide
+ * on that side. */
+export const BEHIND: Reach = {
+  target: 'body',
+  at: [-0.27, 0.64, -0.12],
+  finger: [0, -1, -0.1],
+  thumb: [0, 0.1, 1],
   shape: { curl: { Index: 0.3, Middle: 0.35, Ring: 0.4, Pinky: 0.45 }, thumb: 0.15 },
 };
 
@@ -90,6 +109,42 @@ export function mirrorClip(clip: Clip): Clip {
         ),
     })),
   };
+}
+
+/**
+ * A keyed track's value at `time`, passing smoothly through every key: motion carries on
+ * through a waypoint instead of stopping there, and comes to rest only at the first and
+ * last keys and wherever a value holds or turns back, so it never overshoots a key
+ * (a monotone cubic; two keys ease in and out).
+ */
+export function track(times: number[], values: number[][], time: number): number[] {
+  const last = times.length - 1;
+  if (last === 0 || time <= times[0]!) return [...values[0]!];
+  if (time >= times[last]!) return [...values[last]!];
+  let i = 0;
+  while (times[i + 1]! <= time) i++;
+  const span = (k: number) => times[k + 1]! - times[k]!;
+  const slope = (k: number, c: number) => (values[k + 1]![c]! - values[k]![c]!) / span(k);
+  const tangent = (k: number, c: number) => {
+    if (k === 0 || k === last) return 0;
+    const [before, after] = [slope(k - 1, c), slope(k, c)];
+    if (before * after <= 0) return 0;
+    // A weighted harmonic mean of the neighbouring slopes keeps each stretch monotone.
+    const [a, b] = [2 * span(k) + span(k - 1), span(k) + 2 * span(k - 1)];
+    return (a + b) / (a / before + b / after);
+  };
+  const h = span(i);
+  const s = (time - times[i]!) / h;
+  const [h00, h10, h01, h11] = [
+    2 * s ** 3 - 3 * s ** 2 + 1,
+    s ** 3 - 2 * s ** 2 + s,
+    -2 * s ** 3 + 3 * s ** 2,
+    s ** 3 - s ** 2,
+  ];
+  return values[i]!.map(
+    (from, c) =>
+      h00 * from + h10 * h * tangent(i, c) + h01 * values[i + 1]![c]! + h11 * h * tangent(i + 1, c),
+  );
 }
 
 /** Weight of a clip at `time`: eased in and out over `fade`; 1 throughout when reduced. */

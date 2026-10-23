@@ -16,6 +16,8 @@ export const REGIONS = [
   'eyeWhite',
   'iris',
   'lip',
+  'belt',
+  'pupil',
 ] as const;
 export type Region = (typeof REGIONS)[number];
 export const HAIR_STYLES = 5;
@@ -45,8 +47,10 @@ export function regionColors(look: Appearance): Record<Region, THREE.Color> {
     shoes: new THREE.Color(look.shoes ?? '#1f1c1b'),
     hair: new THREE.Color(look.hair),
     eyeWhite: new THREE.Color('#f0e9db'),
-    iris: new THREE.Color('#3b2e25'),
+    iris: new THREE.Color('#5a4232'),
     lip: skin.clone().multiplyScalar(0.68),
+    belt: new THREE.Color('#2a1f19'),
+    pupil: new THREE.Color('#110d0b'),
   };
 }
 
@@ -186,7 +190,16 @@ class Builder {
           region(sample.s),
         ),
       );
-    for (let i = 0; i + 1 < rings.length; i++) this.stitch(rings[i]!, rings[i + 1]!);
+    for (let i = 0; i + 1 < rings.length; i++) {
+      const [a, b] = [samples[i]!, samples[i + 1]!];
+      if (region(a.s) === region(b.s)) this.stitch(rings[i]!, rings[i + 1]!);
+      else {
+        // A seam: the band ends on a copy of the next ring in its own colour, so the
+        // colours meet at an edge instead of blending across the band.
+        const seam = ring(b.centre, b.r, b.tangent, weightsAt(b.span, b.s), region(a.s));
+        this.stitch(rings[i]!, seam);
+      }
+    }
     const cap = (sample: (typeof samples)[number], ringIds: number[], end: boolean) => {
       const direction = sample.tangent.clone().multiplyScalar(end ? 1 : -1);
       const weights = weightsAt(sample.span, sample.s);
@@ -268,6 +281,32 @@ class Builder {
     this.fan(rows.at(-1)!, poleAt(-1));
   }
 
+  /** A ring-shaped roll (an elliptical torus) about `axis`, such as a collar. */
+  torus(
+    centre: THREE.Vector3,
+    major: [number, number],
+    minor: number,
+    weights: Weights,
+    region: Region,
+    detail: [number, number] = [32, 8],
+  ) {
+    const [around, tube] = detail;
+    const rows = Array.from({ length: around }, (_, i) => {
+      const u = (i / around) * Math.PI * 2;
+      const middle = centre.clone().add(V(Math.sin(u) * major[0], 0, Math.cos(u) * major[1]));
+      const out = V(Math.sin(u) * major[1], 0, Math.cos(u) * major[0]).normalize();
+      return Array.from({ length: tube }, (_, j) => {
+        const v = (j / tube) * Math.PI * 2;
+        const p = middle
+          .clone()
+          .addScaledVector(out, Math.cos(v) * minor)
+          .add(V(0, Math.sin(v) * minor, 0));
+        return this.vertex(p, weights, region, middle);
+      });
+    });
+    for (let i = 0; i < around; i++) this.stitch(rows[i]!, rows[(i + 1) % around]!);
+  }
+
   /** Flip any triangle whose normal points into the solid it belongs to. */
   private faceOutward() {
     const p = (i: number) =>
@@ -347,22 +386,52 @@ function addArm(body: Builder, side: Side) {
   const sign = side === 'R' ? 1 : -1;
   const s = (n: string) => `${n}${side}`;
   const wrist = at(s('Hand'));
-  // Sleeve to the wrist, then the skin of the wrist itself.
+  const elbow = at(s('LowerArm'));
+  const along = wrist.clone().sub(elbow).normalize();
+  // The sleeve ends in a cuff five centimetres short of the wrist, a little wider than it.
+  const cuff = wrist.clone().addScaledVector(along, -0.05);
   body.tube(
     [
       { at: at(s('UpperArm')).add(V(sign * 0.01, 0.005, 0)), r: 0.048, bone: s('UpperArm') },
-      { at: at(s('LowerArm')), r: 0.037, bone: s('LowerArm') },
-      { at: wrist.clone().add(V(0, 0, 0.006)), r: [0.022, 0.027], bone: s('Hand') },
+      { at: elbow, r: 0.039, bone: s('LowerArm') },
+      { at: cuff, r: [0.031, 0.034], bone: s('LowerArm') },
     ],
     {
-      region: (d, length) => (d > length - 0.018 ? 'skin' : 'shirt'),
-      up: V(0, 0, 1),
+      region: 'shirt',
+      up: V(0, 1, 0),
       parent: s('Shoulder'),
-      sides: 12,
-      steps: 4,
+      sides: 18,
+      steps: 6,
       band: 1.2,
       capStart: true,
     },
+  );
+  // The cuff's rim closes the sleeve around the wrist.
+  const rimUp = V(0, 1, 0).addScaledVector(along, -along.y).normalize();
+  const rimSide = along.clone().cross(rimUp).normalize();
+  const rim = (radius: [number, number], offset: number) =>
+    Array.from({ length: 18 }, (_, k) => {
+      const angle = (k / 18) * Math.PI * 2;
+      const p = cuff
+        .clone()
+        .addScaledVector(along, offset)
+        .addScaledVector(rimUp, Math.cos(angle) * radius[0])
+        .addScaledVector(rimSide, Math.sin(angle) * radius[1]);
+      return body.vertex(
+        p,
+        [[s('LowerArm'), 1]],
+        'shirt',
+        cuff.clone().addScaledVector(along, -0.02),
+      );
+    });
+  body.stitch(rim([0.0305, 0.0335], -0.0008), rim([0.0235, 0.0285], -0.0008));
+  // Bare wrist from inside the sleeve to the hand.
+  body.tube(
+    [
+      { at: cuff.clone().addScaledVector(along, -0.02), r: [0.023, 0.028], bone: s('LowerArm') },
+      { at: wrist.clone().add(V(0, 0, 0.006)), r: [0.022, 0.027], bone: s('Hand') },
+    ],
+    { region: 'skin', up: V(0, 1, 0), parent: s('LowerArm'), sides: 14, steps: 3, band: 1 },
   );
   // Palm: a rounded slab from the wrist to the knuckles, thin across (X).
   const palmCentre = wrist.clone().add(V(0, 0, HAND.palm * 0.5));
@@ -449,7 +518,7 @@ function addLegs(body: Builder, side: Side) {
       { at: at(s('LowerLeg')), r: 0.052, bone: s('LowerLeg') },
       { at: at(s('Foot')).add(V(0, 0.03, 0)), r: 0.038, bone: s('Foot') },
     ],
-    { region: 'trousers', up: V(1, 0, 0), parent: 'Hips', sides: 10, steps: 4, capStart: true },
+    { region: 'trousers', up: V(1, 0, 0), parent: 'Hips', sides: 16, steps: 6, capStart: true },
   );
   const foot = at(s('Foot'));
   const toe = at(s('Toe'));
@@ -461,7 +530,7 @@ function addLegs(body: Builder, side: Side) {
     [0.045, 0.04, 0.13],
     [[s('Foot'), 1]],
     'shoes',
-    [10, 6],
+    [16, 10],
   );
 }
 
@@ -480,8 +549,12 @@ function addTorso(body: Builder) {
     [0.08, 1.095],
     [0.055, 1.115],
   ];
-  const sides = 16;
+  const sides = 32;
   const centre = -0.005;
+  // Waistband between the trousers and the shirt.
+  const BELT = [0.553, 0.585] as const;
+  const regionAt = (y: number): Region =>
+    y < BELT[0] ? 'trousers' : y < BELT[1] ? 'belt' : 'shirt';
   const weights = (p: THREE.Vector3): Weights => {
     const spine: Weights =
       p.y < 0.66
@@ -504,15 +577,47 @@ function addTorso(body: Builder) {
       ];
     return spine;
   };
-  const rings = profile.map(([r, y]) =>
+  // A smooth curve through the profile, with rings at the waistband's edges.
+  const curve: [number, number][] = [];
+  for (let i = 0; i + 1 < profile.length; i++)
+    for (let k = 0; k < 3; k++) {
+      const t = k / 3;
+      const [p0, p1, p2, p3] = [-1, 0, 1, 2].map(
+        (d) => profile[THREE.MathUtils.clamp(i + d, 0, profile.length - 1)]!,
+      );
+      const point = (c: 0 | 1) =>
+        0.5 *
+        (2 * p1![c] +
+          (p2![c] - p0![c]) * t +
+          (2 * p0![c] - 5 * p1![c] + 4 * p2![c] - p3![c]) * t * t +
+          (3 * p1![c] - p0![c] - 3 * p2![c] + p3![c]) * t * t * t);
+      curve.push([point(0), point(1)]);
+    }
+  curve.push(profile.at(-1)!);
+  for (const y of BELT) {
+    const i = curve.findIndex(([, cy]) => cy > y);
+    const [a, b] = [curve[i - 1]!, curve[i]!];
+    const t = (y - a[1]) / (b[1] - a[1]);
+    curve.splice(i, 0, [THREE.MathUtils.lerp(a[0], b[0], t), y]);
+  }
+  const ringAt = (r: number, y: number, region: Region) =>
     Array.from({ length: sides }, (_, k) => {
       const a = (k / sides) * Math.PI * 2;
-      // About 22 cm deep through the chest.
-      const p = V(Math.sin(a) * r, y, Math.cos(a) * r * 0.62 + centre);
-      return body.vertex(p, weights(p), y < 0.57 ? 'trousers' : 'shirt', V(0, y, centre));
-    }),
-  );
-  for (let i = 0; i + 1 < rings.length; i++) body.stitch(rings[i]!, rings[i + 1]!);
+      // About 22 cm deep through the chest; the waistband stands a little proud.
+      const radius = r + (region === 'belt' ? 0.005 : 0);
+      const p = V(Math.sin(a) * radius, y, Math.cos(a) * radius * 0.62 + centre);
+      return body.vertex(p, weights(p), region, V(0, y, centre));
+    });
+  // A ring belongs to the band above it; a band of another colour starts on a copy.
+  const bandRegion = (i: number) => regionAt((curve[i]![1] + curve[i + 1]![1]) / 2);
+  const rings = curve.map(([r, y], i) => ringAt(r, y, bandRegion(Math.min(i, curve.length - 2))));
+  for (let i = 0; i + 1 < curve.length; i++) {
+    const own = bandRegion(i);
+    const next = bandRegion(Math.min(i + 1, curve.length - 2));
+    const top =
+      own === next || i + 2 === curve.length ? rings[i + 1]! : ringAt(...curve[i + 1]!, own);
+    body.stitch(rings[i]!, top);
+  }
   body.fan(
     rings[0]!,
     body.vertex(V(0, 0.45, centre), [['Hips', 1]], 'trousers', V(0, 0.52, centre)),
@@ -524,7 +629,18 @@ function addTorso(body: Builder) {
       { at: V(0, 1.04, -0.02), r: [0.06, 0.055], bone: 'Neck' },
       { at: at('Head').add(V(0, 0.03, 0)), r: [0.055, 0.05], bone: 'Head' },
     ],
-    { region: 'skin', up: V(0, 0, 1), parent: 'Chest', sides: 10, steps: 3 },
+    { region: 'skin', up: V(0, 0, 1), parent: 'Chest', sides: 18, steps: 4 },
+  );
+  // A rolled collar around the base of the neck.
+  body.torus(
+    V(0, 1.098, -0.014),
+    [0.066, 0.06],
+    0.0105,
+    [
+      ['Chest', 0.7],
+      ['Neck', 0.3],
+    ],
+    'shirt',
   );
 }
 
@@ -538,7 +654,7 @@ function addHead(head: Builder) {
     SKULL.radii,
     w,
     'skin',
-    [20, 14],
+    [32, 22],
     undefined,
     (u) => {
       // A narrower jaw below the cheekbones.
@@ -554,23 +670,30 @@ function addHead(head: Builder) {
   const eyes = socket('Eyes');
   for (const x of [-0.032, 0.032]) {
     const centre = eyes.clone().add(V(x, 0, -0.004));
-    head.ellipsoid(centre, [0.0135, 0.0095, 0.0085], w, 'eyeWhite', [10, 6]);
-    head.ellipsoid(centre.clone().add(V(0, 0, 0.0075)), [0.006, 0.0068, 0.003], w, 'iris', [8, 5]);
+    head.ellipsoid(centre, [0.015, 0.0108, 0.009], w, 'eyeWhite', [14, 9]);
+    head.ellipsoid(centre.clone().add(V(0, 0, 0.008)), [0.0068, 0.0076, 0.003], w, 'iris', [12, 7]);
+    head.ellipsoid(
+      centre.clone().add(V(0, 0, 0.0104)),
+      [0.0031, 0.0035, 0.0012],
+      w,
+      'pupil',
+      [10, 6],
+    );
     head.ellipsoid(
       centre.clone().add(V(0, 0.017, 0.003)),
       [0.017, 0.0035, 0.005],
       w,
       'hair',
-      [8, 4],
+      [12, 6],
       new THREE.Euler(0, 0, x > 0 ? -0.1 : 0.1),
     );
   }
   const nose = socket('Nose');
-  head.ellipsoid(nose.clone().add(V(0, 0.004, -0.012)), [0.011, 0.017, 0.013], w, 'skin', [8, 6]);
-  head.ellipsoid(nose.clone().add(V(0, -0.03, -0.014)), [0.022, 0.0045, 0.006], w, 'lip', [10, 4]);
+  head.ellipsoid(nose.clone().add(V(0, 0.004, -0.012)), [0.011, 0.017, 0.013], w, 'skin', [12, 9]);
+  head.ellipsoid(nose.clone().add(V(0, -0.03, -0.014)), [0.022, 0.0045, 0.006], w, 'lip', [14, 6]);
   for (const ear of ['EarL', 'EarR']) {
     const centre = socket(ear).add(V(ear === 'EarL' ? -0.004 : 0.004, -0.004, -0.004));
-    head.ellipsoid(centre, [0.009, 0.03, 0.016], w, 'skin', [8, 6]);
+    head.ellipsoid(centre, [0.009, 0.03, 0.016], w, 'skin', [12, 9]);
   }
 }
 
@@ -594,12 +717,12 @@ function addHair(hair: Builder, style: number) {
     size([0.445 * 1.07, 0.43 * 1.12, 0.395 * 1.1]),
     w,
     'hair',
-    [16, 10],
+    [26, 15],
     undefined,
     (u) => (u.y < 0 ? V(u.x, u.y * 0.15, u.z) : u),
   );
   const ball = (p: [number, number, number], r: [number, number, number], rz = 0) =>
-    hair.ellipsoid(map(...p), size(r), w, 'hair', [10, 6], new THREE.Euler(0, 0, rz));
+    hair.ellipsoid(map(...p), size(r), w, 'hair', [14, 9], new THREE.Euler(0, 0, rz));
   if (style === 0) ball([-0.07, 0.83, 0.12], [0.33, 0.12, 0.26], -0.14);
   if (style === 1) {
     ball([0, 0.35, -0.28], [0.435, 0.46, 0.17]);

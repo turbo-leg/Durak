@@ -229,40 +229,67 @@ const onTable = (target: string, at: Vec3, shape: HandShape): Reach => ({
   shape,
 });
 
-/** Reach out and lay a card on its slot, leaning in a little. */
+/** The hand lifted off the table's edge, starting toward the table: an arc, not a slide. */
+const lift = (shape: HandShape): Reach => ({
+  target: 'body',
+  at: [-0.19, 0.8, 0.5],
+  effector: 'Palm',
+  ...PALM_DOWN,
+  shape,
+});
+/** Fingers and thumb pinched on a carried card. */
+const holding: HandShape = {
+  curl: { Index: 0.3, Middle: 0.35, Ring: 0.45, Pinky: 0.5 },
+  thumb: 0.45,
+};
+
+/**
+ * Lift a card from the resting hand, carry it over its slot and set it down, leaning in;
+ * the card rides in the hand until it is let go (`PLAY_RELEASE_MS`).
+ */
 const play: Clip = {
-  duration: 900,
-  fade: 200,
+  duration: 1050,
+  fade: 160,
+  peak: 560,
+  keys: [
+    { t: 0, R: REST, bones: { Chest: [0, 0, 0] } },
+    { t: 200, R: lift(holding) },
+    { t: 420, R: onTable('table', [0, 0.05, 0], holding), bones: { Chest: [0.06, 0, 0] } },
+    { t: 560, R: onTable('table', [0, 0.025, 0], flat), bones: { Chest: [0.1, 0, 0] } },
+    { t: 740, R: onTable('table', [0.02, 0.055, -0.03], flat), bones: { Chest: [0.04, 0, 0] } },
+    { t: 1050, R: REST, bones: { Chest: [0, 0, 0] } },
+  ],
+};
+export const PLAY_RELEASE_MS = 540;
+
+/** Reach past the pile, sweep its cards together toward the body and draw them in. */
+const pickup: Clip = {
+  duration: 1350,
+  fade: 180,
+  peak: 600,
+  keys: [
+    { t: 0, R: REST, bones: { Chest: [0, 0, 0] } },
+    { t: 220, R: lift(flat) },
+    { t: 450, R: onTable('table', [0.13, 0.045, 0], flat), bones: { Chest: [0.1, 0, 0] } },
+    { t: 600, R: onTable('table', [0.12, 0.025, 0], flat), bones: { Chest: [0.12, 0, 0] } },
+    { t: 850, R: onTable('table', [-0.1, 0.025, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
+    { t: 1100, R: toChest, bones: { Chest: [0, 0, 0] } },
+    { t: 1350, R: REST },
+  ],
+};
+
+/** Reach to the deck, take the top card and draw it back in low, under the fan. */
+const draw: Clip = {
+  duration: 1150,
+  fade: 180,
   peak: 450,
   keys: [
-    { t: 150, R: onTable('table', [0, 0.14, 0], flat) },
-    { t: 450, R: onTable('table', [0, 0.02, 0], flat), bones: { Chest: [0.1, 0, 0] } },
-    { t: 700, R: onTable('table', [0, 0.12, 0], flat) },
-    { t: 900, bones: { Chest: [0, 0, 0] } },
-  ],
-};
-
-/** Sweep the table's cards together and draw them in. */
-const pickup: Clip = {
-  duration: 1200,
-  fade: 220,
-  peak: 550,
-  keys: [
-    { t: 250, R: onTable('table', [0.12, 0.025, 0], flat), bones: { Chest: [0.12, 0, 0] } },
-    { t: 550, R: onTable('table', [-0.1, 0.025, 0], gathering) },
-    { t: 900, R: toChest, bones: { Chest: [0, 0, 0] } },
-  ],
-};
-
-/** Take the top card from the deck and bring it to the chest. */
-const draw: Clip = {
-  duration: 1000,
-  fade: 200,
-  peak: 400,
-  keys: [
-    { t: 250, R: onTable('deck', [0, 0.06, 0], flat) },
-    { t: 450, R: onTable('deck', [0, 0.03, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
-    { t: 800, R: toChest, bones: { Chest: [0, 0, 0] } },
+    { t: 0, R: REST, bones: { Chest: [0, 0, 0] } },
+    { t: 200, R: lift(flat) },
+    { t: 380, R: onTable('deck', [0, 0.05, 0], flat), bones: { Chest: [0.05, 0, 0] } },
+    { t: 520, R: onTable('deck', [0, 0.03, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
+    { t: 820, R: { ...lift(gathering), at: [-0.19, 0.8, 0.4] }, bones: { Chest: [0, 0, 0] } },
+    { t: 1150, R: REST },
   ],
 };
 

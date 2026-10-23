@@ -16,9 +16,11 @@ authored once and reused.
   `CHARACTER_SCALE` (3.3 world units per metre), and the room shares those metres
   (`CharacterSpace.ts`):
   - an oval table 1.6 × 1.1 m and 74 cm high;
-  - chairs 38 cm back from its edge;
-  - standard 63.5 × 88.9 mm playing cards, both held and on the table;
-  - the fan carried 40 cm in front of the eyes and 25 cm below them.
+  - chairs 38 cm back from its edge, with a wooden chair under every other player;
+  - jumbo cards, 1.5 × a 63.5 × 88.9 mm poker card (`CARD_SIZE` in `spec.ts`), one size
+    for held, flying and table cards; the table layout grows with them;
+  - the fan carried 40 cm in front of the eyes and 20 cm below them, drawn up 7 cm while
+    the free hand reaches across under it (`CARRY_RAISE`).
 - Seated bind pose, facing +Z, character's left on +X. Arms: upper arm down, forearm
   forward, hand forward with the palm toward the midline and the thumb up.
 - Every bone's bind rotation is the identity. Clip rotations are therefore in
@@ -40,10 +42,10 @@ authored once and reused.
 
 | Measure                              |                Value (m) | Why                                  |
 | ------------------------------------ | -----------------------: | ------------------------------------ |
-| Card height / width                  |          0.0889 / 0.0635 | A standard poker card                |
+| Card height / width                  |          0.1334 / 0.0953 | Jumbo: 1.5 × a poker card            |
 | Stature; eyes above the seat         |               1.72; 0.76 | An average adult, seated             |
 | Shoulder width; upper arm; forearm   |         0.38; 0.33; 0.26 | Real reach to the table centre       |
-| Palm, wrist to middle knuckle        |                    0.108 | Real hand: about 1.2 card heights    |
+| Palm, wrist to middle knuckle        |                    0.108 | Real hand: 1.2 poker-card heights    |
 | Middle finger                        | 0.086 (0.04/0.025/0.021) | Fingers wrap behind the fan's base   |
 | Thumb (metacarpal, proximal, distal) |    0.046 / 0.032 / 0.026 | Three bones so the thumb opposes     |
 | Finger / thumb radius                |          0.0085 / 0.0105 | A thin web: card edges fit the pinch |
@@ -58,14 +60,18 @@ sockets, never hard-coded coordinates.
 
 A single skinned body mesh plus a head mesh (hidden in first person) and hair variants.
 Each vertex carries a `_region` attribute (skin, shirt, trousers, shoes, hair, eye white,
-iris, lip). An appearance recolours regions and picks a hair variant, so all characters
-share one asset. Weights are normalized, four influences at most.
+iris, lip, belt, pupil). Where two regions meet the mesh has a hard edge (a sleeve cuff, the
+waistband), not a blend. An appearance recolours regions and picks a hair variant, so all
+characters share one asset. Weights are normalized, four influences at most; the visible
+body, head and hair stay under 12,000 triangles.
 
 ## How the character moves
 
 `character/CharacterPose.ts` builds every frame in the same order:
 
 1. **Look:** the spine and head share the player's yaw and pitch; the camera sits at `Eyes`.
+   Other players' heads turn on a critically damped spring, the torso following more
+   slowly, and while seated they breathe, sway a little and their heads drift.
 2. **Lean:** additive spine, head and shoulder rotations from active clips.
 3. **Hold:** the right hand holds the whole fan by the lower corner of its front card, like
    a hand of cards held in one hand: the fan's base rests in the palm, the fingers wrap
@@ -75,12 +81,18 @@ share one asset. Weights are normalized, four influences at most.
    face. The left hand rests and does the card actions and most gestures; when a gesture
    needs the right hand (touching the right ear) the left takes the fan over, arriving
    from below so the cards pass between thumb and fingers. Reactions such as crying use
-   the free hand too while cards are held.
+   the free hand too while cards are held. Looking down, or toward the free hand, brings
+   the fan down over that hand's place on the table, so the free arm lets down beside the
+   hip, and further back as the look turns toward it.
 4. **Clips:** arm keys are reach targets solved with two-bone IK (limbs never stretch; far
-   targets stop at a natural extension), blended over the hold by the clip's fade. Keys
-   move the effector in straight lines, so a clip steers its own path with waypoints: the
-   face touches start at `REST`, drop beside the hip, rise beside the shoulder and only then
-   come to the face, which keeps the hand clear of the fan wherever the head turns it.
+   targets stay low over the table at their own height), blended over the hold by the
+   clip's fade. Motion follows a smooth curve through every key (`track`): it carries on
+   through a waypoint and settles only at the ends, a hold or a turn back, never
+   overshooting. Keys may place different parts of the hand; the placed point slides from
+   one to the next. A clip steers its own path with waypoints: face touches start at
+   `REST`, drop beside the hip, rise beside the shoulder and only then come to the face;
+   card actions lift off the table's edge, and a played card rides in the hand until it is
+   set down (`PLAY_RELEASE_MS`).
 
 ## Clips and the registry
 

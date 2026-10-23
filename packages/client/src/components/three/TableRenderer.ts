@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { SeatedView } from './SeatedView';
 import { FirstPersonCharacter, SeatedCharacter } from '../../character/CharacterRig';
+import { CARD_SIZE } from '../../character/spec';
+import { PLAY_RELEASE_MS } from '../../character/animations/registry';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { seatStatus, type TableCard, type TableSnapshot } from '../../game/tableSnapshot';
 import { SELF, tableEvents, type TableEvent } from '../../game/tableEvents';
@@ -11,6 +13,7 @@ import {
   CARRY_DEPTH,
   CARRY_SCALE,
   CARRY_TILT,
+  CARRY_RAISE,
   CARRY_Y,
   fanHalfAngle,
   fanStep,
@@ -38,14 +41,16 @@ const RANKS: Record<number, string> = {
 };
 // Real-size table layout, in world units: centimetres times CHARACTER_SCALE / 100.
 const cm = (value: number) => (value * CHARACTER_SCALE) / 100;
+/** Card-relative distances, laid out for a real card and grown with the game's card size. */
+const card = (value: number) => cm(value * CARD_SIZE);
 /** Where the deck, trump and discard lie, and how far apart table cards sit. */
 const LAYOUT = {
-  deck: new THREE.Vector3(-cm(42), TABLE_TOP, cm(1)),
-  trump: new THREE.Vector3(-cm(30), TABLE_TOP, cm(10)),
-  discard: new THREE.Vector3(cm(42), TABLE_TOP, cm(1)),
-  spacing: cm(9.5),
-  attackZ: cm(2),
-  historyZ: -cm(14),
+  deck: new THREE.Vector3(-card(36), TABLE_TOP, card(1)),
+  trump: new THREE.Vector3(-card(25), TABLE_TOP, card(9)),
+  discard: new THREE.Vector3(card(36), TABLE_TOP, card(1)),
+  spacing: card(9.5),
+  attackZ: card(2),
+  historyZ: -card(14),
 };
 const TABLE_CENTRE = new THREE.Vector3(cm(2), TABLE_TOP + cm(3), -cm(4));
 const DECK_TOP = LAYOUT.deck.clone().setY(TABLE_TOP + cm(4));
@@ -61,6 +66,8 @@ type AnimatedCard = {
   roll: number;
   tilt: number;
   removing?: boolean;
+  /** A played card rides in the player's hand (world point) until it is let go. */
+  carry?: { until: number; at: () => THREE.Vector3 | undefined };
 };
 
 export class TableRenderer {
@@ -627,6 +634,13 @@ export class TableRenderer {
           frame.worldToLocal(mesh.position);
         }
         item = { mesh, target: new THREE.Vector3(), angle, roll, tilt };
+        if (palm && player) {
+          const slot = new THREE.Vector3(x, y, z);
+          item.carry = {
+            until: performance.now() + PLAY_RELEASE_MS,
+            at: () => this.avatars.get(player)?.palm(slot),
+          };
+        }
         this.cards.set(visualId, item);
         (parentOverride ?? (handKey ? this.hand : this.scene)).add(mesh);
       }
@@ -1006,12 +1020,28 @@ export class TableRenderer {
       this.idleTimer = setTimeout(this.requestFrame, 32 - (now - this.lastRender));
       return;
     }
+    // Cards ease toward their places at the same pace whatever the frame rate.
+    const follow = 1 - Math.exp(-15 * Math.min(0.1, (now - this.lastRender) / 1000));
     this.lastRender = now;
     for (const rig of this.avatars.values())
       moving = rig.animate(now / 1000, this.reducedMotion.matches) || moving;
-    if (this.firstHands && this.hand.visible)
+    if (this.firstHands && this.hand.visible) {
+      // The local fan is drawn up out of the way while the free hand reaches across.
+      this.hand.position.y = CARRY_Y + CARRY_RAISE * this.firstHands.cardsRaised();
       moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
+    }
     for (const [id, card] of this.cards) {
+      const held = card.carry && now < card.carry.until ? card.carry.at() : undefined;
+      if (!held) card.carry = undefined;
+      else {
+        // In the hand: follow the palm exactly while turning toward its place on the table.
+        card.mesh.position.copy(held);
+        card.mesh.rotation.y = THREE.MathUtils.lerp(card.mesh.rotation.y, card.angle, follow);
+        card.mesh.rotation.z = THREE.MathUtils.lerp(card.mesh.rotation.z, card.roll, follow);
+        card.mesh.rotation.x = THREE.MathUtils.lerp(card.mesh.rotation.x, card.tilt, follow);
+        moving = true;
+        continue;
+      }
       this.targetPosition.copy(card.target);
       if (this.canSelect && card.mesh.userData.handKey === this.hoverKey)
         this.targetPosition.y += 0.22;
@@ -1027,10 +1057,10 @@ export class TableRenderer {
           this.cards.delete(id);
         }
       } else {
-        card.mesh.position.lerp(this.targetPosition, 0.22);
-        card.mesh.rotation.y = THREE.MathUtils.lerp(card.mesh.rotation.y, card.angle, 0.22);
-        card.mesh.rotation.z = THREE.MathUtils.lerp(card.mesh.rotation.z, card.roll, 0.22);
-        card.mesh.rotation.x = THREE.MathUtils.lerp(card.mesh.rotation.x, card.tilt, 0.22);
+        card.mesh.position.lerp(this.targetPosition, follow);
+        card.mesh.rotation.y = THREE.MathUtils.lerp(card.mesh.rotation.y, card.angle, follow);
+        card.mesh.rotation.z = THREE.MathUtils.lerp(card.mesh.rotation.z, card.roll, follow);
+        card.mesh.rotation.x = THREE.MathUtils.lerp(card.mesh.rotation.x, card.tilt, follow);
         if (tiltDelta > 0.002) moving = true;
         moving = true;
       }
@@ -1043,8 +1073,9 @@ export class TableRenderer {
       this.host.dataset.avatarCount = String(this.avatars.size);
     }
     if (moving) this.idleTimer = setTimeout(this.requestFrame, 16);
+    // Seated players keep breathing: slow, small motion that reads smoothly at 20 fps.
     else if (this.avatars.size > 0 && !this.reducedMotion.matches)
-      this.idleTimer = setTimeout(this.requestFrame, this.mobileQuality ? 250 : 125);
+      this.idleTimer = setTimeout(this.requestFrame, this.mobileQuality ? 125 : 50);
   };
 
   dispose() {

@@ -19,8 +19,14 @@ export type Finger = (typeof FINGERS)[number];
 export type Digit = (typeof DIGITS)[number];
 
 /** A standard poker-size playing card, 63.5 x 88.9 mm. */
-export const CARD_HEIGHT = 0.0889;
-export const CARD_WIDTH = 0.0635;
+export const REAL_CARD = { height: 0.0889, width: 0.0635 } as const;
+/**
+ * The game's cards are jumbo cards, half again a real card's size, so their faces read on
+ * a screen. Held, flying and table cards all share this one size.
+ */
+export const CARD_SIZE = 1.5;
+export const CARD_HEIGHT = REAL_CARD.height * CARD_SIZE;
+export const CARD_WIDTH = REAL_CARD.width * CARD_SIZE;
 
 /** Seated adult anthropometrics (metres), averages of adult men and women. */
 export const BODY = {

@@ -19,10 +19,12 @@ export const CHARACTER_FLOOR = TABLE_TOP - m(TABLE.height);
 export const SEAT_RADIUS_X = m(TABLE.radiusX + 0.38);
 export const SEAT_RADIUS_Z = m(TABLE.radiusZ + 0.38);
 export const NEUTRAL_LOOK_DOWN = 0.22;
-/** A hand of cards is held 40 cm in front of the eyes and 25 cm below them. */
+/** A hand of cards is held 40 cm in front of the eyes and 20 cm below them. */
 export const CARRY_DEPTH = m(0.4);
 export const CARRY_TILT = -0.1;
-export const CARRY_Y = -m(0.25);
+export const CARRY_Y = -m(0.2);
+/** While the free hand reaches across in front, the held cards are drawn up this far. */
+export const CARRY_RAISE = m(0.07);
 
 export function headLook(yaw: number, pitch: number) {
   return new THREE.Quaternion().setFromEuler(

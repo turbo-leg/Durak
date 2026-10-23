@@ -9,6 +9,8 @@ import {
   HELD_CARD_SCALE,
   SEAT_RADIUS_Z,
   carryMatrix,
+  CARRY_RAISE,
+  CARRY_Y,
   fanStep,
   heldCard,
 } from '../components/three/CharacterSpace';
@@ -293,8 +295,12 @@ export function handGap(sample: Skin, scene: THREE.Object3D) {
   return best / scale;
 }
 
-/** The carry frame each view holds its cards in. */
-export function viewFrame(pose: CharacterPose, yaw: number, pitch: number) {
+/** The carry frame each view holds its cards in, drawn up by `raised` (0 to 1). */
+export function viewFrame(pose: CharacterPose, yaw: number, pitch: number, raised = 0) {
   pose.look(yaw, pitch);
-  return carryMatrix(pose.view(), undefined, pose.root.getWorldScale(new THREE.Vector3()).x);
+  return carryMatrix(
+    pose.view(),
+    CARRY_Y + CARRY_RAISE * raised,
+    pose.root.getWorldScale(new THREE.Vector3()).x,
+  );
 }

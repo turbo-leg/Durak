@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GESTURES, LOOK_PITCH_MAX, LOOK_PITCH_MIN, LOOK_YAW_LIMIT } from '@durak/shared';
 import { ACTIONS, EMOTES, FREE_HAND_EMOTES, REACTIONS } from '../character/animations/registry';
 import { holdingHand } from '../character/CharacterPose';
+import { clipWeight } from '../character/animation';
 import { BODY, SKULL } from '../character/spec';
 import {
   FirstPersonCharacter,
@@ -35,9 +36,15 @@ const HANDS = [
   // A narrow phone viewport compresses a large local hand.
   [12, 0.46],
 ] as const;
+// Centre, the corners and the half turns; looking down brings the fan over the free hand.
 const GAZE = [
   [0, 0],
+  [0, LOOK_PITCH_MIN],
+  [0.6, 0],
+  [-0.6, 0],
+  [0.6, LOOK_PITCH_MIN],
   [-LOOK_YAW_LIMIT, LOOK_PITCH_MIN],
+  [LOOK_YAW_LIMIT, LOOK_PITCH_MIN],
   [LOOK_YAW_LIMIT, LOOK_PITCH_MAX],
 ] as const;
 afterEach(() => {
@@ -267,11 +274,12 @@ describe('Character card actions', () => {
         const acting = 'L';
         const holding = 'R';
         const clip = ACTIONS[id][acting];
-        const frame = viewFrame(pose, 0, 0);
-        pose.pose({ yaw: 0, pitch: 0, reduced: true, count, frame });
+        pose.pose({ yaw: 0, pitch: 0, reduced: true, count, frame: viewFrame(pose, 0, 0) });
         const shoulder = at(scene, `UpperArm${acting}`);
         const restDistance = at(scene, `SocketPalm${acting}`).distanceTo(far);
         for (let time = 0; time < clip.duration; time += clip.duration / 10) {
+          // The cards are drawn up while the hand acts, as the rig does.
+          const frame = viewFrame(pose, 0, 0, clipWeight(clip, time));
           pose.pose({
             yaw: 0,
             pitch: 0,
@@ -283,11 +291,8 @@ describe('Character card actions', () => {
           const sample = skin(scene);
           const cards = fanCards(frame, count);
           const label = `${id}, ${count} cards, ${time.toFixed(0)} ms`;
-          // The holding hand is untouched; any contact with the fan is the acting hand's.
-          expect(
-            cardIntersections(sample, cards).filter((hit) => hit.includes(`${holding}:`)),
-            label,
-          ).toEqual([]);
+          // The holding hand keeps its grip and the acting hand passes clear of the fan.
+          expect(cardIntersections(sample, cards), `${label} (${holding} holds)`).toEqual([]);
           expect(
             at(scene, `UpperArm${acting}`).distanceTo(at(scene, `LowerArm${acting}`)),
           ).toBeCloseTo(BODY.upperArm, 2);
@@ -298,7 +303,7 @@ describe('Character card actions', () => {
           pitch: 0,
           reduced: false,
           count,
-          frame,
+          frame: viewFrame(pose, 0, 0, 1),
           clips: [{ clip, time: clip.peak!, targets }],
         });
         const distance = at(scene, `SocketPalm${acting}`).distanceTo(far);
