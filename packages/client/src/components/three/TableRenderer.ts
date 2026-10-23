@@ -799,9 +799,10 @@ export class TableRenderer {
       ),
     );
     const handStep = fanStep(snapshot.hand.length, this.camera.aspect);
+    // Drawn cards join the fan on the left, the side the free hand brings them in from.
     snapshot.hand.forEach((card, i) => {
       const { angle, position } = heldCard(
-        i,
+        snapshot.hand.length - 1 - i,
         snapshot.hand.length,
         handStep,
         selected.has(card.key),
@@ -827,7 +828,8 @@ export class TableRenderer {
     }
     snapshot.seats.forEach((seat, i) => {
       const count = ringCount;
-      const angle = ((i + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
+      // Play goes clockwise seen from above: the next player sits on the left.
+      const angle = (-(i + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
       const x = Math.sin(angle) * SEAT_RADIUS_X;
       const z = Math.cos(angle) * SEAT_RADIUS_Z;
       const facing = angle + Math.PI;
@@ -853,7 +855,7 @@ export class TableRenderer {
         const targetAngle =
           active < 0
             ? 0
-            : ((active + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
+            : (-(active + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
         const target = new THREE.Vector3(
           Math.sin(targetAngle) * SEAT_RADIUS_X - x,
           0,
@@ -872,7 +874,8 @@ export class TableRenderer {
       rig.setGesture(seat, snapshot.serverTimeOffset, seat.count);
       const fanCount = Math.min(7, seat.count);
       for (let n = 0; n < fanCount; n++) {
-        const { angle, position } = heldCard(n, fanCount, fanStep(fanCount));
+        // As in the player's own fan, newer cards lie toward the holder's free left hand.
+        const { angle, position } = heldCard(fanCount - 1 - n, fanCount, fanStep(fanCount));
         put(
           `seat:${seat.id}:${n}`,
           null,
@@ -898,7 +901,7 @@ export class TableRenderer {
     // Unoccupied seats follow the occupied ones clockwise.
     const offset = snapshot.spectator ? 0 : 1;
     for (let i = snapshot.seats.length + offset; i < ringCount; i++) {
-      const angle = (i * Math.PI * 2) / ringCount;
+      const angle = (-i * Math.PI * 2) / ringCount;
       label(
         `empty:${i}`,
         'Empty seat',

@@ -593,7 +593,8 @@ export function CardRoom({
       {(keyboard || fallback) && phase !== 'waiting' && (
         <section className="card-controls">
           <div className="keyboard-hand" aria-label="Your hand">
-            {view.hand.map((card) => (
+            {/* In the order the 3D fan shows them: newest on the left. */}
+            {[...view.hand].reverse().map((card) => (
               <button
                 key={card.key}
                 aria-label={`Select ${cardLabel(card)}`}
