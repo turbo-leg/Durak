@@ -28,13 +28,68 @@ export const TABLE_LAYERS = [
 /** Each layer's top edge is rounded this much, as a table's edges are. */
 const EDGE_ROUND = m(0.02);
 
+/** A pile of cards lying on the felt, such as the deck: its middle, half its footprint along
+ * x and z, and its top (world units). */
+export interface Pile {
+  x: number;
+  z: number;
+  halfX: number;
+  halfZ: number;
+  top: number;
+}
+
+/**
+ * The move out of one slab for a ball `beyond` its side (negative inside) and `above` its
+ * top: at the edge, which is rounded by `round`, away from the rounding's centre, a way that
+ * turns smoothly from up to out as a hand passes over or into it (taking the shorter of up
+ * and out flipped between them there, and the hand with it); elsewhere up or out.
+ */
+function slabPush(
+  beyond: number,
+  above: number,
+  outward: THREE.Vector3,
+  radius: number,
+  upward: boolean,
+  round: number,
+) {
+  if (beyond > -round && (above > -round || upward)) {
+    const [out, up] = [beyond + round, above + round];
+    const clear = round + radius;
+    if (upward) {
+      if (out >= clear) return undefined;
+      const lift = Math.sqrt(clear ** 2 - out ** 2) - up;
+      return lift > 0 ? new THREE.Vector3(0, lift, 0) : undefined;
+    }
+    const gap = Math.hypot(out, up);
+    if (gap >= clear) return undefined;
+    return gap > 0
+      ? outward
+          .clone()
+          .multiplyScalar(out)
+          .setY(up)
+          .setLength(clear - gap)
+      : new THREE.Vector3(0, clear, 0);
+  }
+  const up = radius - above;
+  const out = radius - beyond;
+  return upward || up <= out ? new THREE.Vector3(0, up, 0) : outward.clone().multiplyScalar(out);
+}
+
 /**
  * The shortest move, up onto the top or outward past the edge, that brings a ball of
- * `radius` at `point` clear of the table (world units); zero when it is already clear.
- * `upward` asks for the move straight up instead, however long.
+ * `radius` at `point` clear of the table and any `piles` of cards on it (world units); zero
+ * when it is already clear. `upward` asks for the move straight up instead, however long.
  */
-export function tableClearance(point: THREE.Vector3, radius = 0, upward = false) {
+export function tableClearance(
+  point: THREE.Vector3,
+  radius = 0,
+  upward = false,
+  piles: readonly Pile[] = [],
+) {
   const push = new THREE.Vector3();
+  const keep = (move: THREE.Vector3 | undefined) => {
+    if (move && move.lengthSq() > push.lengthSq()) push.copy(move);
+  };
   for (const layer of TABLE_LAYERS) {
     const across = Math.hypot(point.x, point.z);
     const reach = Math.hypot(
@@ -47,35 +102,25 @@ export function tableClearance(point: THREE.Vector3, radius = 0, upward = false)
     if (beyond >= radius || above >= radius || point.y <= layer.top - layer.depth - radius)
       continue;
     const outward = new THREE.Vector3(point.x, 0, point.z).normalize();
-    let move: THREE.Vector3;
-    if (beyond > -EDGE_ROUND && (above > -EDGE_ROUND || upward)) {
-      // At the edge, which is rounded: away from the rounding's centre, a way that turns
-      // smoothly from up to out as a hand passes over or into it. Taking the shorter of up
-      // and out flipped between them there, and the hand with it.
-      const [out, up] = [beyond + EDGE_ROUND, above + EDGE_ROUND];
-      const clear = EDGE_ROUND + radius;
-      if (upward) {
-        if (out >= clear) continue;
-        const lift = Math.sqrt(clear ** 2 - out ** 2) - up;
-        if (lift <= 0) continue;
-        move = new THREE.Vector3(0, lift, 0);
-      } else {
-        const gap = Math.hypot(out, up);
-        if (gap >= clear) continue;
-        move =
-          gap > 0
-            ? outward
-                .multiplyScalar(out)
-                .setY(up)
-                .setLength(clear - gap)
-            : new THREE.Vector3(0, clear, 0);
-      }
-    } else {
-      const up = radius - above;
-      const out = radius - beyond;
-      move = upward || up <= out ? new THREE.Vector3(0, up, 0) : outward.multiplyScalar(out);
-    }
-    if (move.lengthSq() > push.lengthSq()) push.copy(move);
+    keep(slabPush(beyond, above, outward, radius, upward, EDGE_ROUND));
+  }
+  // A pile is a low box on the felt: hands rest on it or beside it, never in it.
+  for (const pile of piles) {
+    const [sx, sz] = [Math.sign(point.x - pile.x) || 1, Math.sign(point.z - pile.z) || 1];
+    const dx = Math.abs(point.x - pile.x) - pile.halfX;
+    const dz = Math.abs(point.z - pile.z) - pile.halfZ;
+    const above = point.y - pile.top;
+    const beyond =
+      dx > 0 || dz > 0 ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) : Math.max(dx, dz);
+    if (beyond >= radius || above >= radius || point.y <= TABLE_TOP - radius) continue;
+    const outward =
+      dx > 0 || dz > 0
+        ? new THREE.Vector3(sx * Math.max(dx, 0), 0, sz * Math.max(dz, 0)).normalize()
+        : dx > dz
+          ? new THREE.Vector3(sx, 0, 0)
+          : new THREE.Vector3(0, 0, sz);
+    const height = pile.top - TABLE_TOP;
+    keep(slabPush(beyond, above, outward, radius, upward, Math.min(EDGE_ROUND, height / 2)));
   }
   return push;
 }

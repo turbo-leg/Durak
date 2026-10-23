@@ -370,8 +370,9 @@ const draw: Clip = {
     { t: 0, R: REST, bones: { Chest: [0, 0, 0] } },
     { t: 200, R: lift(flat) },
     { t: 380, R: onTable('deck', [0, 0.05, 0], flat), bones: { Chest: [0.05, 0, 0] } },
-    { t: 520, R: onTable('deck', [0, 0.03, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
-    { t: 820, R: { ...lift(gathering), at: [-0.19, 0.8, 0.4] }, bones: { Chest: [0, 0, 0] } },
+    // Fingers and thumb closed on the card it takes, as a played card is held.
+    { t: 520, R: onTable('deck', [0, 0.03, 0], holding), bones: { Chest: [0.08, 0, 0] } },
+    { t: 820, R: { ...lift(holding), at: [-0.19, 0.8, 0.4] }, bones: { Chest: [0, 0, 0] } },
     { t: 1150, R: REST },
     // A glance at the deck, then up to see what came.
     { t: 0, face: {} },

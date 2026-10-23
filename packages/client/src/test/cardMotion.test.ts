@@ -90,7 +90,7 @@ function peer(table: TableRenderer, palm: THREE.Vector3) {
     setGesture: vi.fn(),
     act: vi.fn(() => 'L'),
     react: vi.fn(),
-    palm: vi.fn(() => palm.clone()),
+    held: vi.fn(() => ({ position: palm.clone(), quaternion: new THREE.Quaternion() })),
     animate: () => false,
     dispose: vi.fn(),
   };
@@ -257,7 +257,7 @@ describe('card identity across presentation zones', () => {
         setCardCount: vi.fn(),
         setGesture: vi.fn(),
         act: vi.fn(() => 'L'),
-        palm: vi.fn(() => palm.clone()),
+        held: vi.fn(() => ({ position: palm.clone(), quaternion: new THREE.Quaternion() })),
       },
     });
     clock(0);

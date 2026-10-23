@@ -50,6 +50,7 @@ import {
   TABLE_RADIUS_Z,
   TABLE_TOP,
   tableClearance,
+  type Pile,
 } from './CharacterSpace';
 
 const RANKS: Record<number, string> = {
@@ -104,16 +105,15 @@ type AnimatedCard = {
   /** Kept where it is until `until`; a dealt card waits unseen and then leaves `from`. */
   wait?: { until: number; from?: CardPose };
   /**
-   * Taken by a hand: from `from` the card joins the palm over `reach` ms, rides it and is
-   * let go at `release`, turning toward its home on the way when `turn` is set. A card that
-   * `slide`s is pushed flat across the felt to meet the hand, and turns once it is held.
+   * Taken by a hand: from `from` the card comes into the hand's `grip` over `reach` ms, is
+   * held there and let go at `release`. A card that `slide`s is pushed flat across the felt
+   * to meet the hand.
    */
   carry?: {
-    palm: () => THREE.Vector3 | undefined;
+    grip: () => { position: THREE.Vector3; quaternion: THREE.Quaternion } | undefined;
     from: number;
     reach: number;
     release: number;
-    turn: boolean;
     slide?: boolean;
     anchor?: CardPose;
   };
@@ -123,6 +123,15 @@ type AnimatedCard = {
   /** A fan slot shown once this card has arrived in it. */
   reveal?: THREE.Object3D;
 };
+/** Half a lying card's width, length and thickness (world units). */
+const CARD_HALF = {
+  x: 0.41 * TABLE_CARD_SCALE,
+  z: 0.6 * TABLE_CARD_SCALE,
+  y: 0.0175 * TABLE_CARD_SCALE,
+};
+/** The top face of a deck stacked `count` cards high, as the deck is drawn (at most twelve). */
+const deckTop = (count: number) =>
+  TABLE_TOP + cm(0.3) + (Math.min(12, count) - 1) * cm(0.25) + CARD_HALF.y;
 /** Face down on top of the deck. */
 const DECK_POSE: CardPose = {
   position: DECK_TOP,
@@ -162,6 +171,10 @@ export class TableRenderer {
   private hoverKey: string | null = null;
   /** Backs dealt to peers, each flying from the deck into a fan. */
   private dealt = 0;
+  /** The deck and discard pile, which hands rest on rather than pass through. */
+  private piles: Pile[] = [];
+  private clearance = (point: THREE.Vector3, radius?: number, upward?: boolean) =>
+    tableClearance(point, radius, upward, this.piles);
   private back: THREE.MeshStandardMaterial;
   private raycaster = new THREE.Raycaster();
   private observer: ResizeObserver;
@@ -638,7 +651,7 @@ export class TableRenderer {
         cards: this.hand,
         look: () => this.controls.getLook(),
       });
-      this.firstHands.table = tableClearance;
+      this.firstHands.table = this.clearance;
       this.scene.add(this.firstHands.root);
       this.controls.setEyeSource?.((yaw, pitch) => this.firstHands?.view(yaw, pitch));
       this.ownPreset = preset;
@@ -826,7 +839,7 @@ export class TableRenderer {
       }
       if (!rig) {
         rig = new SeatedCharacter(preset, () => this.requestFrame());
-        rig.table = tableClearance;
+        rig.table = this.clearance;
         this.avatars.set(seat.id, rig);
         this.scene.add(rig.root);
       }
@@ -894,6 +907,32 @@ export class TableRenderer {
       );
     }
     this.dropLabels(shown);
+    // Hands meet the deck and the discard pile as they lie now.
+    this.piles = [
+      ...(snapshot.deckCount > 0
+        ? [
+            {
+              x: LAYOUT.deck.x,
+              z: LAYOUT.deck.z,
+              halfX: CARD_HALF.x,
+              halfZ: CARD_HALF.z,
+              top: deckTop(snapshot.deckCount),
+            },
+          ]
+        : []),
+      // Three cards, each a little askew.
+      ...(snapshot.discardCount > 0
+        ? [
+            {
+              x: LAYOUT.discard.x + cm(0.3),
+              z: LAYOUT.discard.z,
+              halfX: CARD_HALF.x + cm(1),
+              halfZ: CARD_HALF.z + cm(1),
+              top: TABLE_TOP + cm(0.9) + CARD_HALF.y,
+            },
+          ]
+        : []),
+    ];
     const now = performance.now();
     const animate = Boolean(previous) && !this.reducedMotion.matches;
     if (previous && animate)
@@ -987,10 +1026,11 @@ export class TableRenderer {
     now: number,
   ) {
     const body = (seat: string) => (seat === SELF ? this.firstHands : this.avatars.get(seat));
-    const palm = (seat: string) => {
+    // Played and gathered cards are held face up; drawn cards as they come off the deck.
+    const grip = (seat: string, faceIn: boolean) => {
       const actor = body(seat);
       const act = acts.get(seat);
-      return actor && act ? () => actor.palm(undefined, act.side) : undefined;
+      return actor && act ? () => actor.held(act.side, CARD_HALF.z, faceIn) : undefined;
     };
     const held = (seat: string) => previous.seats.find((s) => s.id === seat)?.count ?? 0;
     // The fan slots each peer gained, hidden until the card filling each one arrives.
@@ -1020,7 +1060,7 @@ export class TableRenderer {
     };
     for (const event of events) {
       if (event.kind === 'play') {
-        const carry = palm(event.seat);
+        const carry = grip(event.seat, true);
         for (const key of event.cards) {
           const item = this.cards.get(`card:${key}`);
           if (!item) continue;
@@ -1035,26 +1075,24 @@ export class TableRenderer {
           }
           if (carry)
             item.carry = {
-              palm: carry,
+              grip: carry,
               from: now,
               reach: 240,
               release: now + PLAY_RELEASE_MS,
-              turn: true,
             };
         }
       } else if (event.kind === 'pickup') {
-        const carry = palm(event.seat);
+        const carry = grip(event.seat, true);
         event.cards.forEach((key, j) => {
           const id = `card:${key}`;
           const item = this.cards.get(id);
           if (!item || (event.seat !== SELF && !deliver(event.seat, id, item))) return;
           if (carry)
             item.carry = {
-              palm: carry,
+              grip: carry,
               from: now + PICKUP_TAKE_MS + j * 35,
               reach: 300,
               release: now + PICKUP_DRAWN_IN_MS,
-              turn: false,
             };
         });
       }
@@ -1081,13 +1119,13 @@ export class TableRenderer {
     const lastPeer = draws.findLast((event) => event.seat !== SELF);
     for (const event of draws) {
       const start = acts.get(event.seat)?.start ?? now;
-      const carry = palm(event.seat);
+      const carry = grip(event.seat, false);
       const gap = Math.min(110, 360 / event.count);
       for (let i = 0; i < event.count; i++) {
-        // The drawn cards lie on top of the deck, one on another, until the hand comes.
+        // The drawn cards lie on top of the deck, one on another, until slid off it.
         const top: CardPose = {
           ...clonePose(DECK_POSE),
-          position: DECK_TOP.clone().setY(DECK_TOP.y + i * cm(0.25)),
+          position: DECK_TOP.clone().setY(deckTop(previous.deckCount) + CARD_HALF.y + i * cm(0.25)),
         };
         let id: string;
         let item: AnimatedCard | undefined;
@@ -1118,11 +1156,10 @@ export class TableRenderer {
         if (carry) {
           item.wait = { until: start + DRAW_SLIDE_MS, ...(fresh ? { from: top } : {}) };
           item.carry = {
-            palm: carry,
+            grip: carry,
             from: start + DRAW_SLIDE_MS,
             reach: DRAW_TAKE_MS - DRAW_SLIDE_MS,
             release: start + DRAW_BACK_MS + i * gap,
-            turn: true,
             slide: true,
           };
         } else
@@ -1318,13 +1355,11 @@ export class TableRenderer {
         carry.anchor = meshPose(card.mesh);
         card.last = undefined;
       }
-      const palm = now < carry.release ? carry.palm() : undefined;
-      if (palm) {
-        const target = toWorld(home, home.parent);
+      const grip = now < carry.release ? carry.grip() : undefined;
+      if (grip) {
+        // Into the fingers: flat, card-sized and as the hand holds it.
         const join = THREE.MathUtils.smoothstep(now, carry.from, carry.from + carry.reach);
-        const held = carry.slide ? carry.from + carry.reach : carry.from;
-        const turn = carry.turn ? THREE.MathUtils.smoothstep(now, held, carry.release) : 0;
-        const position = carry.anchor.position.clone().lerp(palm, join);
+        const position = carry.anchor.position.clone().lerp(grip.position, join);
         if (carry.slide)
           // Down onto the felt, across it, and up into the hand only at the end.
           position.y = THREE.MathUtils.lerp(
@@ -1333,14 +1368,14 @@ export class TableRenderer {
               TABLE_TOP + cm(0.4),
               THREE.MathUtils.smoothstep(join, 0, 0.2),
             ),
-            palm.y,
+            grip.position.y,
             THREE.MathUtils.smoothstep(join, 0.7, 1),
           );
         applyPose(card.mesh, {
           position,
-          quaternion: carry.anchor.quaternion.clone().slerp(target.quaternion, turn),
-          scale: THREE.MathUtils.lerp(carry.anchor.scale, target.scale, turn),
-          bend: THREE.MathUtils.lerp(carry.anchor.bend, target.bend, turn),
+          quaternion: carry.anchor.quaternion.clone().slerp(grip.quaternion, join),
+          scale: THREE.MathUtils.lerp(carry.anchor.scale, TABLE_CARD_SCALE, join),
+          bend: THREE.MathUtils.lerp(carry.anchor.bend, 0, join),
         });
         this.track(card, now, this.scene);
         return true;

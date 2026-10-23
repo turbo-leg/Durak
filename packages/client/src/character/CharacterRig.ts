@@ -13,7 +13,7 @@ import {
   type ReactionId,
 } from './animations/registry.ts';
 import { clipWeight, type Clip, type Vec3 } from './animation.ts';
-import { BODY } from './spec.ts';
+import { BODY, HAND } from './spec.ts';
 import { characterMaterial, generateCharacter, paint, type Appearance } from './generate.ts';
 import {
   carryMatrix,
@@ -192,9 +192,49 @@ abstract class CharacterBody {
     return Math.max(0, ...this.actions.map(({ clip, start }) => clipWeight(clip, now - start)));
   }
 
-  /** Where a card leaves (or reaches) the hand acting toward `target`, in world space. */
-  palm(target?: THREE.Vector3, side: 'L' | 'R' = this.actingSide(target)) {
-    return this.model?.getObjectByName(`SocketPalm${side}`)?.getWorldPosition(new THREE.Vector3());
+  /**
+   * How a card held in the `side` hand lies, in world space: pinched by its near end between
+   * the thumb's and index finger's pads, reaching out past the fingertips, its face away from
+   * the palm (a card taken face down) or toward it (one held face up, as a played card is).
+   * The card's near edge is just short of the furthest fingertip, `half` its length (world
+   * units) from its middle. Laid along the hand instead, the curled fingers ran through it.
+   */
+  held(side: 'L' | 'R', half: number, faceIn: boolean) {
+    const hand = this.model?.getObjectByName(`Hand${side}`);
+    const index = this.model?.getObjectByName(`IndexTip${side}`);
+    const thumb = this.model?.getObjectByName(`ThumbTip${side}`);
+    if (!hand || !index || !thumb) return undefined;
+    const [wrist, finger, pad] = [hand, index, thumb].map((bone) =>
+      bone.getWorldPosition(new THREE.Vector3()),
+    ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+    // The palm faces +x of the right hand's frame (-x of the left).
+    const palm = new THREE.Vector3(side === 'R' ? 1 : -1, 0, 0).applyQuaternion(
+      hand.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    const tips = finger.clone().add(pad).multiplyScalar(0.5);
+    // The card's face is across the pinch, from the fingers to the thumb.
+    const across = pad.clone().sub(finger);
+    const normal = across.lengthSq() > 1e-10 ? across.normalize() : palm.clone();
+    if (normal.dot(palm) < 0) normal.negate();
+    const face = faceIn ? normal.negate() : normal;
+    const along = tips.clone().sub(wrist);
+    along.addScaledVector(face, -along.dot(face)).normalize();
+    // Past every fingertip and its pad, so the fingers meet only the card's near edge.
+    const padding = HAND.fingerRadius * 1.5 * hand.getWorldScale(new THREE.Vector3()).x;
+    const edge =
+      padding +
+      Math.max(
+        ...['Index', 'Middle', 'Ring', 'Pinky'].map((digit) => {
+          const tip = this.model?.getObjectByName(`${digit}Tip${side}`);
+          return tip ? tip.getWorldPosition(new THREE.Vector3()).sub(tips).dot(along) : 0;
+        }),
+      );
+    return {
+      position: tips.addScaledVector(along, edge + half * 0.97),
+      quaternion: new THREE.Quaternion().setFromRotationMatrix(
+        new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(face, along), face, along),
+      ),
+    };
   }
 
   protected clips(): ActiveClip[] {
