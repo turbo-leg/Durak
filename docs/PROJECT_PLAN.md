@@ -88,7 +88,7 @@ Implemented locally:
 - JWT-verified browser/Discord room identity, duplicate-account rejection, unrated guest matches and production monitor protection. Lobby settings and malformed messages are validated.
 - A lazy-loaded Three.js table with custom card faces, equipped backs, public opponent counts, pointer selection and existing authoritative attack/defense controls. Keyboard controls, reduced motion, resizing, renderer disposal and explicit/context-loss 2D fallback remain available. The large React board still needs further extraction.
 - Fixed bot pickup cycles, escaped-player turn progression, idle lead turns, case-sensitive invitation input, duplicate keyboard selection and actionable cards during exit animations. Shared engine rules were retained.
-- Compatible dependency updates reduced npm audit from 53 findings (4 critical) to 23 (0 critical, 4 high, 16 moderate, 3 low). The dependency review notes were not kept in the repo; `npm audit` still exits nonzero.
+- Compatible dependency updates reduced npm audit from 53 findings (4 critical) to 23 (0 critical, 4 high, 16 moderate, 3 low). See [dependency review](security/DEPENDENCY_REVIEW.md); audit still exits nonzero.
 - Added a cross-platform root development launcher. Windows `npm run dev` smoke verification started both Vite on port 5173 and Colyseus on port 2567. Server startup explicitly reports missing MongoDB configuration; persistence was not tested.
 
 Validation:

@@ -10,6 +10,8 @@ export default defineConfig([
   globalIgnores([
     '**/dist',
     'output',
+    // Claude Code worktrees live inside the checkout; each is checked on its own.
+    '.claude',
     'packages/client/android',
     'packages/client/ios',
     // Snippets run inside a browser page by Playwright, not modules.

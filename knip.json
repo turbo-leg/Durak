@@ -19,5 +19,6 @@
   "ignoreExportsUsedInFile": true,
   "rules": {
     "types": "off"
-  }
+  },
+  "ignore": [".claude/**", "output/**"]
 }
