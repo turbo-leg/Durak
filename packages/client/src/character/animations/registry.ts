@@ -34,6 +34,8 @@ const count = (fingers: number): Clip => ({
         thumb: [1, 0, 0],
         shape: { ...extended(fingers), spread: 0.08 },
       },
+      // A friendly count: brows up, a small smile.
+      face: { smile: 0.35, brows: 0.3 },
     },
   ],
 });
@@ -90,6 +92,8 @@ const touch = (
     { t: GESTURE_DURATION_MS - 450, R: { ...BESIDE_SHOULDER, finger, thumb } },
     { t: GESTURE_DURATION_MS - 250, R: BELOW_FAN },
     { t: GESTURE_DURATION_MS, R: REST },
+    // A knowing look: a half smile, eyes narrowed, the brows a touch low.
+    { t: 0, face: { smile: 0.3, squint: 0.22, brows: -0.15 } },
   ],
 });
 
@@ -114,6 +118,8 @@ const sob = (t: number, deep: boolean) => ({
     ShoulderR: [0, 0, deep ? -0.07 : 0] as Vec3,
     ShoulderL: [0, 0, deep ? 0.07 : 0] as Vec3,
   },
+  // Brows knit up in the middle, the mouth turned down and catching on each deep sob.
+  face: { smile: -0.9, worry: 1, brows: 0.2, squint: 0.35, open: deep ? 0.45 : 0.15 },
 });
 const cry: Clip = {
   duration: GESTURE_DURATION_MS,
@@ -143,6 +149,8 @@ const cheer: Clip = {
     t,
     R: pump(i % 2 ? 1.46 : 1.38),
     bones: { Chest: [-0.06, 0, 0] as Vec3, Head: [-0.1, 0, 0] as Vec3 },
+    // A wide grin, eyes crinkled, the mouth opening on each pump.
+    face: { smile: 1, brows: 0.6, squint: 0.22, open: i % 2 ? 0.75 : 0.4 },
   })),
 };
 
@@ -161,6 +169,8 @@ const shrug: Clip = {
         shape: { curl: { Index: 0.1, Middle: 0.15, Ring: 0.2, Pinky: 0.25 } },
       },
       bones: { ShoulderR: [0, 0, -0.2], ShoulderL: [0, 0, 0.2], Head: [0, 0, 0.12] },
+      // "Who knows?": brows high, the mouth's corners pulled down.
+      face: { smile: -0.45, brows: 1, worry: 0.35, open: 0.1 },
     },
   ],
 };
@@ -258,6 +268,11 @@ const play: Clip = {
     { t: 560, R: onTable('table', [0, 0.025, 0], flat), bones: { Chest: [0.1, 0, 0] } },
     { t: 740, R: onTable('table', [0.02, 0.055, -0.03], flat), bones: { Chest: [0.04, 0, 0] } },
     { t: 1050, R: REST, bones: { Chest: [0, 0, 0] } },
+    // Eyes on the card going down, brows set; a small satisfied look as it lands.
+    { t: 0, face: {} },
+    { t: 380, face: { brows: -0.3, gazeY: -0.8 } },
+    { t: 640, face: { smile: 0.3, brows: 0.1, gazeY: -0.5 } },
+    { t: 1050, face: {} },
   ],
 };
 export const PLAY_RELEASE_MS = 540;
@@ -275,6 +290,11 @@ const pickup: Clip = {
     { t: 850, R: onTable('table', [-0.1, 0.025, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
     { t: 1100, R: toChest, bones: { Chest: [0, 0, 0] } },
     { t: 1350, R: REST },
+    // Taking the pile is a loss: a scowl at it, then a sigh with the corners down.
+    { t: 0, face: {} },
+    { t: 450, face: { smile: -0.5, worry: -0.5, brows: -0.4, gazeY: -0.8 } },
+    { t: 1000, face: { smile: -0.6, worry: 0.3, squint: 0.18, gazeY: -0.3 } },
+    { t: 1350, face: {} },
   ],
 };
 
@@ -290,6 +310,11 @@ const draw: Clip = {
     { t: 520, R: onTable('deck', [0, 0.03, 0], gathering), bones: { Chest: [0.08, 0, 0] } },
     { t: 820, R: { ...lift(gathering), at: [-0.19, 0.8, 0.4] }, bones: { Chest: [0, 0, 0] } },
     { t: 1150, R: REST },
+    // A glance at the deck, then up to see what came.
+    { t: 0, face: {} },
+    { t: 380, face: { gazeY: -0.8, brows: -0.1 } },
+    { t: 820, face: { gazeY: -0.3, brows: 0.25 } },
+    { t: 1150, face: {} },
   ],
 };
 

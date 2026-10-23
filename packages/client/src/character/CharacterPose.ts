@@ -4,16 +4,18 @@ import {
   mirrorClip,
   ASIDE,
   BEHIND,
+  EXPRESSION,
   REST,
   sidesOf,
   track,
   type Clip,
+  type Expression,
   type HandShape,
   type Reach,
   type Vec3,
 } from './animation.ts';
 import { aim, handBasis, solveLimb, world, worldRotation } from './ik.ts';
-import { FINGERS, HAND, SKELETON, type Side } from './spec.ts';
+import { FACE, FINGERS, HAND, LID_TRAVEL, SIDES, SKELETON, type Side } from './spec.ts';
 import {
   carryMatrix,
   fanHalfAngle,
@@ -98,6 +100,11 @@ export interface PoseInput {
   /** The table the character sits at: the shortest world-space move that brings a ball at
    * `point` clear of it (zero when clear). Free hands rest on it, never in it. */
   table?: (point: THREE.Vector3, radius: number) => THREE.Vector3;
+  /** Where the eyes look beyond the head's turn (radians): they lead a look the head is
+   * still turning toward. */
+  gaze?: { yaw: number; pitch: number };
+  /** An expression added to the clips' own, such as a preview's. */
+  face?: Expression;
 }
 
 export interface BodyMotion {
@@ -108,6 +115,11 @@ export interface BodyMotion {
 }
 
 const TAU = Math.PI * 2;
+/** A repeatable random number in [0, 1) for step `n` of stream `k`. */
+const noise = (n: number, k: number) => {
+  const x = Math.sin(n * 12.9898 + k * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
 
 /** Poses one loaded character: look, grip, then clips blended over the grip. */
 export class CharacterPose {
@@ -723,8 +735,88 @@ export class CharacterPose {
     if (input.table)
       for (const side of ['L', 'R'] as const)
         if (side !== holder) this.clearTable(side, input.table);
+    // A blink is quick: while one is under way the frame keeps full pace.
+    const blinking = this.express(input, active);
     this.root.updateWorldMatrix(true, true);
-    return moving;
+    return moving || blinking;
+  }
+
+  /**
+   * The face: the clips' expressions, weighted as they blend, over a living rest. Given a
+   * clock, the lids blink every few seconds, the eyes make small darting looks and lead
+   * the head into a turn; a face at rest wears the faintest smile.
+   */
+  private express(input: PoseInput, active: { clip: Clip; at: number; weight: number }[]) {
+    if (!this.bones.has('Jaw')) return false;
+    const face = Object.fromEntries(EXPRESSION.map((name) => [name, input.face?.[name] ?? 0]));
+    face.smile! += 0.12;
+    for (const { clip, at, weight } of active) {
+      const keys = clip.keys.filter((key) => key.face);
+      if (!keys.length) continue;
+      const values = track(
+        keys.map((key) => key.t),
+        keys.map((key) => EXPRESSION.map((name) => key.face![name] ?? 0)),
+        at,
+      );
+      EXPRESSION.forEach((name, i) => (face[name]! += values[i]! * weight));
+    }
+    let blink = 0;
+    if (input.motion?.time !== undefined) {
+      const t = input.motion.time / 1000 + this.phase;
+      blink = this.blink(t);
+      // A new fixation every second or so: the eyes settle on it in a quick 60 ms hop.
+      const glance = (n: number) => [noise(n, 1) - 0.5, noise(n, 2) - 0.5];
+      const n = Math.floor(t / 1.3);
+      const hop = THREE.MathUtils.smoothstep(t - n * 1.3, 0, 0.06);
+      const [x0, y0] = glance(n - 1);
+      const [x1, y1] = glance(n);
+      face.gazeX! += 0.35 * THREE.MathUtils.lerp(x0!, x1!, hop);
+      face.gazeY! += 0.25 * THREE.MathUtils.lerp(y0!, y1!, hop);
+    }
+    if (input.gaze) {
+      face.gazeX! += input.gaze.yaw / 0.5;
+      face.gazeY! += input.gaze.pitch / 0.4;
+    }
+    const clamp = (value: number, low = -1) => THREE.MathUtils.clamp(value, low, 1);
+    const [rx, ry, rz] = FACE.eyeRadii;
+    const dx = clamp(face.gazeX!) * rx * 0.4;
+    const dy = clamp(face.gazeY!) * ry * 0.35;
+    // The iris keeps to the eyeball's curved surface as it turns.
+    const dz = rz * (Math.sqrt(Math.max(0, 1 - (dx / rx) ** 2 - (dy / ry) ** 2)) - 1);
+    // Looking down lowers the lids a little, as real lids follow the eye.
+    const lowered = Math.min(1, clamp(face.squint!, 0) + Math.max(0, -clamp(face.gazeY!)) * 0.2);
+    const closed = 1 - (1 - blink) * (1 - lowered);
+    for (const side of SIDES) {
+      const out = side === 'L' ? 1 : -1;
+      this.bone(`Eye${side}`).position.add(V(dx, dy, dz));
+      this.bone(`Lid${side}`).quaternion.setFromAxisAngle(V(1, 0, 0), LID_TRAVEL * closed);
+      const brow = this.bone(`Brow${side}`);
+      brow.position.y += 0.004 * clamp(face.brows!);
+      brow.quaternion.setFromAxisAngle(V(0, 0, 1), -out * 0.3 * clamp(face.worry!));
+      const corner = this.bone(`Mouth${side}`);
+      corner.position.y += 0.0045 * clamp(face.smile!);
+      corner.position.x += out * 0.0015 * clamp(face.smile!, 0);
+    }
+    this.bone('Jaw').quaternion.setFromAxisAngle(V(1, 0, 0), 0.22 * clamp(face.open!, 0));
+    return blink > 0;
+  }
+
+  /** How closed a blink holds the lids at `t` seconds: one every two to six seconds, now
+   * and then two in quick succession; each shuts fast and opens a little slower. */
+  private blink(t: number) {
+    const PERIOD = 4;
+    const shut = (dt: number) =>
+      dt < 0 || dt > 0.2
+        ? 0
+        : dt < 0.07
+          ? THREE.MathUtils.smoothstep(dt, 0, 0.07)
+          : 1 - THREE.MathUtils.smoothstep(dt, 0.07, 0.2);
+    let closed = 0;
+    for (const n of [Math.floor(t / PERIOD) - 1, Math.floor(t / PERIOD)]) {
+      const at = n * PERIOD + noise(n, 3) * 2.6;
+      closed = Math.max(closed, shut(t - at), noise(n, 4) > 0.75 ? shut(t - at - 0.3) : 0);
+    }
+    return closed;
   }
 
   /** Balls (world centre and radius) covering a hand and its forearm, as the skin is built. */

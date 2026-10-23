@@ -123,6 +123,8 @@ const VIEWS: Record<string, [THREE.Vector3, THREE.Vector3]> = {
   close: [new THREE.Vector3(0.9, 1.7, 0.4), new THREE.Vector3(0, 1.2, SEAT_RADIUS_Z)],
   side: [new THREE.Vector3(3.4, 1.4, 1.6), new THREE.Vector3(0, 0.9, SEAT_RADIUS_Z - 0.6)],
   holder: [new THREE.Vector3(0.9, 1.5, -0.4), new THREE.Vector3(-0.1, 0.85, 1.75)],
+  // Eye to eye across a little of the table, for expressions.
+  face: [new THREE.Vector3(0, 1.5, SEAT_RADIUS_Z - 1.4), new THREE.Vector3(0, 1.42, SEAT_RADIUS_Z)],
 };
 function frame() {
   const { width, height } = renderer.domElement.parentElement!.getBoundingClientRect();

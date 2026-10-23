@@ -1,5 +1,16 @@
 import * as THREE from 'three';
-import { FINGERS, HAND, SIDES, SKELETON, SKULL, SOCKETS, bindPosition, type Side } from './spec.ts';
+import {
+  FACE,
+  FINGERS,
+  HAND,
+  LID_OPEN,
+  SIDES,
+  SKELETON,
+  SKULL,
+  SOCKETS,
+  bindPosition,
+  type Side,
+} from './spec.ts';
 
 /**
  * Builds the Durak character from the contract in spec.ts: a skeleton, a skinned body,
@@ -18,6 +29,7 @@ export const REGIONS = [
   'lip',
   'belt',
   'pupil',
+  'mouth',
 ] as const;
 export type Region = (typeof REGIONS)[number];
 export const HAIR_STYLES = 5;
@@ -51,6 +63,7 @@ export function regionColors(look: Appearance): Record<Region, THREE.Color> {
     lip: skin.clone().multiplyScalar(0.68),
     belt: new THREE.Color('#2a1f19'),
     pupil: new THREE.Color('#110d0b'),
+    mouth: new THREE.Color('#3a1715'),
   };
 }
 
@@ -267,7 +280,9 @@ class Builder {
     }
     for (let j = 0; j + 1 < rows.length; j++) this.stitch(rows[j]!, rows[j + 1]!);
     const poleAt = (y: number) => {
-      const p = V(0, y * radii[1], 0)
+      let unit = V(0, y, 0);
+      if (shape) unit = shape(unit);
+      const p = V(unit.x * radii[0], unit.y * radii[1], unit.z * radii[2])
         .applyQuaternion(q)
         .add(centre);
       return this.vertex(
@@ -666,31 +681,85 @@ function addHead(head: Builder) {
       );
     },
   );
-  // Eyes 6.4 cm apart, at the surface of the face.
-  const eyes = socket('Eyes');
-  for (const x of [-0.032, 0.032]) {
-    const centre = eyes.clone().add(V(x, 0, -0.004));
-    head.ellipsoid(centre, [0.015, 0.0108, 0.009], w, 'eyeWhite', [14, 9]);
-    head.ellipsoid(centre.clone().add(V(0, 0, 0.008)), [0.0068, 0.0076, 0.003], w, 'iris', [12, 7]);
+  const face = (side: Side, [x, y, z]: [number, number, number]) =>
+    V(side === 'L' ? x : -x, y, z).add(pivot);
+  for (const side of SIDES) {
+    // The eye: the iris and pupil slide over the eyeball as it looks.
+    const centre = face(side, FACE.eye);
+    const eye: Weights = [[`Eye${side}`, 1]];
+    head.ellipsoid(centre, FACE.eyeRadii, w, 'eyeWhite', [14, 9]);
+    head.ellipsoid(
+      centre.clone().add(V(0, 0, 0.008)),
+      [0.0068, 0.0076, 0.003],
+      eye,
+      'iris',
+      [12, 7],
+    );
     head.ellipsoid(
       centre.clone().add(V(0, 0, 0.0104)),
       [0.0031, 0.0035, 0.0012],
-      w,
+      eye,
       'pupil',
       [10, 6],
     );
+    // The upper lid: a skin dome over the top of the eye, tipped back so its edge arcs
+    // above the iris; it rolls forward and down over the eye to blink.
     head.ellipsoid(
-      centre.clone().add(V(0, 0.017, 0.003)),
-      [0.017, 0.0035, 0.005],
-      w,
-      'hair',
+      centre,
+      [0.0165, 0.0128, 0.0128],
+      [[`Lid${side}`, 1]],
+      'skin',
       [12, 6],
-      new THREE.Euler(0, 0, x > 0 ? -0.1 : 0.1),
+      new THREE.Euler(-LID_OPEN, 0, 0),
+      (u) => (u.y < 0 ? V(u.x, u.y * 0.05, u.z) : u),
+    );
+    head.ellipsoid(
+      face(side, FACE.brow),
+      [0.017, 0.0035, 0.005],
+      [[`Brow${side}`, 1]],
+      'hair',
+      [10, 5],
+      new THREE.Euler(0, 0, side === 'L' ? -0.1 : 0.1),
     );
   }
   const nose = socket('Nose');
   head.ellipsoid(nose.clone().add(V(0, 0.004, -0.012)), [0.011, 0.017, 0.013], w, 'skin', [12, 9]);
-  head.ellipsoid(nose.clone().add(V(0, -0.03, -0.014)), [0.022, 0.0045, 0.006], w, 'lip', [14, 6]);
+  // The lips meet at the corners, which follow the mouth's corner joints; the upper lip
+  // stays with the head and the lower lip goes with the jaw, so the mouth parts.
+  const mouth = V(...FACE.mouth).add(pivot);
+  const lips =
+    (lower: (p: THREE.Vector3) => number) =>
+    (p: THREE.Vector3): Weights => {
+      const across = (p.x - mouth.x) / FACE.mouthHalfWidth;
+      const corner = THREE.MathUtils.clamp((Math.abs(across) - 0.25) / 0.75, 0, 1) ** 1.5;
+      return [
+        [across > 0 ? 'MouthL' : 'MouthR', corner],
+        ['Jaw', (1 - corner) * lower(p)],
+        ['Head', (1 - corner) * (1 - lower(p))],
+      ];
+    };
+  head.ellipsoid(
+    mouth.clone().add(V(0, 0.0018, 0)),
+    [FACE.mouthHalfWidth, 0.0026, 0.006],
+    lips(() => 0),
+    'lip',
+    [14, 5],
+  );
+  head.ellipsoid(
+    mouth.clone().add(V(0, -0.0019, 0)),
+    [FACE.mouthHalfWidth * 0.94, 0.0029, 0.006],
+    lips(() => 1),
+    'lip',
+    [14, 5],
+  );
+  // Inside the mouth, hidden by the closed lips; it shows as the jaw drops.
+  head.ellipsoid(
+    mouth.clone().add(V(0, 0, -0.004)),
+    [0.013, 0.0035, 0.004],
+    lips((p) => THREE.MathUtils.clamp((mouth.y - p.y) / 0.0035 + 0.5, 0, 1)),
+    'mouth',
+    [10, 4],
+  );
   for (const ear of ['EarL', 'EarR']) {
     const centre = socket(ear).add(V(ear === 'EarL' ? -0.004 : 0.004, -0.004, -0.004));
     head.ellipsoid(centre, [0.009, 0.03, 0.016], w, 'skin', [12, 9]);

@@ -37,6 +37,8 @@ authored once and reused.
 - Fingers: `Index1-3`, `Middle1-3`, `Ring1-3`, `Pinky1-3`, each ending in a `…Tip` leaf
 - Thumb: `Thumb1` (metacarpal) `› Thumb2 › Thumb3 › ThumbTip`
 - Leg: `UpperLeg › LowerLeg › Foot › Toe`
+- Face (children of `Head`): `Eye`, `Lid`, `Brow`, `Mouth` (the mouth's corner); and one
+  `Jaw`. Landmarks are `FACE` in `spec.ts`.
 
 ## Proportions (hard requirements)
 
@@ -60,7 +62,7 @@ sockets, never hard-coded coordinates.
 
 A single skinned body mesh plus a head mesh (hidden in first person) and hair variants.
 Each vertex carries a `_region` attribute (skin, shirt, trousers, shoes, hair, eye white,
-iris, lip, belt, pupil). Where two regions meet the mesh has a hard edge (a sleeve cuff, the
+iris, lip, belt, pupil, mouth). Where two regions meet the mesh has a hard edge (a sleeve cuff, the
 waistband), not a blend. An appearance recolours regions and picks a hair variant, so all
 characters share one asset. Weights are normalized, four influences at most; the visible
 body, head and hair stay under 12,000 triangles.
@@ -99,6 +101,13 @@ body, head and hair stay under 12,000 triangles.
    up onto the top or back off the edge, whichever is shorter. A fan held low enough for
    its hand to meet the table is raised straight up until it clears (`fanLift`), and the
    rig raises the drawn cards as far.
+6. **The face:** the iris and pupil slide over the eyeball as the eyes look; a skin lid
+   rolls down over each eye; the brows lift and tilt; the lips' corners rise or fall, and
+   the lower lip drops with the jaw to show the mouth inside. Clip keys carry an
+   `Expression` (`smile`, `open`, `brows`, `worry`, `squint`, `gazeX`, `gazeY`), blended
+   by clip weight like everything else. Over it, a living rest: the faintest smile, a
+   blink every two to six seconds (sometimes a double), small darting looks, and eyes that
+   lead the head into a turn (`gaze`). Looking down lowers the lids a little.
 
 ## Clips and the registry
 
@@ -146,6 +155,9 @@ every gesture's contact; every emote, reaction and action for limb length, finge
 head clearance, an undisturbed holding hand and no skin through the held fan; and, from the
 near, side and far chairs, no hand or forearm skin inside the table at rest (every gaze, 0 to
 7 cards, with a clean grip on a raised fan) or through any emote, reaction or card action.
+`src/test/characterFace.test.ts` checks that open eyes show their pupils and shut lids cover
+them, that pupils stay on the eyeball at every gaze, that smiles and frowns move the corners,
+that the mouth hides its inside until it opens, and that blinks are brief and every few seconds.
 
 ## Review screenshots
 

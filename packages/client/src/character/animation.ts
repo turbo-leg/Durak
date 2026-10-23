@@ -33,6 +33,25 @@ export interface Reach {
   shape?: HandShape;
 }
 
+/** A facial expression. Every value is 0 at rest; clips playing together add theirs. */
+export interface Expression {
+  /** The mouth's corners drawn up into a smile (1) or turned down (-1). */
+  smile?: number;
+  /** The jaw dropped open, 0 to 1. */
+  open?: number;
+  /** Brows raised (1) or lowered (-1). */
+  brows?: number;
+  /** The brows' inner ends lifted in worry (1) or drawn down in a scowl (-1). */
+  worry?: number;
+  /** Lids lowered, from open (0) to shut (1): a squint, a happy crinkle or a sob. */
+  squint?: number;
+  /** Eyes turned toward the character's left (1) or right (-1), and up (1) or down (-1). */
+  gazeX?: number;
+  gazeY?: number;
+}
+
+export const EXPRESSION = ['smile', 'open', 'brows', 'worry', 'squint', 'gazeX', 'gazeY'] as const;
+
 export interface Key {
   /** Milliseconds from the clip's start. */
   t: number;
@@ -40,6 +59,7 @@ export interface Key {
   L?: Reach;
   /** Additive rotations (radians, XYZ) for spine, neck, head and shoulders. */
   bones?: Record<string, Vec3>;
+  face?: Expression;
 }
 
 export interface Clip {
@@ -108,6 +128,7 @@ export function mirrorClip(clip: Clip): Clip {
         Object.fromEntries(
           Object.entries(key.bones).map(([name, [x, y, z]]) => [swapName(name), [x, -y, -z]]),
         ),
+      face: key.face && { ...key.face, gazeX: -(key.face.gazeX ?? 0) },
     })),
   };
 }

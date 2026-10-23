@@ -329,6 +329,8 @@ export class SeatedCharacter extends CharacterBody {
       clips: this.clips(),
       motion,
       table: this.table,
+      // The eyes reach a new look first; the head turns after them.
+      gaze: { yaw: this.yaw - yaw, pitch: this.pitch - pitch },
     });
     // Held low over the table, the cards are raised as far as the pose raised its grip.
     frame.premultiply(new THREE.Matrix4().makeTranslation(0, this.pose.fanLift, 0));

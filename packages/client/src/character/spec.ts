@@ -68,6 +68,29 @@ export const SKULL = {
   radii: [0.077, 0.115, 0.098] as [number, number, number],
 };
 
+/**
+ * Face landmarks relative to the Head joint, for the left side (+X; the right mirrors).
+ * The face rig moves these: eyes look and lids blink, brows lift and tilt, the mouth's
+ * corners smile or turn down and the jaw opens it.
+ */
+export const FACE = {
+  /** Eye centres, 6.4 cm apart. */
+  eye: [0.032, 0.075, 0.091] as [number, number, number],
+  /** The eyeball's half-extents: the iris slides over this surface as the eye looks. */
+  eyeRadii: [0.015, 0.0108, 0.009] as [number, number, number],
+  brow: [0.032, 0.092, 0.094] as [number, number, number],
+  /** Centre of the closed lips, and the lips' half-width. */
+  mouth: [0, 0.01, 0.108] as [number, number, number],
+  mouthHalfWidth: 0.022,
+  /** The jaw's hinge, below and in front of the ears. */
+  jaw: [0, 0.015, 0.005] as [number, number, number],
+};
+
+/** The upper lid is built tipped back this far (radians) to sit open above the iris; a
+ * further LID_TRAVEL forward closes it over the whole eye. */
+export const LID_OPEN = 1.0;
+export const LID_TRAVEL = 1.96;
+
 type Joint = { name: string; parent: string; at: [number, number, number] };
 
 const mirror = (side: Side, [x, y, z]: [number, number, number]): [number, number, number] => [
@@ -137,6 +160,29 @@ function limbs(side: Side): Joint[] {
 /** Head joint at the top of the neck (the atlas), level with the base of the nose. */
 const HEAD: [number, number, number] = [0, BODY.seat + BODY.eyesAboveSeat - 0.075, 0];
 
+/** The face rig's joints, children of the head (see FACE). */
+function face(): Joint[] {
+  const on = ([x, y, z]: [number, number, number]): [number, number, number] => [
+    HEAD[0] + x,
+    HEAD[1] + y,
+    HEAD[2] + z,
+  ];
+  const corner: [number, number, number] = [
+    FACE.mouthHalfWidth * 0.9,
+    FACE.mouth[1],
+    FACE.mouth[2],
+  ];
+  return [
+    ...SIDES.flatMap((side) => [
+      { name: `Eye${side}`, parent: 'Head', at: on(mirror(side, FACE.eye)) },
+      { name: `Lid${side}`, parent: 'Head', at: on(mirror(side, FACE.eye)) },
+      { name: `Brow${side}`, parent: 'Head', at: on(mirror(side, FACE.brow)) },
+      { name: `Mouth${side}`, parent: 'Head', at: on(mirror(side, corner)) },
+    ]),
+    { name: 'Jaw', parent: 'Head', at: on(FACE.jaw) },
+  ];
+}
+
 /** Every joint in parent-before-child order, with seated bind positions. */
 export const SKELETON: readonly Joint[] = [
   { name: 'Root', parent: '', at: [0, 0, 0] },
@@ -146,6 +192,7 @@ export const SKELETON: readonly Joint[] = [
   { name: 'Neck', parent: 'Chest', at: [0, 1.06, -0.02] },
   { name: 'Head', parent: 'Neck', at: HEAD },
   { name: 'HeadTop', parent: 'Head', at: [0, HEAD[1] + 0.19, 0.01] },
+  ...face(),
   ...limbs('R'),
   ...limbs('L'),
 ];
