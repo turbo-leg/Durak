@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, afterAll, expect, beforeEach, vi } from 'vitest';
+import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
 import { ColyseusTestServer, boot } from '@colyseus/testing';
 import { DurakRoom } from '../src/rooms/DurakRoom';
 import { BOT_NAMES } from '../src/rooms/botNames';
@@ -9,7 +9,7 @@ const appConfig = {
   initializeGameServer: (gameServer: any) => {
     gameServer.define('durak', DurakRoom);
   },
-  initializeExpress: (app: any) => {},
+  initializeExpress: () => {},
 };
 
 describe('E2E Durak Match', () => {

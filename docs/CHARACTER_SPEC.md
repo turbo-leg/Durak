@@ -130,17 +130,17 @@ clip with the other hand.
 1. Write the clip in `registry.ts` and add it to `EMOTES` under a new id.
 2. Add `{ id, label }` to `GESTURES` in `packages/shared/src/presence.ts`, so the server
    accepts it and the picker lists it. A test fails until both lists match.
-3. Preview it: `npm run dev -w @durak/client`, open `/character.html`, choose the clip,
+3. Preview it: `npm run dev:client`, open `/character.html`, choose the clip,
    card count, view and character. `?clip=emote:<id>&at=<ms>` freezes a moment.
-4. Run `npx vitest run src/test/characterPose.test.ts`: every emote is sampled for limb
+4. Run `npm test -w @durak/client`: every emote is sampled for limb
    length, finger spacing and hands kept outside the head.
-5. Optionally `node scripts/character-preview.mjs` to screenshot every clip at its peak.
+5. Optionally `npm run character:shots` to screenshot every clip at its peak.
 
 Actions and reactions work the same way, triggered from `TableRenderer.actOut`.
 
 ## Regenerate or replace the model
 
-`node scripts/build-character.mjs` regenerates `public/models/character/base.glb` from
+`npm run character:build` regenerates `public/models/character/base.glb` from
 `spec.ts` and `generate.ts`; the contract test fails if the shipped GLB is stale. An
 artist-made GLB can replace it if it keeps the bone names, identity bind rotations, sockets,
 `_region` attribute and the proportions above; the same tests then verify it.

@@ -1,0 +1,2 @@
+# Catch type errors before CI does.
+npm run typecheck

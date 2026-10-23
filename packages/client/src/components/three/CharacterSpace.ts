@@ -11,7 +11,7 @@ const m = (metres: number) => metres * CHARACTER_SCALE;
 /** The felt surface, in world units. */
 export const TABLE_TOP = 0.075;
 /** An oval card table, 160 x 110 cm and 74 cm high. */
-export const TABLE = { height: 0.74, radiusX: 0.8, radiusZ: 0.55 } as const;
+const TABLE = { height: 0.74, radiusX: 0.8, radiusZ: 0.55 } as const;
 export const TABLE_RADIUS_X = m(TABLE.radiusX);
 export const TABLE_RADIUS_Z = m(TABLE.radiusZ);
 /**
@@ -95,7 +95,7 @@ export const heldCardBow = (z: number) => HELD_CARD.bow * (z / (HELD_CARD.height
 export const CARRY_SCALE = m(CARD_HEIGHT) / (HELD_CARD.height * HELD_CARD_SCALE);
 /** Table cards share the 1.2-tall card geometry, scaled to the same real card. */
 export const TABLE_CARD_SCALE = m(CARD_HEIGHT) / HELD_CARD.height;
-export const HELD_FAN_RADIUS = 1.35;
+const HELD_FAN_RADIUS = 1.35;
 
 /** Angle between neighbouring held cards; narrow local viewports compress large hands. */
 export function fanStep(count: number, aspect = Infinity) {

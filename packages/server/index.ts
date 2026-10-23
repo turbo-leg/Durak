@@ -441,7 +441,8 @@ app.post('/api/shop/equip', async (req, res) => {
   else if (item.type === 'tableSkin') profile.equippedTableSkin = itemId;
   else if (item.type === 'emote') {
     const emotes = new Set(profile.equippedEmotes ?? []);
-    emotes.has(itemId) ? emotes.delete(itemId) : emotes.add(itemId);
+    if (emotes.has(itemId)) emotes.delete(itemId);
+    else emotes.add(itemId);
     profile.equippedEmotes = [...emotes];
   }
   await profile.save();

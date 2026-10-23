@@ -253,7 +253,7 @@ export function cardSides(sample: Skin, cards: THREE.Matrix4[]) {
   return sides;
 }
 
-export function bonePath(scene: THREE.Object3D, finger: string, side: string) {
+function bonePath(scene: THREE.Object3D, finger: string, side: string) {
   return [1, 2, 3, 'Tip'].map((j) =>
     scene.getObjectByName(`${finger}${j}${side}`)!.getWorldPosition(new THREE.Vector3()),
   );
@@ -278,7 +278,7 @@ function segmentDistance(
   return best;
 }
 
-export function pathDistance(a: THREE.Vector3[], b: THREE.Vector3[]) {
+function pathDistance(a: THREE.Vector3[], b: THREE.Vector3[]) {
   let best = Infinity;
   for (let i = 0; i + 1 < a.length; i++)
     for (let j = 0; j + 1 < b.length; j++)
@@ -295,25 +295,6 @@ export function digitClearance(scene: THREE.Object3D, side: string) {
     for (let j = i + 1; j < FINGERS.length; j++)
       result[`${FINGERS[i]}-${FINGERS[j]}`] =
         pathDistance(paths[FINGERS[i]!]!, paths[FINGERS[j]!]!) / scale;
-  return result;
-}
-
-/** Bend at each finger joint (radians); 0 is a straight finger. */
-export function jointBends(scene: THREE.Object3D, side: string) {
-  const result: Record<string, number[]> = {};
-  for (const finger of FINGERS) {
-    const hand = scene.getObjectByName(`Hand${side}`)!.getWorldPosition(new THREE.Vector3());
-    const path = [hand, ...bonePath(scene, finger, side)];
-    const bends: number[] = [];
-    for (let i = 1; i + 1 < path.length; i++)
-      bends.push(
-        path[i]!.clone()
-          .sub(path[i - 1]!)
-          .angleTo(path[i + 1]!.clone().sub(path[i]!)),
-      );
-    // The palm segment to a knuckle is not a joint of the finger itself.
-    result[finger] = bends.slice(1);
-  }
   return result;
 }
 

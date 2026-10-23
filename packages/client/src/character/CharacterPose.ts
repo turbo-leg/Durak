@@ -35,7 +35,7 @@ const CARD_HALF_THICKNESS = HELD_CARD.thickness / 2;
  * The thumb pinch on the outer card of the fan, in the right hand's frame (the left
  * mirrors it): fingers along +Z, thumb side +Y, palm +X.
  */
-export const GRIP = {
+const GRIP = {
   /** One hand holds the fan by the lower corner of its outer card: the palm side of the
    * index knuckle sits here, from the card's bottom centre (outward, up), in carry units. */
   at: [0, 0.5] as [number, number],

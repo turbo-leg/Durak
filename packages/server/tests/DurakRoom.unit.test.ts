@@ -28,7 +28,6 @@ describe('DurakRoom unit handlers (#190)', () => {
   let room: DurakRoom;
   let attacker: FakeClient;
   let defender: FakeClient;
-  let third: FakeClient;
 
   beforeEach(() => {
     room = new DurakRoom();
@@ -42,7 +41,7 @@ describe('DurakRoom unit handlers (#190)', () => {
 
     attacker = makeClient('atk');
     defender = makeClient('def');
-    third = makeClient('thr');
+    makeClient('thr');
 
     // Two seated players + trump = Spades.
     const pA = new Player('atk');

@@ -1,6 +1,6 @@
 # Project Architecture & Roadmap
 
-> Historical overview/backlog retained for context. For the verified current architecture, check results and priorities, use [PROJECT_AUDIT.md](docs/PROJECT_AUDIT.md) and [PROJECT_PLAN.md](docs/PROJECT_PLAN.md). Several unchecked items below are already implemented; the active bot is the server BotEngine, not the shared Grandmaster prototype.
+> Historical overview/backlog retained for context. For the verified current architecture, check results and priorities, use [PROJECT_AUDIT.md](PROJECT_AUDIT.md) and [PROJECT_PLAN.md](../PROJECT_PLAN.md). Several unchecked items below are already implemented; the active bot is the server BotEngine, not the shared Grandmaster prototype.
 
 ## 🏗️ Architecture Overview
 

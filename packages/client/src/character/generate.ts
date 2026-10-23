@@ -45,14 +45,14 @@ export interface Appearance {
   lip?: string;
 }
 
-export const DEFAULT_APPEARANCE: Appearance = {
+const DEFAULT_APPEARANCE: Appearance = {
   skin: '#d9ac8a',
   hair: '#49392d',
   shirt: '#648698',
   hairStyle: 0,
 };
 
-export function regionColors(look: Appearance): Record<Region, THREE.Color> {
+function regionColors(look: Appearance): Record<Region, THREE.Color> {
   const skin = new THREE.Color(look.skin);
   return {
     skin,

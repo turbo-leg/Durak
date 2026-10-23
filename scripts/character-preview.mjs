@@ -1,12 +1,12 @@
 // Screenshot every character clip at its peak from the dev preview page.
 //
-//   npm run dev -w @durak/client          # in another terminal
-//   node scripts/character-preview.mjs [outDir] [--views=front,close] [--presets=casual]
+//   npm run dev:client                    # in another terminal
+//   npm run character:shots -- [outDir] [--views=front,close] [--presets=casual]
 //
-// Needs Playwright (`npx playwright install chromium`, or PLAYWRIGHT_MODULE pointing at an
-// installed playwright-core, with CHROME_PATH for a local Chrome).
+// Drives the installed Google Chrome through playwright-core; set CHROME_PATH to use
+// another Chromium, and PREVIEW_URL for another dev server.
 import fs from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) =>
@@ -16,11 +16,10 @@ const base = process.env.PREVIEW_URL ?? 'http://localhost:5173/character.html';
 const views = option('views', 'front,close');
 const presets = option('presets', 'casual');
 
-const { chromium } = process.env.PLAYWRIGHT_MODULE
-  ? await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href)
-  : await import('playwright');
 const browser = await chromium.launch({
-  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+  ...(process.env.CHROME_PATH
+    ? { executablePath: process.env.CHROME_PATH }
+    : { channel: 'chrome' }),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 await fs.mkdir(outDir, { recursive: true });

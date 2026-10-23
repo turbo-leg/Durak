@@ -26,7 +26,7 @@ import {
 } from '../components/three/CharacterSpace.ts';
 
 /** Every character is the same rig; a preset only chooses colours and a hair style. */
-export function appearanceFor(presetId: string): Appearance {
+function appearanceFor(presetId: string): Appearance {
   const preset = avatarPreset(presetId);
   return {
     skin: preset.skin,

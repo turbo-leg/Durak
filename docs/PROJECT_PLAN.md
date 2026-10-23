@@ -1,7 +1,7 @@
 # Durak implementation roadmap
 
 Owner: Durak Project Manager. Updated 2026-10-20.
-Baseline and file evidence: [PROJECT_AUDIT.md](PROJECT_AUDIT.md).
+Baseline and file evidence: [PROJECT_AUDIT.md](archive/PROJECT_AUDIT.md).
 
 ## Technical direction
 
@@ -88,7 +88,7 @@ Implemented locally:
 - JWT-verified browser/Discord room identity, duplicate-account rejection, unrated guest matches and production monitor protection. Lobby settings and malformed messages are validated.
 - A lazy-loaded Three.js table with custom card faces, equipped backs, public opponent counts, pointer selection and existing authoritative attack/defense controls. Keyboard controls, reduced motion, resizing, renderer disposal and explicit/context-loss 2D fallback remain available. The large React board still needs further extraction.
 - Fixed bot pickup cycles, escaped-player turn progression, idle lead turns, case-sensitive invitation input, duplicate keyboard selection and actionable cards during exit animations. Shared engine rules were retained.
-- Compatible dependency updates reduced npm audit from 53 findings (4 critical) to 23 (0 critical, 4 high, 16 moderate, 3 low). See [dependency review](security/DEPENDENCY_REVIEW.md); audit still exits nonzero.
+- Compatible dependency updates reduced npm audit from 53 findings (4 critical) to 23 (0 critical, 4 high, 16 moderate, 3 low). The dependency review notes were not kept in the repo; `npm audit` still exits nonzero.
 - Added a cross-platform root development launcher. Windows `npm run dev` smoke verification started both Vite on port 5173 and Colyseus on port 2567. Server startup explicitly reports missing MongoDB configuration; persistence was not tested.
 
 Validation:
@@ -116,7 +116,7 @@ Milestone 1 has substantial local coverage; milestone 2 has a working playable s
 
 ### Tranche 2: replacement interactive frontend
 
-At the user's request, replaced the active frontend composition rather than extending the former casino UI. Direction and acceptance notes: [FRONTEND_REBUILD.md](FRONTEND_REBUILD.md).
+At the user's request, replaced the active frontend composition rather than extending the former casino UI. Direction and acceptance notes: [FRONTEND_REBUILD.md](archive/FRONTEND_REBUILD.md).
 
 - `src/App.tsx` now mounts `room/CardRoom.tsx`, with new home/setup/lobby, account/rules/leave dialogs, public discovery, spectator entry, hand controls, action dock and results/rematch. Existing auth, Colyseus providers and shared rules remain. The old HomePage/GameBoard/ShopPage/ProfilePage tree is not imported by the application. Source is retained as migration reference, not silently deleted with custom assets.
 - The opening screen has an interactive practice hand on the same 3D table used for live play. Added wool/wood procedural textures, pearl rounded cards, a blue/copper palette, hover lift and bounded camera orbit. Rendering still settles when idle and releases resources when unmounted. Mobile defaults to native card buttons; desktop can expose them explicitly.
@@ -130,11 +130,11 @@ Remaining frontend work: migrate the old shop, purchase/equip, profile/statistic
 
 ## Avatar direction update — 2026-10-21
 
-The first playable social-table milestone is implemented and validated in [AVATAR_MILESTONE.md](AVATAR_MILESTONE.md): seated first person, four character presets, hands/sleeves, synchronized head movement, supported format shortcuts and mobile layouts. Physical-phone and embedded Discord validation remain release checks. Voice, spatial audio and the full cosmetic editor are later milestones.
+The first playable social-table milestone is implemented and validated in [AVATAR_MILESTONE.md](archive/AVATAR_MILESTONE.md): seated first person, four character presets, hands/sleeves, synchronized head movement, supported format shortcuts and mobile layouts. Physical-phone and embedded Discord validation remain release checks. Voice, spatial audio and the full cosmetic editor are later milestones.
 
 ## Independent review fixes — 2026-10-21
 
-The user supplied Claude's review. [CLAUDE_REVIEW_RESPONSE.md](CLAUDE_REVIEW_RESPONSE.md)
+The user supplied Claude's review. [CLAUDE_REVIEW_RESPONSE.md](archive/CLAUDE_REVIEW_RESPONSE.md)
 maps its 16 findings to corrections and remaining validation gaps. The pass fixes
 Horse transitions/full-match rematches, team results, expired-session recovery,
 stable card identity/reparenting, asset fallback and partial-constructor cleanup.
@@ -148,7 +148,16 @@ Physical-phone validation and three explicit rule/product questions remain open.
 Implemented the user-approved Quaternius Casual trial, with a seated authored
 model, matching first-person arms, public manual finger/nose/ear gestures,
 head-following contact, a local mirror and server-controlled timing/cooldown.
-The existing four presets remain available. See [CASUAL_AVATAR_PROTOTYPE.md](CASUAL_AVATAR_PROTOTYPE.md)
+The existing four presets remain available. See [CASUAL_AVATAR_PROTOTYPE.md](archive/CASUAL_AVATAR_PROTOTYPE.md)
 for controls, asset provenance, tests, browser evidence and the remaining adoption
 checks. Next: review the prototype's grip and character style, profile the
 six-seat scene on physical phones, then expand the cast and customization.
+
+## Soft-launch preparation: tooling and cleanup — 2026-10-23
+
+- **Removed:** the old UI tree (GameBoard, Lobby, Home, Profile and Shop pages and their parts) and its tests, the unconnected shared AI prototype, template assets, a one-off PDF exporter and unused packages. Git history keeps them; the shop and profile screens are the reference for rebuilding those features.
+- **One lint config** (`eslint.config.mjs`) now covers client, server, shared and scripts. The server's `any` types are warnings to burn down.
+- **New tooling:** `npm run check`, `format:check`, `knip` (unused code), `character:build` and `character:shots`. CI runs formatting and knip too. Hooks: lint and format on commit, typecheck on push. LF line endings everywhere; VS Code recommendations.
+- **In-game dev panel** (dev builds only, the backtick key): quick tables with bots, force a turn, copy state, renderer statistics.
+- **One Dockerfile on Node 24**, used by Fly and by `docker compose` (now with MongoDB). A local build served the game and connected to MongoDB.
+- **Docs:** historical records moved to `docs/archive/`. [CONTRIBUTING.md](../CONTRIBUTING.md) is the developer guide.

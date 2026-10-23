@@ -1128,7 +1128,7 @@ export class DurakRoom extends Room<GameState> {
 
     // Initialize the deck right before game starts
     const deck = DurakEngine.createDeck();
-    let shuffled = this.testModeDeck ? this.testModeDeck : DurakEngine.shuffleDeck(deck);
+    const shuffled = this.testModeDeck ? this.testModeDeck : DurakEngine.shuffleDeck(deck);
     shuffled.forEach((card: Card) => this.state.deck.push(card));
 
     // Choose the Huzur (Trump) card — peek at deck[0] (the bottom).
@@ -1144,8 +1144,6 @@ export class DurakRoom extends Room<GameState> {
 
     // Assign teams and seat order
     const sessionIds = Array.from(this.state.players.keys());
-    let teamA = 0;
-    let teamB = 0;
 
     if (this.state.mode === 'teams' || this.state.mode === 'horse') {
       const sortedIds = sessionIds.sort(); // Optional sorting for consistency

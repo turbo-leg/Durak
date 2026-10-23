@@ -14,9 +14,7 @@ import * as THREE from 'three';
 export type Side = 'L' | 'R';
 export const SIDES: readonly Side[] = ['L', 'R'];
 export const FINGERS = ['Index', 'Middle', 'Ring', 'Pinky'] as const;
-export const DIGITS = ['Thumb', ...FINGERS] as const;
 export type Finger = (typeof FINGERS)[number];
-export type Digit = (typeof DIGITS)[number];
 
 /** A standard poker-size playing card, 63.5 x 88.9 mm. */
 export const REAL_CARD = { height: 0.0889, width: 0.0635 } as const;
@@ -26,7 +24,6 @@ export const REAL_CARD = { height: 0.0889, width: 0.0635 } as const;
  */
 export const CARD_SIZE = 1.5;
 export const CARD_HEIGHT = REAL_CARD.height * CARD_SIZE;
-export const CARD_WIDTH = REAL_CARD.width * CARD_SIZE;
 
 /** Seated adult anthropometrics (metres), averages of adult men and women. */
 export const BODY = {
@@ -224,10 +221,7 @@ function thumbPad(side: Side): [number, number, number] {
   return middle.addScaledVector(toward, HAND.thumbRadius).sub(start).toArray();
 }
 
-/** Clip ids the runtime looks for; emotes are `emote/<id>`. */
-export const CLIPS = ['idle', 'grip', 'play', 'pickup', 'draw'] as const;
-
-export function joint(name: string) {
+function joint(name: string) {
   const found = SKELETON.find((j) => j.name === name);
   if (!found) throw new Error(`Character skeleton has no ${name}`);
   return found;

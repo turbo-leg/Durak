@@ -1,21 +1,37 @@
+# The production image with its services, locally: `docker compose up --build`.
 services:
+  mongo:
+    image: mongo:7
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     ports:
       - '6379:6379'
-    restart: always
+    restart: unless-stopped
 
   server:
     build:
       context: .
-      dockerfile: packages/server/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - '2567:2567'
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - PORT=2567
       - REDIS_URL=redis://redis:6379
+      # The compose database unless .env names another.
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/durak}
     depends_on:
+      - mongo
       - redis
     restart: unless-stopped
+
+volumes:
+  mongo-data:

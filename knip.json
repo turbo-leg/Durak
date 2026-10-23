@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs"],
+      "ignore": ["scripts/browser/**"],
+      "ignoreDependencies": ["three"],
+      "ignoreUnresolved": ["/src/character/animations/registry.ts"]
+    },
+    "packages/client": {
+      "entry": ["src/character/preview.ts"],
+      "ignoreDependencies": ["@capacitor/ios", "@capacitor/splash-screen", "@capacitor/status-bar"]
+    },
+    "packages/server": {
+      "ignoreDependencies": ["pino-pretty"]
+    },
+    "packages/shared": {}
+  },
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "types": "off"
+  }
+}

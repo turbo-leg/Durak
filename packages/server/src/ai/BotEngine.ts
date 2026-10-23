@@ -57,12 +57,6 @@ function isTeammate(state: GameState, a: string, b: string): boolean {
   return pa.team === pb.team;
 }
 
-function activePlayerIds(state: GameState): string[] {
-  return Array.from(state.seatOrder).filter(
-    (id): id is string => !!id && !state.winners.includes(id),
-  );
-}
-
 // ---------- Card counting ----------
 
 interface UnseenInfo {

@@ -14,3 +14,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+output
+docs
+packages/client/android
+packages/client/ios
+*.md
+!README.md

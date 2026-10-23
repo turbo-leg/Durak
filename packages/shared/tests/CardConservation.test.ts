@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DurakEngine } from '../src/engine/DurakEngine';
 import { Card, Suit, Rank } from '../src/state/Card';
 import { GameState } from '../src/state/GameState';
-import { Player } from '../src/state/Player';
 
 /**
  * Reproduces the exact 4-player pickup duplication bug reported by user:

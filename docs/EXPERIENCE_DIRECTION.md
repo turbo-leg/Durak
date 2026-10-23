@@ -139,7 +139,7 @@ nose, and touch either ear. Everyone sees them; they are not automated responses
 to private cards. One hand supports the fan while the other gestures, and a
 gameplay action takes priority over an emote. Preserve the existing camera and
 manual head turns. Model/rig findings and the proposed gesture interaction are
-recorded in [AVATAR_MODEL_RESEARCH.md](AVATAR_MODEL_RESEARCH.md). The user's
+recorded in [AVATAR_MODEL_RESEARCH.md](archive/AVATAR_MODEL_RESEARCH.md). The user's
 Quaternius Ultimate Modular Characters pack is the recommended first prototype;
 this is a proposed replacement, not a completed integration.
 

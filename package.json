@@ -7,32 +7,49 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "dev:server": "npm run dev -w @durak/server",
     "dev:client": "npm run dev -w @durak/client",
-    "dev": "node scripts/dev.mjs",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "build": "npm run build --workspaces",
     "build:client": "npm run build -w @durak/client",
+    "character:build": "node scripts/build-character.mjs",
+    "character:shots": "node scripts/character-preview.mjs",
     "build:mobile": "npm run build:mobile -w @durak/client",
     "open:ios": "npm run open:ios -w @durak/client",
     "open:android": "npm run open:android -w @durak/client",
     "start:server": "npm run start -w @durak/server",
     "start:prod": "npm run start:prod -w @durak/server",
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces",
-    "lint": "npm run lint --workspaces --if-present",
-    "format": "prettier --write .",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{js,ts,tsx,json,css,md}": [
+    "*.{ts,tsx,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,json,css,md,html,yml}": [
       "prettier --write"
     ]
   },
   "devDependencies": {
-    "eslint": "^9.0.0",
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
     "husky": "^9.1.7",
+    "knip": "^5.88.1",
     "lint-staged": "^16.4.0",
+    "playwright-core": "^1.64.1",
     "prettier": "^3.2.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.58.0"
   }
 }

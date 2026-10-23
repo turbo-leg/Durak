@@ -1,6 +1,6 @@
 # Durak table direction
 
-Historical first-slice direction. Superseded by the user-requested frontend replacement in [FRONTEND_REBUILD.md](FRONTEND_REBUILD.md); the active UI now uses a blue-felt card room and a new screen composition.
+Historical first-slice direction. Superseded by the user-requested frontend replacement in [FRONTEND_REBUILD.md](archive/FRONTEND_REBUILD.md); the active UI now uses a blue-felt card room and a new screen composition.
 
 The existing game already has a recognizable identity. Carry it into the 3D table rather than replacing its artwork or navigation.
 
