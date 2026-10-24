@@ -3,6 +3,7 @@
 //   npm run dev:client                    # in another terminal
 //   npm run director:record -- big-pickup [more scenes or .json paths] [--out=output/clips]
 //     [--w=1080 --h=1920] [--from=0 --to=<ms>] [--frames]   (--frames also keeps the PNGs)
+//     [--voice]   (mixes in the narration from `npm run director:voice` and burns in captions)
 //
 // Every frame is posed at exactly t = i / fps, so slow rendering never drops or smears a
 // frame. Needs ffmpeg on PATH (or FFMPEG_PATH). Drives the installed Google Chrome through
@@ -12,7 +13,9 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { captions, mix, narration } from './lib/narration.mjs';
 
+const SCENES = 'packages/client/src/director/scenes';
 const args = process.argv.slice(2);
 const option = (name, fallback) =>
   args.find((a) => a.startsWith(`--${name}=`))?.split('=')[1] ?? fallback;
@@ -21,6 +24,7 @@ const outDir = option('out', 'output/clips');
 const width = Number(option('w', 1080));
 const height = Number(option('h', 1920));
 const keepFrames = args.includes('--frames');
+const voiced = args.includes('--voice');
 const base = process.env.DIRECTOR_URL ?? 'http://localhost:5173/director.html';
 const ffmpeg = process.env.FFMPEG_PATH ?? 'ffmpeg';
 if (!scenes.length) {
@@ -50,6 +54,20 @@ await page.evaluate(() => globalThis.director.ready);
 for (const scene of scenes) {
   const file = scene.endsWith('.json') ? JSON.parse(await fs.readFile(scene, 'utf8')) : scene;
   const name = path.basename(scene, '.json');
+  let lines;
+  if (voiced) {
+    try {
+      const data =
+        typeof file === 'string'
+          ? JSON.parse(await fs.readFile(path.join(SCENES, `${file}.json`), 'utf8'))
+          : file;
+      lines = await narration(data, name);
+    } catch (error) {
+      console.error(error.message);
+      process.exitCode = 1;
+      continue;
+    }
+  }
   let info;
   try {
     info = await page.evaluate((input) => globalThis.director.load(input), file);
@@ -62,7 +80,9 @@ for (const scene of scenes) {
   const from = Number(option('from', 0));
   const to = Math.min(Number(option('to', info.duration)), info.duration);
   const frames = Math.max(1, Math.round(((to - from) * info.fps) / 1000));
-  const video = path.join(outDir, `${name}.mp4`);
+  const final = path.join(outDir, `${name}.mp4`);
+  // A voiced take renders silent first, then gains its narration and captions.
+  const video = lines ? path.join(outDir, `${name}.silent.mp4`) : final;
   const framesDir = path.join(outDir, `${name}-frames`);
   if (keepFrames) await fs.mkdir(framesDir, { recursive: true });
   const encoder = spawn(
@@ -103,10 +123,19 @@ for (const scene of scenes) {
   }
   encoder.stdin.end();
   await encoded;
+  if (lines) {
+    const subtitles = path.join(outDir, `${name}.ass`);
+    await fs.writeFile(subtitles, captions(lines, width, height, from));
+    await mix({ ffmpeg, video, lines, subtitles, output: final, offset: from });
+    await fs.rm(video);
+  }
   const cues = await page.evaluate(() => globalThis.director.cues());
   await fs.writeFile(path.join(outDir, `${name}.cues.json`), `${JSON.stringify(cues, null, 2)}\n`);
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  console.log(`\r${video}  (${frames} frames at ${info.fps} fps, ${width}x${height}, ${seconds}s)`);
+  const voice = lines ? `, ${lines.length} narrated lines` : '';
+  console.log(
+    `\r${final}  (${frames} frames at ${info.fps} fps, ${width}x${height}${voice}, ${seconds}s)`,
+  );
 }
 
 await browser.close();

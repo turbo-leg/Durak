@@ -21,6 +21,8 @@ export interface SceneFile {
   trump?: string;
   /** Cards left in the deck; 0 hides the deck and the Huzur. */
   deck?: number;
+  /** The ElevenLabs voice that narrates the `say` beats (`npm run director:voice`). */
+  voice?: { id: string; model?: string; language?: string; settings?: Record<string, unknown> };
   cast: CastFile[];
   camera?: ShotFile[];
   beats?: BeatFile[];

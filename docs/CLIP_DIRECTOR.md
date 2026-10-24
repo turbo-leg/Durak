@@ -19,6 +19,28 @@ Every frame is posed at exactly `i / fps`, so takes never drop frames and come o
 Needs ffmpeg on PATH (or `FFMPEG_PATH`); `DIRECTOR_URL` points at another dev server and
 `DIRECTOR_SWIFTSHADER=1` renders without a GPU.
 
+## Narration and captions
+
+Give the scene a voice and write its narration as `say` beats; then voice it and record with
+`--voice`:
+
+```bash
+npm run director:voice -- big-pickup           # ElevenLabs → output/voice (cached per line)
+npm run director:record -- big-pickup --voice  # narration mixed in, captions burned in
+```
+
+```json
+"voice": { "id": "<ElevenLabs voice id>", "model": "eleven_v4" },
+"beats": [{ "at": 3900, "do": "say", "text": "Долоо. Долоо. Бас долоо!" }]
+```
+
+`director:voice` prints each line's start, end and length so beats can be placed on the words; a
+line is only voiced (and paid for) once per voice, model and text. Mongolian needs `eleven_v4`,
+`eleven_v4_turbo` or `eleven_v3` (v3 detects the language; the older models do not speak it). The
+key comes from `ELEVENLABS_API_KEY` or `~/.elevenlabs/key.txt` and needs only text-to-speech
+permission. Captions show a few words at a time with the spoken word in yellow, set above the
+area the apps cover with their own buttons.
+
 ## Writing a scene
 
 Scenes are JSON in `packages/client/src/director/scenes/`. Times are milliseconds.
