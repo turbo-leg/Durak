@@ -1,0 +1,32 @@
+{
+  "title": "The whole table",
+  "duration": 9000,
+  "trump": "Ac",
+  "cast": [
+    { "name": "Orgil", "cards": 6 },
+    { "name": "Jagaa", "cards": 6 },
+    { "name": "Mugii", "cards": 6 },
+    { "name": "Dok", "cards": 6 },
+    { "name": "Tsomo", "cards": 6 },
+    { "name": "Buyna", "cards": 6 }
+  ],
+  "camera": [
+    { "at": 0, "shot": "top" },
+    { "at": 800, "shot": "wide", "ease": 1200 },
+    { "at": 3000, "shot": "face:Buyna", "ease": 600 },
+    { "at": 5200, "shot": "face:Dok", "ease": 600 },
+    { "at": 7200, "shot": "wide", "ease": 800 }
+  ],
+  "beats": [
+    { "at": 1200, "who": "Orgil", "do": "three" },
+    { "at": 1500, "who": "Jagaa", "do": "ear-left" },
+    { "at": 1800, "who": "Mugii", "do": "shrug" },
+    { "at": 2100, "who": "Tsomo", "do": "nose" },
+    { "at": 3300, "who": "Buyna", "do": "look", "target": "camera" },
+    { "at": 3500, "who": "Buyna", "do": "cheer" },
+    { "at": 5400, "who": "Dok", "do": "look", "target": "Buyna" },
+    { "at": 5600, "who": "Dok", "do": "ear-right" },
+    { "at": 7400, "who": "Buyna", "do": "play", "card": "10c" },
+    { "at": 8200, "who": "Orgil", "do": "victory" }
+  ]
+}

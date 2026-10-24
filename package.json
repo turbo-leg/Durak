@@ -22,6 +22,7 @@
     "build:client": "npm run build -w @durak/client",
     "character:build": "node scripts/build-character.mjs",
     "character:shots": "node scripts/character-preview.mjs",
+    "director:record": "node scripts/director-record.mjs",
     "build:mobile": "npm run build:mobile -w @durak/client",
     "open:ios": "npm run open:ios -w @durak/client",
     "open:android": "npm run open:android -w @durak/client",

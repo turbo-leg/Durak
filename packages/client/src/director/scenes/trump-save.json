@@ -1,0 +1,33 @@
+{
+  "title": "Tsomo beats everything",
+  "duration": 11000,
+  "trump": "Jh",
+  "deck": 0,
+  "cast": [
+    { "name": "Tsomo", "cards": 3 },
+    { "name": "Orgil", "cards": 5 }
+  ],
+  "camera": [
+    { "at": 0, "shot": "over:Orgil", "push": 0.1 },
+    { "at": 1500, "shot": "face:Tsomo", "ease": 500 },
+    { "at": 2600, "shot": "table", "ease": 400 },
+    { "at": 5000, "shot": "face:Tsomo", "zoom": 1.25 },
+    { "at": 5800, "shot": "table", "ease": 400 },
+    { "at": 8200, "shot": "face:Tsomo", "zoom": 0.75, "lift": 0.3, "push": 0.08 }
+  ],
+  "beats": [
+    { "at": 400, "who": "Orgil", "do": "play", "card": "Ks" },
+    { "at": 1600, "who": "Tsomo", "do": "look", "target": "Orgil" },
+    { "at": 2000, "who": "Tsomo", "do": "defend", "card": "As" },
+    { "at": 3200, "who": "Orgil", "do": "play", "card": "Kd" },
+    { "at": 4100, "who": "Tsomo", "do": "defend", "card": "2d" },
+    { "at": 5000, "who": "Tsomo", "do": "look", "target": "camera" },
+    { "at": 5100, "who": "Tsomo", "do": "nose" },
+    { "at": 5100, "who": "Tsomo", "do": "say", "text": "Дахиад үз дээ." },
+    { "at": 5900, "who": "Orgil", "do": "play", "card": "Kh" },
+    { "at": 6600, "who": "Tsomo", "do": "defend", "card": "BJ", "on": "Kh" },
+    { "at": 7500, "do": "discard" },
+    { "at": 8200, "who": "Tsomo", "do": "victory" },
+    { "at": 8200, "who": "Orgil", "do": "look", "target": "down" }
+  ]
+}

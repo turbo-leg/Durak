@@ -5,4 +5,5 @@ dist/
 GEMINI.md
 .firecrawl/
 output/playwright/
+output/clips/
 .playwright-cli/

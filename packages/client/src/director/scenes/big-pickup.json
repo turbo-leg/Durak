@@ -1,0 +1,37 @@
+{
+  "title": "Jagaa picks up everything",
+  "duration": 9000,
+  "trump": "9h",
+  "deck": 10,
+  "cast": [
+    { "name": "Jagaa", "cards": 4 },
+    { "name": "Mugii", "cards": 6 },
+    { "name": "Orgil", "cards": 6 },
+    { "name": "Dok", "cards": 6 }
+  ],
+  "camera": [
+    { "at": 0, "shot": "wide", "push": 0.08 },
+    { "at": 2700, "shot": "face:Jagaa", "ease": 500, "zoom": 1.1 },
+    { "at": 4300, "shot": "over:Jagaa", "ease": 400 },
+    { "at": 5600, "shot": "face:Jagaa", "zoom": 1.15, "lift": -0.55, "shake": 0.02 },
+    { "at": 7000, "shot": "wide", "ease": 900 }
+  ],
+  "beats": [
+    { "at": 400, "who": "Orgil", "do": "play", "card": "7s" },
+    { "at": 1200, "who": "Mugii", "do": "play", "card": "7c" },
+    { "at": 2000, "who": "Dok", "do": "play", "card": "7d" },
+    { "at": 2300, "who": "Jagaa", "do": "look", "target": "Orgil" },
+    { "at": 2400, "who": "Jagaa", "do": "say", "text": "Энийг яаж хамгаалах юм бэ?" },
+    { "at": 3000, "who": "Jagaa", "do": "shrug" },
+    { "at": 4200, "who": "Jagaa", "do": "look", "target": "table" },
+    { "at": 4300, "who": "Jagaa", "do": "pickup" },
+    { "at": 5500, "who": "Jagaa", "do": "look", "target": "down" },
+    { "at": 5600, "who": "Jagaa", "do": "cry" },
+    { "at": 5600, "who": "Jagaa", "do": "say", "text": "Би дурак болчихлоо..." },
+    { "at": 5800, "who": "Mugii", "do": "look", "target": "Jagaa" },
+    { "at": 6000, "who": "Mugii", "do": "nose" },
+    { "at": 6000, "who": "Orgil", "do": "look", "target": "Jagaa" },
+    { "at": 6300, "who": "Dok", "do": "cheer" },
+    { "at": 7600, "who": "Orgil", "do": "draw", "count": 1 }
+  ]
+}
