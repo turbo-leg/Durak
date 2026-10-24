@@ -30,6 +30,7 @@ import { botEngine, BotDifficulty } from '../ai/BotEngine';
 import { verifyRoomIdentity, type RoomIdentity } from '../auth/session';
 import { isRecord, roomSettings } from './roomSettings';
 import { nextBot } from './botNames';
+import { observeOpponentResponse, type OpponentResponseMemory } from '../ai/BotOpponentResponses';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -46,6 +47,8 @@ export class DurakRoom extends Room<GameState> {
   maxClients = 100; // Enforced manually in onJoin; spectators bypass the Colyseus cap
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
+  private gameRandom: () => number = Math.random;
+  private readonly opponentResponseMemory: OpponentResponseMemory = new Map();
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
   private soloDifficulty: BotDifficulty | null = null;
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
@@ -72,6 +75,14 @@ export class DurakRoom extends Room<GameState> {
   private takeoverMs = TAKEOVER_GRACE_MS;
   // Horse on a private table: the next deal continues (or restarts) the match.
   private horseContinues = false;
+
+  setGameRandom(random: () => number): void {
+    this.gameRandom = random;
+  }
+
+  getOpponentResponseMemory(): OpponentResponseMemory {
+    return this.opponentResponseMemory;
+  }
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -1049,6 +1060,7 @@ export class DurakRoom extends Room<GameState> {
 
     this.state.players.delete(sessionId);
     this.botIds.delete(sessionId);
+    this.opponentResponseMemory.delete(sessionId);
     this.controlSerial.delete(sessionId);
 
     if (isInGame) {
@@ -1128,7 +1140,9 @@ export class DurakRoom extends Room<GameState> {
 
     // Initialize the deck right before game starts
     const deck = DurakEngine.createDeck();
-    const shuffled = this.testModeDeck ? this.testModeDeck : DurakEngine.shuffleDeck(deck);
+    const shuffled = this.testModeDeck
+      ? this.testModeDeck
+      : DurakEngine.shuffleDeck(deck, this.gameRandom);
     shuffled.forEach((card: Card) => this.state.deck.push(card));
 
     // Choose the Huzur (Trump) card — peek at deck[0] (the bottom).
@@ -1514,7 +1528,12 @@ export class DurakRoom extends Room<GameState> {
         'bot firing',
       );
 
-      const move = await botEngine.think(this.state, playerId, difficulty);
+      const move = await botEngine.think(
+        this.state,
+        playerId,
+        difficulty,
+        this.opponentResponseMemory,
+      );
       logger.info(
         {
           botId: playerId.slice(0, 8),
@@ -1788,6 +1807,15 @@ export class DurakRoom extends Room<GameState> {
       return;
     }
 
+    observeOpponentResponse(
+      this.opponentResponseMemory,
+      client.sessionId,
+      atkCards,
+      this.state.huzurSuit,
+      assignments.map((pair) => pair.def),
+      this.state.table.length + atkCards.length,
+    );
+
     // Defense accepted — clear any in-flight ghost markers for this defender.
     player.playSequence++;
     player.gestureId = '';
@@ -1904,6 +1932,15 @@ export class DurakRoom extends Room<GameState> {
     const pickedUpCards: string[] = [];
     this.state.table.forEach((c) => pickedUpCards.push(`+${this.formatCard(c)}`));
     this.state.activeAttackCards.forEach((c) => pickedUpCards.push(`+${this.formatCard(c)}`));
+
+    observeOpponentResponse(
+      this.opponentResponseMemory,
+      client.sessionId,
+      Array.from(this.state.activeAttackCards).filter((card): card is Card => !!card),
+      this.state.huzurSuit,
+      null,
+      this.state.table.length + this.state.activeAttackCards.length,
+    );
 
     // Use engine to handle pickup logic
     DurakEngine.endRound(this.state, client.sessionId);

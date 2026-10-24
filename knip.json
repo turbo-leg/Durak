@@ -4,7 +4,7 @@
     ".": {
       "entry": ["scripts/*.mjs"],
       "ignore": ["scripts/browser/**"],
-      "ignoreDependencies": ["three"],
+      "ignoreDependencies": ["three", "ts-node"],
       "ignoreUnresolved": ["/src/character/animations/registry.ts"]
     },
     "packages/client": {
