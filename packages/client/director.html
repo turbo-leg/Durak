@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clip director</title>
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0c1720;
+        color: #e9e4da;
+        font:
+          14px system-ui,
+          sans-serif;
+      }
+      body {
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+      #controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        background: #10202d;
+      }
+      #controls input[type='range'] {
+        flex: 1;
+        min-width: 160px;
+      }
+      #stage {
+        position: relative;
+        min-height: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+      #stage canvas {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        height: 100%;
+      }
+      #caption {
+        position: absolute;
+        bottom: 8%;
+        max-width: 80%;
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: #000a;
+        font-size: 20px;
+        text-align: center;
+      }
+      #problems {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        margin: 0;
+        padding: 12px;
+        border-radius: 8px;
+        background: #5a1d1d;
+        white-space: pre-wrap;
+      }
+      /* Recording: the canvas alone, at its own size. */
+      body.recording {
+        display: block;
+      }
+      body.recording #controls {
+        display: none;
+      }
+      body.recording #stage canvas {
+        max-width: none;
+        max-height: none;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Development only: not part of the production build. -->
+    <div id="controls"></div>
+    <div id="stage">
+      <div id="caption" hidden></div>
+      <pre id="problems" hidden></pre>
+    </div>
+    <script type="module" src="/src/director/main.ts"></script>
+  </body>
+</html>

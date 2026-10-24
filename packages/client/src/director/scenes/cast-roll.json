@@ -1,0 +1,53 @@
+{
+  "title": "The whole table",
+  "duration": 23500,
+  "trump": "Ac",
+  "voice": { "id": "H3T7Mbfc1a8KWRfpbYPo", "model": "eleven_v4" },
+  "cast": [
+    { "name": "Orgil", "cards": 6 },
+    { "name": "Jagaa", "cards": 6 },
+    { "name": "Mugii", "cards": 6 },
+    { "name": "Dok", "cards": 6 },
+    { "name": "Tsomo", "cards": 6 },
+    { "name": "Buyna", "cards": 6 }
+  ],
+  "camera": [
+    { "at": 0, "shot": "top" },
+    { "at": 600, "shot": "wide", "ease": 1500 },
+    { "at": 2700, "shot": "face:Orgil", "zoom": 0.8, "push": 0.06 },
+    { "at": 6000, "shot": "face:Jagaa", "push": 0.06 },
+    { "at": 8500, "shot": "face:Mugii", "push": 0.06 },
+    { "at": 10800, "shot": "face:Tsomo", "push": 0.06 },
+    { "at": 13100, "shot": "face:Buyna", "zoom": 0.85, "lift": 0.6, "push": 0.06 },
+    { "at": 18100, "shot": "face:Dok", "orbit": -40, "push": 0.06 },
+    { "at": 20400, "shot": "wide", "ease": 800 }
+  ],
+  "beats": [
+    { "at": 300, "do": "say", "text": "Манай ширээнд зургаан хүн бий." },
+    { "at": 2700, "who": "Orgil", "do": "look", "target": "camera" },
+    { "at": 2800, "do": "say", "text": "Оргил тоолж чадна. Гурав хүртэл." },
+    { "at": 4400, "who": "Orgil", "do": "three" },
+    { "at": 6000, "who": "Jagaa", "do": "look", "target": "camera" },
+    { "at": 6100, "do": "say", "text": "Жагаа бүгдийг сонсож байна." },
+    { "at": 6300, "who": "Jagaa", "do": "ear-left" },
+    { "at": 8500, "who": "Mugii", "do": "look", "target": "camera" },
+    { "at": 8600, "do": "say", "text": "Мөгий юу ч мэдэхгүй." },
+    { "at": 9500, "who": "Mugii", "do": "shrug" },
+    { "at": 10800, "who": "Tsomo", "do": "look", "target": "camera" },
+    { "at": 10900, "do": "say", "text": "Цомоо бүгдийг мэднэ." },
+    { "at": 11100, "who": "Tsomo", "do": "nose" },
+    { "at": 13100, "who": "Buyna", "do": "look", "target": "camera" },
+    { "at": 13200, "do": "say", "text": "Буянаа хамгийн жижиг нь, гэхдээ хамгийн олон хожсон." },
+    { "at": 16000, "who": "Buyna", "do": "cheer" },
+    { "at": 18000, "who": "Dok", "do": "look", "target": "Buyna" },
+    { "at": 18200, "do": "say", "text": "Док түүнд итгэхгүй байна." },
+    { "at": 18700, "who": "Dok", "do": "nose" },
+    { "at": 20300, "who": "Orgil", "do": "look", "target": "camera" },
+    { "at": 20300, "who": "Jagaa", "do": "look", "target": "camera" },
+    { "at": 20300, "who": "Mugii", "do": "look", "target": "camera" },
+    { "at": 20300, "who": "Dok", "do": "look", "target": "camera" },
+    { "at": 20300, "who": "Tsomo", "do": "look", "target": "camera" },
+    { "at": 20300, "who": "Buyna", "do": "look", "target": "camera" },
+    { "at": 20600, "do": "say", "text": "Та хэнтэй нь тоглох вэ?" }
+  ]
+}

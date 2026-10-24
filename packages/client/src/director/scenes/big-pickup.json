@@ -1,0 +1,50 @@
+{
+  "title": "Jagaa picks up everything",
+  "duration": 24500,
+  "trump": "9h",
+  "deck": 10,
+  "voice": { "id": "H3T7Mbfc1a8KWRfpbYPo", "model": "eleven_v4" },
+  "cast": [
+    { "name": "Jagaa", "cards": 4 },
+    { "name": "Mugii", "cards": 6 },
+    { "name": "Orgil", "cards": 6 },
+    { "name": "Dok", "cards": 6 }
+  ],
+  "camera": [
+    { "at": 0, "shot": "wide", "push": 0.1 },
+    { "at": 5600, "shot": "face:Jagaa", "ease": 500, "zoom": 1.1 },
+    { "at": 11900, "shot": "over:Jagaa", "ease": 400 },
+    { "at": 14600, "shot": "face:Jagaa", "zoom": 1.15, "lift": -0.55, "shake": 0.02 },
+    { "at": 16100, "shot": "wide", "ease": 900 },
+    { "at": 19200, "shot": "face:Jagaa", "zoom": 1.3, "lift": -0.55, "shake": 0.03 },
+    { "at": 20800, "shot": "face:Mugii", "zoom": 1.1, "push": 0.08 }
+  ],
+  "beats": [
+    { "at": 0, "do": "say", "text": "Дуракт гурван хүн нэг хүн рүү зэрэг дайрвал..." },
+    { "at": 3200, "who": "Orgil", "do": "play", "card": "7s" },
+    { "at": 3800, "who": "Mugii", "do": "play", "card": "7c" },
+    { "at": 3900, "do": "say", "text": "Долоо. Долоо. Бас долоо!" },
+    { "at": 4500, "who": "Dok", "do": "play", "card": "7d" },
+    { "at": 5800, "who": "Jagaa", "do": "look", "target": "Orgil" },
+    { "at": 7300, "do": "say", "text": "Жагаа бодож байна... яаж хамгаалах вэ?" },
+    { "at": 9200, "who": "Jagaa", "do": "shrug" },
+    { "at": 10900, "do": "say", "text": "Хариулт нь: хамгаалахгүй." },
+    { "at": 11800, "who": "Jagaa", "do": "look", "target": "table" },
+    { "at": 12100, "who": "Jagaa", "do": "pickup" },
+    { "at": 13500, "do": "say", "text": "Бүгдийг нь аваад, уйлна." },
+    { "at": 14500, "who": "Jagaa", "do": "look", "target": "down" },
+    { "at": 14700, "who": "Jagaa", "do": "cry" },
+    {
+      "at": 15700,
+      "do": "say",
+      "text": "Жагаа дахиад дурак боллоо. Энэ долоо хоногт тав дахь удаагаа."
+    },
+    { "at": 16000, "who": "Orgil", "do": "look", "target": "Jagaa" },
+    { "at": 16200, "who": "Dok", "do": "cheer" },
+    { "at": 16400, "who": "Mugii", "do": "look", "target": "Jagaa" },
+    { "at": 19000, "who": "Jagaa", "do": "cry" },
+    { "at": 20600, "who": "Mugii", "do": "look", "target": "camera" },
+    { "at": 20900, "do": "say", "text": "Мөгий бүр эхнээсээ мэдэж байсан." },
+    { "at": 21000, "who": "Mugii", "do": "nose" }
+  ]
+}
