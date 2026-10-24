@@ -184,6 +184,11 @@ abstract class CharacterBody {
     if (this.pose) this.actions.push({ clip, start: now, targets: {} });
   }
 
+  /** Forget every action and reaction, so a scripted scene can rebuild them for any moment. */
+  clearActions() {
+    this.actions = [];
+  }
+
   /** How far the held cards are drawn up (0 to 1, times `CARRY_RAISE`) while the free
    * hand acts at the table, so it passes under them. */
   cardsRaised(now = this.clock()) {

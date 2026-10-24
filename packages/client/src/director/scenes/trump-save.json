@@ -1,0 +1,46 @@
+{
+  "title": "Tsomo beats everything",
+  "duration": 24000,
+  "trump": "Jh",
+  "deck": 0,
+  "voice": { "id": "H3T7Mbfc1a8KWRfpbYPo", "model": "eleven_v4" },
+  "cast": [
+    { "name": "Tsomo", "cards": 3 },
+    { "name": "Orgil", "cards": 5 }
+  ],
+  "camera": [
+    { "at": 0, "shot": "over:Orgil", "push": 0.1 },
+    { "at": 4300, "shot": "face:Tsomo", "ease": 500 },
+    { "at": 5000, "shot": "table", "ease": 400 },
+    { "at": 10300, "shot": "face:Tsomo", "zoom": 1.25 },
+    { "at": 14500, "shot": "table", "ease": 400 },
+    { "at": 17300, "shot": "face:Orgil", "zoom": 1.1 },
+    { "at": 18700, "shot": "table" },
+    { "at": 19600, "shot": "face:Tsomo", "zoom": 0.75, "lift": 0.3 },
+    { "at": 21100, "shot": "face:Orgil", "zoom": 1.15, "lift": -0.4, "push": 0.08 }
+  ],
+  "beats": [
+    { "at": 200, "do": "say", "text": "Гурван хүчтэй хөзөр. Хожлоо гэж бодсон..." },
+    { "at": 2800, "who": "Orgil", "do": "play", "card": "Ks" },
+    { "at": 4400, "who": "Tsomo", "do": "look", "target": "Orgil" },
+    { "at": 4900, "who": "Tsomo", "do": "defend", "card": "As" },
+    { "at": 5600, "do": "say", "text": "Цомоо дарлаа." },
+    { "at": 7000, "who": "Orgil", "do": "play", "card": "Kd" },
+    { "at": 7900, "who": "Tsomo", "do": "defend", "card": "2d" },
+    { "at": 8400, "do": "say", "text": "Дахиад дарлаа." },
+    { "at": 10200, "who": "Tsomo", "do": "look", "target": "camera" },
+    { "at": 10300, "who": "Tsomo", "do": "nose" },
+    { "at": 10400, "do": "say", "text": "Цомоо хамраа маажлаа. Энэ нь «дахиад үз» гэсэн үг." },
+    { "at": 14400, "who": "Tsomo", "do": "look", "target": "table" },
+    { "at": 14600, "who": "Orgil", "do": "play", "card": "Kh" },
+    { "at": 15500, "who": "Tsomo", "do": "defend", "card": "BJ", "on": "Kh" },
+    { "at": 16300, "do": "say", "text": "Жокер?! Хаанаас гарч ирэв?" },
+    { "at": 17200, "who": "Orgil", "do": "look", "target": "Tsomo" },
+    { "at": 17400, "who": "Orgil", "do": "shrug" },
+    { "at": 18900, "do": "discard" },
+    { "at": 19600, "who": "Tsomo", "do": "victory" },
+    { "at": 19700, "do": "say", "text": "Цомоо гарлаа. Оргил ганцаараа үлдлээ." },
+    { "at": 21000, "who": "Orgil", "do": "look", "target": "down" },
+    { "at": 21300, "who": "Orgil", "do": "cry" }
+  ]
+}

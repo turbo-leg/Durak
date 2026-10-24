@@ -8,7 +8,7 @@
       "ignoreUnresolved": ["/src/character/animations/registry.ts"]
     },
     "packages/client": {
-      "entry": ["src/character/preview.ts"],
+      "entry": ["src/character/preview.ts", "src/director/main.ts"],
       "ignoreDependencies": ["@capacitor/ios", "@capacitor/splash-screen", "@capacitor/status-bar"]
     },
     "packages/server": {
