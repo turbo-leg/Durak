@@ -10,6 +10,7 @@ import {
   type SceneFile,
 } from '../director/scene';
 import { PLAY_RELEASE_MS } from '../character/animations/registry';
+import { ACTS, actClip, talkClip } from '../director/acts';
 
 const scene = (beats: SceneFile['beats'], extra: Partial<SceneFile> = {}): SceneFile => ({
   duration: 8000,
@@ -145,6 +146,42 @@ describe('director scenes', () => {
       import: 'default',
     });
     expect(Object.keys(files).length).toBeGreaterThan(0);
-    for (const file of Object.values(files)) expect(() => compileScene(file)).not.toThrow();
+    // Scripted scenes are timed from their voiced lines first, in Node.
+    for (const file of Object.values(files).filter((f) => !f.script))
+      expect(() => compileScene(file)).not.toThrow();
+  });
+
+  it('sorts acts from emotes and gives speakers their mouth shapes', () => {
+    const timeline = compileScene(
+      scene([
+        { at: 0, who: 'Jagaa', do: 'facepalm' },
+        { at: 100, who: 'Jagaa', do: 'cry' },
+        { at: 200, who: 'Orgil', do: 'say', text: 'Сайн уу', mouth: [[50, 0.8]] },
+        { at: 300, do: 'say', text: 'narration' },
+      ]),
+    );
+    expect(timeline.acts.Jagaa).toEqual([{ id: 'facepalm', at: 0 }]);
+    expect(timeline.gestures.Jagaa).toEqual([{ id: 'cry', at: 100 }]);
+    expect(timeline.talks.Orgil).toEqual([{ at: 200, mouth: [[50, 0.8]] }]);
+    expect(timeline.captions.map((c) => c.who)).toEqual(['Orgil', undefined]);
+  });
+
+  it('moves a hand act to the free hand while cards are held', () => {
+    const free = actClip('point', false);
+    const holding = actClip('point', true);
+    expect(free.keys[1]!.R).toBeDefined();
+    expect(holding.keys[1]!.L).toBeDefined();
+    // A head act needs no hand, so it is the same either way.
+    expect(actClip('nod', true)).toBe(actClip('nod', false));
+    expect(Object.keys(ACTS)).toContain('peek-left');
+  });
+
+  it('opens and closes the mouth along a spoken line', () => {
+    const clip = talkClip([
+      [100, 0.8],
+      [250, 0.1],
+    ]);
+    expect(clip.duration).toBe(370);
+    expect(clip.keys.map((key) => key.face?.open)).toEqual([0, 0.8, 0.1, 0]);
   });
 });

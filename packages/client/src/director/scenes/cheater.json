@@ -1,0 +1,50 @@
+{
+  "title": "The friend who cheats",
+  "trump": "Qs",
+  "deck": 8,
+  "felt": "#7a2f3a",
+  "voice": { "id": "H3T7Mbfc1a8KWRfpbYPo", "model": "eleven_v4" },
+  "cast": [
+    {
+      "name": "Mugii",
+      "seat": 180,
+      "voice": { "id": "JBFqnCBsd6RMkjVDRZzb", "model": "eleven_v4" }
+    },
+    { "name": "Jagaa", "seat": 120 },
+    { "name": "Orgil", "seat": 240 }
+  ],
+  "script": [
+    { "at": 0, "shot": "face:Mugii", "push": 0.08 },
+    { "at": 0, "text": "Хуурдаг найз", "for": 2600 },
+    { "say": "Энэ бол Мөгий. Мөгий хэзээ ч хуурдаггүй." },
+    { "word": "Мөгий", "who": "Mugii", "do": "look", "target": "camera" },
+    { "word": "хэзээ", "who": "Mugii", "do": "nod" },
+    { "word": "хуурдаггүй", "shot": "wide", "ease": 500 },
+    { "word": "хуурдаггүй", "who": "Mugii", "do": "peek-left" },
+    { "word": "хуурдаггүй", "who": "Mugii", "do": "look", "target": "Jagaa" },
+    { "say": "Зүгээр л... хүзүүгээ сунгаж байна." },
+    { "word": "хүзүүгээ", "who": "Mugii", "do": "peek-left" },
+    { "word": "сунгаж", "shot": "face:Jagaa", "ease": 400 },
+    { "word": "сунгаж", "who": "Jagaa", "do": "look", "target": "Mugii" },
+    { "say": "Жагаа анзаарлаа." },
+    { "word": "анзаарлаа", "sfx": "boom" },
+    { "word": "анзаарлаа", "shot": "face:Jagaa", "zoom": 1.35, "shake": 0.03 },
+    { "word": "анзаарлаа", "who": "Jagaa", "do": "no" },
+    { "say": "Би юу ч хараагүй!", "who": "Mugii", "pause": 600 },
+    { "word": "Би", "shot": "face:Mugii", "zoom": 1.1, "orbit": 25 },
+    { "word": "Би", "who": "Mugii", "do": "look", "target": "Jagaa" },
+    { "word": "Би", "who": "Mugii", "do": "shock" },
+    { "word": "хараагүй", "offset": 500, "text": "Худлаа!", "style": "center", "for": 1200 },
+    { "word": "хараагүй", "offset": 500, "sfx": "scratch" },
+    { "say": "Тэр бүгдийг харсан.", "pause": 900 },
+    { "word": "Тэр", "shot": "wide", "ease": 600 },
+    { "word": "бүгдийг", "who": "Orgil", "do": "laugh" },
+    { "word": "бүгдийг", "sfx": "laugh" },
+    { "word": "харсан", "who": "Jagaa", "do": "slam" },
+    { "word": "харсан", "offset": 420, "sfx": "bonk" },
+    { "say": "Ийм найзаа тэмдэглээрэй." },
+    { "word": "Ийм", "shot": "face:Mugii", "zoom": 1.2, "push": 0.1 },
+    { "word": "Ийм", "who": "Mugii", "do": "look", "target": "camera" },
+    { "word": "найзаа", "who": "Mugii", "do": "shrug" }
+  ]
+}

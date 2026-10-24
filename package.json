@@ -24,6 +24,7 @@
     "character:shots": "node scripts/character-preview.mjs",
     "director:record": "node scripts/director-record.mjs",
     "director:voice": "node scripts/director-voice.mjs",
+    "reel": "node scripts/reel.mjs",
     "build:mobile": "npm run build:mobile -w @durak/client",
     "open:ios": "npm run open:ios -w @durak/client",
     "open:android": "npm run open:android -w @durak/client",

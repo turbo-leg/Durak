@@ -7,4 +7,6 @@ GEMINI.md
 output/playwright/
 output/clips/
 output/voice/
+output/sfx/
+output/scenes/
 .playwright-cli/

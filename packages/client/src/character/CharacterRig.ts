@@ -184,6 +184,11 @@ abstract class CharacterBody {
     if (this.pose) this.actions.push({ clip, start: now, targets: {} });
   }
 
+  /** Play any clip from `now`: a scripted scene's performance, such as talking or laughing. */
+  perform(clip: Clip, now = this.clock()) {
+    if (this.pose) this.actions.push({ clip, start: now, targets: {} });
+  }
+
   /** Forget every action and reaction, so a scripted scene can rebuild them for any moment. */
   clearActions() {
     this.actions = [];
@@ -192,7 +197,9 @@ abstract class CharacterBody {
   /** How far the held cards are drawn up (0 to 1, times `CARRY_RAISE`) while the free
    * hand acts at the table, so it passes under them. */
   cardsRaised(now = this.clock()) {
-    return Math.max(0, ...this.actions.map(({ clip, start }) => clipWeight(clip, now - start)));
+    // Only a hand at work lifts the cards; a face or a nod leaves them where they are.
+    const reaching = this.actions.filter(({ clip }) => clip.keys.some((key) => key.R || key.L));
+    return Math.max(0, ...reaching.map(({ clip, start }) => clipWeight(clip, now - start)));
   }
 
   /** Where a card leaves (or reaches) the hand acting toward `target`, in world space. */

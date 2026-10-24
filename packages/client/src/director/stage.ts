@@ -19,6 +19,8 @@ import {
   tableClearance,
 } from '../components/three/CharacterSpace.ts';
 import { cardFaceUrl } from '../game/cardArt.ts';
+import type { Clip } from '../character/animation.ts';
+import { actClip, talkClip } from './acts.ts';
 import {
   actionDuration,
   cardAt,
@@ -91,6 +93,9 @@ export class Stage {
   private huzur?: THREE.Mesh;
   private discard: THREE.Mesh[] = [];
   private faces = new Map<string, THREE.MeshStandardMaterial>();
+  private felt!: THREE.MeshStandardMaterial;
+  /** Each spoken line's mouth clip, built once. */
+  private talking = new WeakMap<object, Clip>();
   private back = new THREE.MeshStandardMaterial({ color: '#203a52', roughness: 0.7 });
   private edge = new THREE.MeshStandardMaterial({ color: '#d7d6cc', roughness: 0.8 });
   private geometry = new THREE.BoxGeometry(0.82, 0.012, 1.2);
@@ -136,6 +141,7 @@ export class Stage {
       layer.position.y = top - depth / 2;
       layer.receiveShadow = true;
       this.scene.add(layer);
+      if (i === TABLE_LAYERS.length - 1) this.felt = layer.material;
     });
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(14, 64).rotateX(-Math.PI / 2),
@@ -151,6 +157,7 @@ export class Stage {
     this.clear();
     this.timeline = timeline;
     this.scene.background = new THREE.Color(timeline.background);
+    this.felt.color.set(timeline.felt);
     const random = Math.random;
     Math.random = seeded(timeline.seed);
     this.loads = [this.texture(`/assets/cardbacks/cardback_${timeline.back}.png`, this.back)];
@@ -242,6 +249,17 @@ export class Stage {
         else if (cue.id === 'play') rig.act('play', { table: slot(cue.place!)! }, cue.at);
         else if (cue.id === 'pickup') rig.act('pickup', { table: TABLE_CENTRE.clone() }, cue.at);
         else rig.act('draw', { deck: DECK_TOP.clone() }, cue.at);
+      }
+      for (const cue of timeline.acts[name] ?? []) {
+        if (cue.at > t) continue;
+        const clip = actClip(cue.id, cardsAt(timeline, name, cue.at) > 0);
+        if (t < cue.at + clip.duration) rig.perform(clip, cue.at);
+      }
+      for (const cue of timeline.talks[name] ?? []) {
+        if (cue.at > t) continue;
+        let clip = this.talking.get(cue);
+        if (!clip) this.talking.set(cue, (clip = talkClip(cue.mouth)));
+        if (t < cue.at + clip.duration) rig.perform(clip, cue.at);
       }
       const gesture = latest(timeline.gestures[name] ?? [], t);
       const active = gesture && t < gesture.at + gestureDuration;

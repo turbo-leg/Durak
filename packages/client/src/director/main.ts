@@ -7,8 +7,16 @@ import { Stage } from './stage.ts';
  * ?scene=<name>&w=1080&h=1920&t=<ms freeze>&record=1 (no controls or caption cues).
  */
 const SCENES = import.meta.glob<SceneFile>('./scenes/*.json', { eager: true, import: 'default' });
+// Scripted scenes are timed from their voiced lines in Node (`npm run director:voice` or
+// `npm run reel`), which writes the timed version here; it stands in for the script.
+const RESOLVED = import.meta.glob<SceneFile>('../../../../output/scenes/*.json', {
+  eager: true,
+  import: 'default',
+});
 const byName = Object.fromEntries(
-  Object.entries(SCENES).map(([path, scene]) => [path.replace(/^.*\/|\.json$/g, ''), scene]),
+  [...Object.entries(SCENES), ...Object.entries(RESOLVED)]
+    .map(([path, scene]) => [path.replace(/^.*\/|\.json$/g, ''), scene] as const)
+    .filter(([, scene]) => !('script' in scene)),
 );
 
 const params = new URLSearchParams(location.search);

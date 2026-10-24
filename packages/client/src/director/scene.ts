@@ -1,6 +1,7 @@
 import { BOT_AVATARS, GESTURE_DURATION_MS, GESTURES, avatarPreset } from '@durak/shared';
 import { ACTIONS, PLAY_RELEASE_MS, REACTIONS } from '../character/animations/registry.ts';
 import type { TableCard } from '../game/tableSnapshot.ts';
+import { ACTS } from './acts.ts';
 
 /**
  * A scripted table scene for promo clips: who sits where, what they do and when, and where
@@ -15,6 +16,8 @@ export interface SceneFile {
   /** Seeds the characters' blink and glance rhythm, so every take matches. */
   seed?: number;
   background?: string;
+  /** The table's felt colour. */
+  felt?: string;
   /** Card back art: a name from `public/assets/cardbacks` (`classic`, `gold`, ...). */
   back?: string;
   /** The Huzur under the deck, in game notation (`Ah`, `7s`, `BJ`). */
@@ -26,6 +29,11 @@ export interface SceneFile {
   cast: CastFile[];
   camera?: ShotFile[];
   beats?: BeatFile[];
+  /**
+   * The scene written as lines and word-pinned cues instead of times; Node resolves it into
+   * `beats` and `camera` from the voiced lines (scripts/lib/script.mjs) before it is played.
+   */
+  script?: Record<string, unknown>[];
 }
 
 export interface CastFile {
@@ -36,6 +44,8 @@ export interface CastFile {
   cards?: number;
   /** Seat angle in degrees around the table: 0 nearest the default camera, 180 facing it. */
   seat?: number;
+  /** The ElevenLabs voice this character speaks in, for `say` lines with their `who`. */
+  voice?: SceneFile['voice'];
 }
 
 export type Vec3 = [number, number, number];
@@ -66,9 +76,10 @@ export interface BeatFile {
   /**
    * `play` (attack with `card`), `defend` (`card`, optionally `on` an attack card), `pickup`,
    * `draw` (`count`), `discard` (the table goes to the discard pile), `look` (`target`: a cast
-   * name, `table`, `deck`, `camera` or `down`), `victory`, `say` (`text`, a caption cue) or an
-   * emote id: `one`, `two`, `three`, `four`, `nose`, `ear-left`, `ear-right`, `cry`, `cheer`,
-   * `shrug`.
+   * name, `table`, `deck`, `camera` or `down`), `victory`, `say` (`text`, a caption cue), an
+   * emote id (`one`, `two`, `three`, `four`, `nose`, `ear-left`, `ear-right`, `cry`, `cheer`,
+   * `shrug`) or an act (`nod`, `no`, `laugh`, `facepalm`, `think`, `shock`, `sleep`,
+   * `peek-left`, `peek-right`, `slam`, `point`).
    */
   do: string;
   card?: string;
@@ -76,6 +87,9 @@ export interface BeatFile {
   count?: number;
   target?: string;
   text?: string;
+  /** A spoken line's mouth shapes (`[ms, open]`), worked out by the voice script: with `who`,
+   * that character's lips move. */
+  mouth?: [number, number][];
 }
 
 export type Card = Pick<TableCard, 'rank' | 'suit' | 'isJoker'> & { key: string };
@@ -157,6 +171,7 @@ export interface Timeline {
   fps: number;
   seed: number;
   background: string;
+  felt: string;
   back: string;
   trump?: Card;
   deck: number;
@@ -167,6 +182,10 @@ export interface Timeline {
   deckDraws: number[];
   actions: Record<string, ActionCue[]>;
   gestures: Record<string, { id: string; at: number }[]>;
+  /** Scripted performances (`acts.ts`) per seat. */
+  acts: Record<string, { id: string; at: number }[]>;
+  /** Lines a seat speaks, with their mouth shapes. */
+  talks: Record<string, { at: number; mouth: [number, number][] }[]>;
   looks: Record<string, { at: number; target: string }[]>;
   shots: ShotFile[];
   captions: { at: number; who?: string; text: string }[];
@@ -225,6 +244,8 @@ export function compileScene(scene: SceneFile): Timeline {
   const counts = per<{ t: number; delta: number }>();
   const actions = per<ActionCue>();
   const gestures = per<{ id: string; at: number }>();
+  const acts = per<{ id: string; at: number }>();
+  const talks = per<{ at: number; mouth: [number, number][] }>();
   const looks = per<{ at: number; target: string }>();
   const cards: CardTrack[] = [];
   const captions: Timeline['captions'] = [];
@@ -347,22 +368,24 @@ export function compileScene(scene: SceneFile): Timeline {
         if (name) looks[name]!.push({ at, target: person ?? target });
         break;
       }
-      case 'say':
-        if (!beat.text) problems.push(`${where}: a "text" line`);
-        else
-          captions.push({
-            at,
-            text: beat.text,
-            ...(beat.who && { who: names.get(beat.who.toLowerCase()) ?? beat.who }),
-          });
+      case 'say': {
+        if (!beat.text) {
+          problems.push(`${where}: a "text" line`);
+          break;
+        }
+        const speaker = beat.who ? who(beat, where) : undefined;
+        captions.push({ at, text: beat.text, ...(speaker && { who: speaker }) });
+        if (speaker && beat.mouth?.length) talks[speaker]!.push({ at, mouth: beat.mouth });
         break;
+      }
       default: {
-        if (!EMOTE_IDS.has(beat.do)) {
+        const act = beat.do in ACTS;
+        if (!act && !EMOTE_IDS.has(beat.do)) {
           problems.push(`${where}: unknown action "${beat.do}"`);
           break;
         }
         const name = who(beat, where);
-        if (name) gestures[name]!.push({ id: beat.do, at });
+        if (name) (act ? acts : gestures)[name]!.push({ id: beat.do, at });
       }
     }
   }
@@ -394,6 +417,7 @@ export function compileScene(scene: SceneFile): Timeline {
     fps: scene.fps ?? 30,
     seed: scene.seed ?? 7,
     background: scene.background ?? '#182b3c',
+    felt: scene.felt ?? '#2f6382',
     back: scene.back ?? 'classic',
     trump,
     deck,
@@ -403,6 +427,8 @@ export function compileScene(scene: SceneFile): Timeline {
     deckDraws,
     actions,
     gestures,
+    acts,
+    talks,
     looks,
     shots,
     captions,
