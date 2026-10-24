@@ -1376,7 +1376,7 @@ export class DurakRoom extends Room<GameState> {
     for (let i = hasHuzur ? 1 : 0; i < this.state.deck.length; i++) rest.push(this.state.deck[i]!);
 
     for (const card of cards) {
-      const idx = Math.floor(Math.random() * (rest.length + 1));
+      const idx = Math.floor(this.gameRandom() * (rest.length + 1));
       rest.splice(idx, 0, new Card(card.suit, card.rank, card.isJoker));
     }
 
