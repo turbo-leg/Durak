@@ -1,6 +1,16 @@
 import { GameState } from '@durak/shared';
 import { Card, Rank, Suit } from '@durak/shared/src/state/Card';
 import { DurakEngine } from '@durak/shared/src/engine/DurakEngine';
+import { BotPolicy } from './BotPolicy';
+import { CHAMPION_POLICY } from './BotChampion';
+import { DUEL_CHAMPION_POLICY } from './BotDuelChampion';
+import { ATTACK_MODEL_FEATURES, type BotAttackModel } from './BotAttackModel';
+import { DUEL_LEARNED_ATTACK_MODEL } from './BotLearnedChampion';
+import {
+  opponentResponseAttackBonus,
+  type OpponentResponseMemory,
+  type OpponentResponseProfile,
+} from './BotOpponentResponses';
 
 export type BotDifficulty = 'easy' | 'hard';
 
@@ -64,6 +74,7 @@ interface UnseenInfo {
   jokersRemaining: number;
   highTrumpsRemaining: number; // trump J+ or jokers
   unseenSize: number;
+  cards: CardLite[];
 }
 
 function buildUnseen(state: GameState, botId: string): UnseenInfo {
@@ -82,6 +93,7 @@ function buildUnseen(state: GameState, botId: string): UnseenInfo {
   let jokers = 0;
   let highTrumps = 0;
   let unseenSize = 0;
+  const cards: CardLite[] = [];
   // 42-card deck: 10 ranks x 4 suits + 2 jokers
   const ranks = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const suits = [Suit.Spades, Suit.Hearts, Suit.Diamonds, Suit.Clubs];
@@ -89,6 +101,7 @@ function buildUnseen(state: GameState, botId: string): UnseenInfo {
     for (const r of ranks) {
       if (!seen.has(`${s}:${r}`)) {
         unseenSize++;
+        cards.push({ suit: s, rank: r, isJoker: false });
         if (s === state.huzurSuit) {
           trumps++;
           if (r >= Rank.Jack) highTrumps++;
@@ -98,11 +111,13 @@ function buildUnseen(state: GameState, botId: string): UnseenInfo {
   }
   if (!seen.has(`J:${Rank.BlackJoker}`)) {
     unseenSize++;
+    cards.push({ suit: Suit.None, rank: Rank.BlackJoker, isJoker: true });
     jokers++;
     highTrumps++;
   }
   if (!seen.has(`J:${Rank.RedJoker}`)) {
     unseenSize++;
+    cards.push({ suit: Suit.None, rank: Rank.RedJoker, isJoker: true });
     jokers++;
     highTrumps++;
   }
@@ -111,6 +126,7 @@ function buildUnseen(state: GameState, botId: string): UnseenInfo {
     jokersRemaining: jokers,
     highTrumpsRemaining: highTrumps,
     unseenSize,
+    cards,
   };
 }
 
@@ -120,6 +136,7 @@ function findCheapestDefense(
   hand: Card[],
   attackers: Card[],
   trumpSuit: string,
+  pressure = 0,
 ): { pairs: { atk: Card; def: Card }[]; cost: number } | null {
   // Sort attackers strongest-first so hard cases prune early.
   const sortedAtk = [...attackers].sort((a, b) => value(b, trumpSuit) - value(a, trumpSuit));
@@ -141,7 +158,7 @@ function findCheapestDefense(
       if (used.has(i)) continue;
       const d = hand[i]!;
       if (DurakEngine.canDefend(d, atk, trumpSuit)) {
-        opts.push({ i, cost: value(d, trumpSuit) });
+        opts.push({ i, cost: value(d, trumpSuit) - pressure * (d.isJoker ? d.rank + 10 : d.rank) });
       }
     }
     opts.sort((a, b) => a.cost - b.cost);
@@ -164,7 +181,11 @@ interface AttackOption {
   isMass: boolean;
 }
 
-function generateAttackOptions(state: GameState, botId: string): AttackOption[] {
+function generateAttackOptions(
+  state: GameState,
+  botId: string,
+  exploreMass = false,
+): AttackOption[] {
   const player = state.players.get(botId);
   if (!player) return [];
   const hand = Array.from(player.hand).filter((c): c is Card => !!c);
@@ -223,6 +244,44 @@ function generateAttackOptions(state: GameState, botId: string): AttackOption[] 
         opts.push({ cards: massCards, isMass: true });
       }
     }
+    if (exploreMass) {
+      // Enumerate legal combinations, including three-of-a-kind and hands made
+      // entirely of pairs. Keep the candidate pool bounded when pickups bloat a hand.
+      const pool = [...hand]
+        .sort((a, b) => value(a, state.huzurSuit) - value(b, state.huzurSuit))
+        .slice(0, 9);
+      const seen = new Set(
+        opts.filter((opt) => opt.isMass).map((opt) => opt.cards.map(cardKey).sort().join('|')),
+      );
+      for (const size of [3, 5, 7]) {
+        if (pool.length < size || allPlayers.some((p) => p.hand.length < size)) continue;
+        const chosen: Card[] = [];
+        const choose = (start: number): void => {
+          if (chosen.length === size) {
+            const key = chosen.map(cardKey).sort().join('|');
+            if (
+              !seen.has(key) &&
+              DurakEngine.isValidMassAttack(
+                chosen,
+                allPlayers,
+                state.deck.length,
+                state.targetHandSize,
+              )
+            ) {
+              seen.add(key);
+              opts.push({ cards: [...chosen], isMass: true });
+            }
+            return;
+          }
+          for (let i = start; i <= pool.length - (size - chosen.length); i++) {
+            chosen.push(pool[i]!);
+            choose(i + 1);
+            chosen.pop();
+          }
+        };
+        choose(0);
+      }
+    }
   }
   return opts;
 }
@@ -234,11 +293,30 @@ interface ScoredMove {
   score: number;
 }
 
+function chanceNoBeater(
+  attack: Card,
+  unseen: CardLite[],
+  count: number,
+  trumpSuit: string,
+): number {
+  if (unseen.length === 0 || count <= 0) return 0;
+  const beaters = unseen.filter((card) =>
+    DurakEngine.canDefend(card as Card, attack, trumpSuit),
+  ).length;
+  let chance = 1;
+  for (let draw = 0; draw < Math.min(count, unseen.length); draw++) {
+    chance *= (unseen.length - beaters - draw) / (unseen.length - draw);
+  }
+  return Math.max(0, chance);
+}
+
 function scoreAttack(
   state: GameState,
   botId: string,
   opt: AttackOption,
   ctx: { nextDefenderId: string | null; unseen: UnseenInfo },
+  policy: BotPolicy,
+  opponentProfile?: OpponentResponseProfile,
 ): number {
   const trumpSuit = state.huzurSuit;
   const me = state.players.get(botId)!;
@@ -249,9 +327,18 @@ function scoreAttack(
   let score = 0;
 
   // Base: cost of giving up these cards
-  let attackCost = 0;
-  for (const c of opt.cards) attackCost += value(c, trumpSuit);
-  score -= attackCost;
+  score -=
+    policy.attackCostScale *
+    opt.cards.reduce(
+      (sum, c) =>
+        sum +
+        value(c, trumpSuit) *
+          (c.isJoker ? policy.jokerCost : c.suit === trumpSuit ? policy.trumpCost : 1) *
+          (state.deck.length === 0 && (c.isJoker || c.suit === trumpSuit)
+            ? (policy.endgamePowerDiscount ?? 1)
+            : 1),
+      0,
+    );
 
   // Pressure: harder-to-beat cards score better when attacking an opponent.
   const maxRank = Math.max(...opt.cards.map((c) => (c.isJoker ? c.rank + 10 : c.rank)));
@@ -264,14 +351,35 @@ function scoreAttack(
     if (opt.isMass) score -= 120; // mass attack on teammate is bad
   } else if (nextDefender) {
     // Opponent: reward pressure
-    score += maxRank * 3;
+    score +=
+      maxRank *
+      3 *
+      (state.deck.length > 0
+        ? (policy.earlyAttackPressure ?? policy.attackPressure)
+        : policy.attackPressure);
     // Forcing pickup is great — proxy: if next defender hand is small & we attack with trumps
     const opp = state.players.get(nextDefender);
     if (opp && opp.hand.length <= 3 && hasTrumpOrJoker) score += 25;
     if (opt.isMass) {
       // Mass attack against an opponent is strong if we have a deep hand
-      score += 30 + opt.cards.length * 5;
+      score += (30 + opt.cards.length * 5) * policy.massBonus;
       if (handSize > opt.cards.length + 2) score += 20;
+    }
+    if (ctx.unseen.unseenSize > 0) {
+      const count = opp?.hand.length ?? 0;
+      for (const attack of opt.cards) {
+        const noBeater = chanceNoBeater(attack, ctx.unseen.cards, count, trumpSuit);
+        score += (policy.forcePickupWeight ?? 0) * noBeater;
+        if (
+          state.mode === 'classic' &&
+          state.players.size === 2 &&
+          state.deck.length === 0 &&
+          count <= 2 &&
+          handSize > opt.cards.length
+        ) {
+          score += (policy.blockFinishWeight ?? 0) * noBeater;
+        }
+      }
     }
   }
 
@@ -283,10 +391,55 @@ function scoreAttack(
 
   // Endgame: small hands → dumping is good
   if (state.deck.length === 0 && handSize <= 4) {
-    score += opt.cards.length * 6;
+    score += opt.cards.length * 6 * policy.endgameDump;
   }
 
+  // The room awards a win immediately after an attack empties the hand.
+  if (state.deck.length === 0 && opt.cards.length === handSize) {
+    score += policy.finishWinBonus ?? 0;
+  }
+
+  if (!teammate && opponentProfile)
+    score += opponentResponseAttackBonus(
+      opponentProfile,
+      opt.cards,
+      trumpSuit,
+      state.table.length + state.activeAttackCards.length + opt.cards.length,
+    );
+
   return score;
+}
+
+function learnedAttackScore(
+  state: GameState,
+  botId: string,
+  opt: AttackOption,
+  ctx: { nextDefenderId: string | null; unseen: UnseenInfo },
+  model: BotAttackModel,
+): number {
+  const me = state.players.get(botId)!;
+  const opponent = ctx.nextDefenderId ? state.players.get(ctx.nextDefenderId) : null;
+  const count = opponent?.hand.length ?? 0;
+  const trumps = opt.cards.filter((card) => !card.isJoker && card.suit === state.huzurSuit).length;
+  const jokers = opt.cards.filter((card) => card.isJoker).length;
+  const pickupChance = ctx.unseen.cards.length
+    ? Math.max(
+        ...opt.cards.map((card) => chanceNoBeater(card, ctx.unseen.cards, count, state.huzurSuit)),
+      )
+    : 0;
+  const features = [
+    opt.cards.length / 3,
+    Math.min(1, opt.cards.reduce((sum, card) => sum + value(card, state.huzurSuit), 0) / 200),
+    trumps / 3,
+    jokers,
+    pickupChance,
+    pickupChance * (count <= 3 ? 1 : 0),
+    state.deck.length === 0 ? opt.cards.length / 3 : 0,
+    me.hand.length > count ? opt.cards.length / 3 : 0,
+    opt.isMass ? 1 : 0,
+    state.deck.length === 0 && opt.cards.length === me.hand.length ? 1 : 0,
+  ];
+  return features.reduce((sum, feature, index) => sum + feature * (model.weights[index] ?? 0), 0);
 }
 
 function scoreDefense(
@@ -294,6 +447,7 @@ function scoreDefense(
   botId: string,
   defense: { pairs: { atk: Card; def: Card }[]; cost: number },
   ctx: { nextDefenderId: string | null; unseen: UnseenInfo },
+  policy: BotPolicy,
 ): number {
   const trumpSuit = state.huzurSuit;
   const me = state.players.get(botId)!;
@@ -315,7 +469,7 @@ function scoreDefense(
     if (usedTrumpOrJoker) score -= 60;
   } else if (nextDefender) {
     // Opponent gets the pressure. Bonus.
-    score += maxDefRank * 2;
+    score += maxDefRank * 2 * policy.defensePressure;
     const opp = state.players.get(nextDefender);
     if (opp && opp.hand.length <= 3 && usedTrumpOrJoker) score += 30;
   }
@@ -328,7 +482,7 @@ function scoreDefense(
   return score;
 }
 
-function scorePickup(state: GameState, botId: string): number {
+function scorePickup(state: GameState, botId: string, policy: BotPolicy): number {
   const trumpSuit = state.huzurSuit;
   const me = state.players.get(botId)!;
   const handSize = me.hand.length;
@@ -341,8 +495,8 @@ function scorePickup(state: GameState, botId: string): number {
 
   let score = -incoming.length * 8; // hand bloat penalty
   // Bonus if pickup grants trumps/jokers (only when deck small or empty)
-  if (state.deck.length <= 6) score += pickupValue * 0.4;
-  else score += pickupValue * 0.15;
+  if (state.deck.length <= 6) score += pickupValue * 0.4 * policy.pickupValue;
+  else score += pickupValue * 0.15 * policy.pickupValue;
   // Heavy penalty if hand is already big
   if (handSize >= state.targetHandSize + 3) score -= 40;
   // In endgame (no deck), picking up is usually losing — penalty
@@ -393,10 +547,17 @@ export class BotEngine {
   private pendingTurns = new Set<string>();
   private attackVisits = new Map<string, number>();
 
+  constructor(
+    private readonly overridePolicy: BotPolicy | null = null,
+    private readonly random: () => number = Math.random,
+    private readonly overrideAttackModel: BotAttackModel | null = null,
+  ) {}
+
   async think(
     state: GameState,
     botId: string,
     difficulty: BotDifficulty = 'easy',
+    opponentResponses?: OpponentResponseMemory,
   ): Promise<BotMove | null> {
     const turnToken = `${botId}:${state.turnStartTime}`;
     if (this.pendingTurns.has(turnToken)) return null;
@@ -406,6 +567,18 @@ export class BotEngine {
       const player = state.players.get(botId);
       if (!player) return null;
       const hand = Array.from(player.hand).filter((c): c is Card => !!c);
+      const policy =
+        this.overridePolicy ??
+        (state.mode === 'classic' && state.players.size === 2
+          ? DUEL_CHAMPION_POLICY
+          : CHAMPION_POLICY);
+      const attackModel =
+        this.overrideAttackModel ??
+        (this.overridePolicy === null && state.mode === 'classic' && state.players.size === 2
+          ? DUEL_LEARNED_ATTACK_MODEL
+          : null);
+      if (attackModel && attackModel.weights.length !== ATTACK_MODEL_FEATURES.length)
+        throw new Error('Attack model feature count mismatch');
 
       // Always swap if eligible — free value, almost universally correct.
       if (canSwapHuzur(hand, state, botId)) {
@@ -421,7 +594,12 @@ export class BotEngine {
 
       if (activeAttacks.length > 0) {
         // Defending
-        const defense = findCheapestDefense(hand, activeAttacks, state.huzurSuit);
+        const defense = findCheapestDefense(
+          hand,
+          activeAttacks,
+          state.huzurSuit,
+          policy.exploreDefense ? Math.max(0, policy.defensePressure - 1) * 2 : 0,
+        );
         if (defense) {
           // In this Hot Potato variant repeated voluntary pickups can circulate
           // the same cards indefinitely. Hard bots resolve a legal defense;
@@ -429,17 +607,20 @@ export class BotEngine {
           if (difficulty === 'hard') return moveFromDefense(defense);
           candidates.push({
             move: moveFromDefense(defense),
-            score: scoreDefense(state, botId, defense, ctx),
+            score: scoreDefense(state, botId, defense, ctx, policy),
           });
         }
-        candidates.push({ move: PICKUP_MOVE, score: scorePickup(state, botId) });
+        candidates.push({ move: PICKUP_MOVE, score: scorePickup(state, botId, policy) });
       } else {
         // Attacking
-        const opts = generateAttackOptions(state, botId);
+        const opts = generateAttackOptions(state, botId, policy.exploreMass);
+        const responseProfile = nextDefenderId ? opponentResponses?.get(nextDefenderId) : undefined;
         for (const opt of opts) {
           candidates.push({
             move: moveFromAttack(opt),
-            score: scoreAttack(state, botId, opt, ctx),
+            score:
+              scoreAttack(state, botId, opt, ctx, policy, responseProfile) +
+              (attackModel ? learnedAttackScore(state, botId, opt, ctx, attackModel) : 0),
           });
         }
       }
@@ -453,12 +634,12 @@ export class BotEngine {
         // Mistakes: 35% chance to pick a non-best, plus noise on top
         const noisy = candidates.map((c) => ({
           move: c.move,
-          score: c.score + (Math.random() - 0.5) * 40,
+          score: c.score + (this.random() - 0.5) * 40,
         }));
         noisy.sort((a, b) => b.score - a.score);
-        if (Math.random() < 0.35 && noisy.length > 1) {
+        if (this.random() < 0.35 && noisy.length > 1) {
           const pool = noisy.slice(0, Math.min(3, noisy.length));
-          return pool[Math.floor(Math.random() * pool.length)]!.move;
+          return pool[Math.floor(this.random() * pool.length)]!.move;
         }
         return noisy[0]!.move;
       }
@@ -480,7 +661,7 @@ export class BotEngine {
 
       // Hard: best evaluated lead, with randomized exact ties.
       const tied = candidates.filter((c) => c.score === candidates[0]!.score);
-      if (tied.length > 1) return tied[Math.floor(Math.random() * tied.length)]!.move;
+      if (tied.length > 1) return tied[Math.floor(this.random() * tied.length)]!.move;
       return candidates[0]!.move;
     } finally {
       this.pendingTurns.delete(turnToken);

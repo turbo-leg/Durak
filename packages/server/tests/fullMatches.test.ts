@@ -59,7 +59,7 @@ describe('complete custom-rule matches', () => {
       conserved();
       while (room.state.phase === 'playing' && turns++ < 2000) {
         const id = room.state.currentTurn;
-        const move = await bot.think(room.state, id, 'hard');
+        const move = await bot.think(room.state, id, 'hard', room.getOpponentResponseMemory());
         expect(
           move,
           `No move for ${id} at action ${turns}; hand=${room.state.players.get(id)?.hand.length}; deck=${room.state.deck.length}; active=${room.state.activeAttackCards.length}; winners=${Array.from(room.state.winners)}; trace=${trace.join(' / ')}`,
