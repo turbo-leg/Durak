@@ -18,10 +18,11 @@ const USER_VOLUME = 0.75;
 
 /** Named effects in the library, at their mix volume. The laugh sits low: funny, ironically. */
 export const PRESETS = {
-  slap: 0.8,
-  swoosh: 0.5,
-  draw: 0.6,
-  shuffle: 0.7,
+  // The table's own sounds sit well back: heard, not noticed.
+  slap: 0.4,
+  swoosh: 0.3,
+  draw: 0.35,
+  shuffle: 0.35,
   boom: 0.9,
   scratch: 0.8,
   crickets: 0.6,

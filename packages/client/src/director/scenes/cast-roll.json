@@ -2,9 +2,7 @@
   "title": "The whole table",
   "duration": 24500,
   "sounds": [
-    { "at": 6950, "sfx": "discord-notification" },
     { "at": 9900, "sfx": "bruh" },
-    { "at": 16000, "sfx": "rizz" },
     { "at": 18600, "sfx": "huh-cat", "for": 1500 },
     { "at": 20300, "sfx": "dun-dun-dun", "for": 3500 }
   ],

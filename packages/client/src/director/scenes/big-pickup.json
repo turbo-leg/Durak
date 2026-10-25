@@ -2,11 +2,8 @@
   "title": "Jagaa picks up everything",
   "duration": 28500,
   "sounds": [
-    { "at": 5300, "sfx": "vine-boom" },
     { "at": 12100, "sfx": "bruh" },
     { "at": 14750, "sfx": "fah" },
-    { "at": 19200, "sfx": "fah-slowed", "for": 2500 },
-    { "at": 21650, "sfx": "vine-boom" },
     { "at": 23900, "sfx": "curb-your-enthusiasm", "for": 4600 }
   ],
   "trump": "9h",

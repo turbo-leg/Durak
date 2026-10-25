@@ -17,7 +17,6 @@
     { "word": "хөзөр", "who": "Orgil", "do": "think" },
     { "word": "арван", "shot": "face:Jagaa", "push": 0.06 },
     { "word": "арван", "who": "Jagaa", "do": "sleep" },
-    { "word": "арван", "sfx": "crickets" },
     { "word": "боддог", "offset": 500, "sfx": "few-moments-later" },
     { "say": "Хоёрдугаарт: ууртай.", "pause": 1400 },
     { "word": "ууртай", "shot": "face:Dok", "zoom": 1.1 },
@@ -27,17 +26,14 @@
     { "say": "Хожигдвол ширээ нь хохирно." },
     { "word": "ширээ", "shot": "table", "shake": 0.03 },
     { "word": "ширээ", "who": "Dok", "do": "slam" },
-    { "word": "ширээ", "offset": 420, "sfx": "vine-boom" },
     { "word": "хохирно", "who": "Orgil", "do": "shock" },
     { "say": "Гуравдугаарт: инээгч." },
     { "word": "инээгч", "shot": "face:Tsomo", "push": 0.06 },
     { "word": "инээгч", "who": "Tsomo", "do": "laugh" },
     { "say": "Юунд ч хамаагүй инээдэг." },
     { "word": "хамаагүй", "who": "Tsomo", "do": "laugh" },
-    { "word": "хамаагүй", "sfx": "oh-no-no-laugh", "for": 3000, "volume": 0.45 },
     { "say": "Дөрөвдүгээрт: чи." },
     { "word": "Дөрөвдүгээрт", "shot": "wide", "ease": 500 },
-    { "word": "Дөрөвдүгээрт", "sfx": "drumroll" },
     { "word": "Дөрөвдүгээрт", "who": "Jagaa", "do": "look", "target": "camera" },
     { "word": "Дөрөвдүгээрт", "who": "Dok", "do": "look", "target": "camera" },
     { "word": "Дөрөвдүгээрт", "who": "Tsomo", "do": "look", "target": "camera" },
@@ -47,7 +43,6 @@
     { "word": "чи", "sfx": "vine-boom" },
     { "word": "чи", "text": "ЧИ", "style": "center", "for": 1400 },
     { "say": "Аль нь вэ? Коммент дээр бич." },
-    { "word": "Коммент", "who": "Orgil", "do": "shrug" },
-    { "word": "Коммент", "sfx": "discord-notification" }
+    { "word": "Коммент", "who": "Orgil", "do": "shrug" }
   ]
 }

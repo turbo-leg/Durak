@@ -3,7 +3,6 @@
   "duration": 29000,
   "sounds": [
     { "at": 10900, "sfx": "rizz" },
-    { "at": 16250, "sfx": "anime-wow", "for": 1800 },
     { "at": 17400, "sfx": "huh-cat", "for": 1800 },
     { "at": 22900, "sfx": "to-be-continued", "for": 6000 }
   ],
