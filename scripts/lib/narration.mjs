@@ -113,7 +113,11 @@ export function mix({ ffmpeg, video, audio, subtitles, output, offset = 0 }) {
   const inputs = audio.flatMap((clip) => ['-i', clip.file]);
   const delayed = audio.map((clip, i) => {
     const delay = Math.max(0, clip.at - offset);
-    return `[${i + 1}:a]adelay=${delay}|${delay},volume=${clip.volume ?? 1}[a${i}]`;
+    // A sound cut short (`for`) fades out over its last 200 ms instead of stopping dead.
+    const cut = clip.for
+      ? `atrim=0:${clip.for / 1000},afade=t=out:st=${Math.max(0, clip.for - 200) / 1000}:d=0.2,`
+      : '';
+    return `[${i + 1}:a]${cut}adelay=${delay}|${delay},volume=${clip.volume ?? 1}[a${i}]`;
   });
   const sound = audio.length
     ? `${delayed.join(';')};${audio.map((_, i) => `[a${i}]`).join('')}amix=inputs=${audio.length}:normalize=0,alimiter=limit=0.95,apad[a]`

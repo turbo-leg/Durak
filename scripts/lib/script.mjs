@@ -113,7 +113,8 @@ export async function resolveScene(scene) {
   }
   const resolved = { ...scene, beats, camera, sounds, overlays };
   delete resolved.script;
-  resolved.duration = scene.duration ?? Math.max(end + TAIL_MS, 1000);
+  // `tail` holds the last shot longer, as for an outro sound.
+  resolved.duration = scene.duration ?? Math.max(end + (scene.tail ?? TAIL_MS), 1000);
   // Say beats carry their voice, so the mix needs nothing else to find their audio.
   resolved.beats = beats
     .map((beat) => (beat.do === 'say' ? { ...beat, voice: voiceFor(scene, beat) } : beat))
