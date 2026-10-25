@@ -3,6 +3,7 @@ import type { RoomAvailable } from 'colyseus.js';
 import { useGame } from '../contexts/GameContext';
 import { invitationLink, parseInvitation } from '../game/invitation';
 import { GuidedHand } from './GuidedHand';
+import { TeamBoard } from './TeamBoard';
 
 export function RoomMenu({
   playerName,
@@ -54,7 +55,7 @@ export function RoomMenu({
   return (
     <section className="play-dock" aria-label="Choose a game">
       <div className="dock-title">
-        <h2>Pull up a chair.</h2>
+        <h2>Start a game</h2>
         <span>2–6 players</span>
       </div>
       <div
@@ -93,6 +94,7 @@ export function RoomMenu({
         ))}
       </div>
       <div
+        className="game-setup"
         id="game-setup"
         role="tabpanel"
         aria-label={
@@ -100,7 +102,7 @@ export function RoomMenu({
         }
       >
         {!signedIn && (
-          <label className="field">
+          <label className="field setup-name">
             Your table name
             <input
               maxLength={28}
@@ -110,7 +112,7 @@ export function RoomMenu({
             />
           </label>
         )}
-        {avatarPicker}
+        <div className="setup-avatar">{avatarPicker}</div>
         {tab === 'solo' ? (
           <>
             <p className="dock-description">
@@ -146,7 +148,7 @@ export function RoomMenu({
           </>
         ) : tab === 'friends' ? (
           <>
-            <div className="format-options" aria-label="Match format">
+            <div className="format-options setup-format" aria-label="Match format">
               {(['1v1', '2v2', '3v3', 'Free-for-all'] as const).map((format) => {
                 const active =
                   mode !== 'classic'
@@ -163,6 +165,7 @@ export function RoomMenu({
                     aria-pressed={format === active}
                     onClick={() => {
                       setMode(format === '2v2' || format === '3v3' ? 'teams' : 'classic');
+                      if (format === '2v2' || format === '3v3') setTeamSelection('manual');
                       setSeats(
                         format === '2v2' ? 4 : format === '3v3' ? 6 : format === '1v1' ? 2 : 3,
                       );
@@ -173,7 +176,7 @@ export function RoomMenu({
                 );
               })}
             </div>
-            <div className="settings-row">
+            <div className="settings-row setup-settings">
               <label className="field">
                 Game
                 <select
@@ -205,7 +208,14 @@ export function RoomMenu({
               </label>
             </div>
             {mode !== 'classic' && (
-              <label className="field">
+              <p className="team-setup-note">
+                {mode === 'horse'
+                  ? 'Two teams play a series. Each loss adds a letter to HORSE.'
+                  : 'Blue and Red take alternating seats. The first player out wins for their whole team.'}
+              </p>
+            )}
+            {mode !== 'classic' && (
+              <label className="field setup-teams">
                 Teams
                 <select value={teamSelection} onChange={(e) => setTeamSelection(e.target.value)}>
                   <option value="random">Random teams</option>
@@ -213,8 +223,12 @@ export function RoomMenu({
                 </select>
               </label>
             )}
+            <p className="quick-match-summary">
+              {mode === 'classic' ? 'Classic' : mode === 'horse' ? 'Horse' : 'Teams'} game · {seats}{' '}
+              players · {handSize} cards each
+            </p>
             <button
-              className="primary-button"
+              className="primary-button create-table-button"
               disabled={busy}
               onClick={() => void run(() => game.createGame({ ...options, isPrivate: true }))}
             >
@@ -354,7 +368,7 @@ export function RoomLobby({
   return (
     <section className="play-dock lobby-dock">
       <div className="dock-title">
-        <h2>{game.isSpectator ? 'A friends’ table.' : 'Your table.'}</h2>
+        <h2>{game.isSpectator ? 'Watching a table' : 'Your table'}</h2>
         <span>
           {state.players.size}/{state.maxPlayers} seated
         </span>
@@ -363,8 +377,8 @@ export function RoomLobby({
         {game.isSpectator
           ? 'You’re watching. Take a seat when you’re ready.'
           : state.isPrivate
-            ? 'Send the invitation link and settle in.'
-            : 'Share the code and settle in.'}
+            ? 'Share this link to invite your friends.'
+            : 'Share this code to invite more players.'}
       </p>
       <button
         className="invitation-code"
@@ -390,59 +404,62 @@ export function RoomLobby({
         {game.room!.roomId}
         <small>{state.isPrivate ? 'Copy invitation link' : 'Copy code'}</small>
       </button>
-      {avatarPicker}
-      <ul className="lobby-players">
-        {Array.from(state.players.values()).map((p) => (
-          <li key={p.id}>
-            <span className="avatar">{(p.username || 'G')[0]}</span>
-            <span>
-              {p.id === session ? `${p.username || 'Guest'} (you)` : p.username || 'Guest'}
-              {state.mode !== 'classic' && <small>{p.team === 0 ? 'Blue team' : 'Red team'}</small>}
-            </span>
-            <span className={p.isReady ? 'ready-state' : 'not-ready'}>
-              {p.control !== 'human' ? 'Bot' : p.isReady ? 'Ready' : 'Settling in'}
-            </span>
-            {host && p.control === 'bot' && (
-              <button
-                className="quiet-button"
-                aria-label={`Remove ${p.username || 'bot'}`}
-                onClick={() => game.room?.send('removeBot', { playerId: p.id })}
-              >
-                Remove
-              </button>
-            )}
-          </li>
-        ))}
-        {Array.from({ length: Math.max(0, empty) }, (_, i) => (
-          <li key={`empty-${i}`} className="empty-seat">
-            <span className="avatar" aria-hidden="true">
-              ·
-            </span>
-            <span>Empty seat</span>
-          </li>
-        ))}
-      </ul>
       {state.isPrivate && (
         <p className="dock-description" role="status">
           {countdown ? `Dealing in ${countdownSeconds}…` : waitingFor}
         </p>
       )}
+      {state.mode !== 'classic' && (
+        <TeamBoard
+          state={state}
+          sessionId={session}
+          variant="lobby"
+          spectator={game.isSpectator}
+          host={host}
+          onJoinTeam={(team) => game.room?.send('switchTeam', { team })}
+          onRemoveBot={(id) => game.room?.send('removeBot', { playerId: id })}
+        />
+      )}
+      {state.mode === 'classic' && (
+        <ul className="lobby-players" aria-label="Players at this table">
+          {Array.from(state.players.values()).map((p) => (
+            <li key={p.id}>
+              <span className="avatar">{(p.username || 'G')[0]}</span>
+              <span>
+                {p.id === session ? `${p.username || 'Guest'} (you)` : p.username || 'Guest'}
+              </span>
+              <span className={p.isReady ? 'ready-state' : 'not-ready'}>
+                {p.control !== 'human' ? 'Bot ready' : p.isReady ? 'Ready' : 'Not ready'}
+              </span>
+              {host && p.control === 'bot' && (
+                <button
+                  className="quiet-button"
+                  aria-label={`Remove ${p.username || 'bot'}`}
+                  onClick={() => game.room?.send('removeBot', { playerId: p.id })}
+                >
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+          {Array.from({ length: Math.max(0, empty) }, (_, i) => (
+            <li key={`empty-${i}`} className="empty-seat">
+              <span className="avatar" aria-hidden="true">
+                ·
+              </span>
+              <span>Open seat</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {!game.isSpectator && (
-        <>
+        <div className="lobby-actions">
           <button
-            className="secondary-button full-width"
+            className={me?.isReady ? 'secondary-button full-width' : 'primary-button'}
             onClick={() => game.room?.send('toggleReady', { isReady: !me?.isReady })}
           >
             {me?.isReady ? 'Not ready yet' : 'Ready to play'}
           </button>
-          {state.mode !== 'classic' && state.teamSelection === 'manual' && (
-            <button
-              className="quiet-button full-width"
-              onClick={() => game.room?.send('switchTeam', { team: me?.team === 0 ? 1 : 0 })}
-            >
-              Switch team
-            </button>
-          )}
           {host && state.isPrivate && (
             <button
               className="quiet-button full-width"
@@ -480,9 +497,15 @@ export function RoomLobby({
               </button>
             </>
           )}
-        </>
+        </div>
       )}
       {game.isSpectator && seatRequest}
+      {avatarPicker && (
+        <details className="lobby-customize">
+          <summary>Change character</summary>
+          {avatarPicker}
+        </details>
+      )}
       <p className="dock-footnote">
         {!state.isPrivate
           ? host

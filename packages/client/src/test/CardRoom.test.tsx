@@ -7,7 +7,22 @@ import { useGame } from '../contexts/GameContext';
 vi.mock('../contexts/GameContext', () => ({ useGame: vi.fn() }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('../contexts/CardBackContext', () => ({ useCardBack: () => ({ imageUrl: null }) }));
-vi.mock('../components/three/ThreeTable', () => ({ default: () => <div>Spatial table</div> }));
+vi.mock('../components/three/ThreeTable', () => ({
+  default: ({
+    defensePairs,
+  }: {
+    defensePairs?: readonly { attack: { key: string }; defense: { key: string } }[];
+  }) => (
+    <div
+      data-testid="spatial-table"
+      data-preview={
+        defensePairs?.map((pair) => `${pair.attack.key}>${pair.defense.key}`).join('|') || ''
+      }
+    >
+      Spatial table
+    </div>
+  ),
+}));
 vi.mock('../components/three/GesturePreview', () => ({
   default: () => <div>Character mirror</div>,
 }));
@@ -154,7 +169,7 @@ describe('invitation preview and seat requests', () => {
     value.isSpectator = true;
     localStorage.setItem('durak_display_name', 'Mika');
     render(<CardRoom authError="" />);
-    expect(screen.getByText(/Watching/)).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Watching a table' })).toBeVisible();
     expect(screen.getByText('Host')).toBeVisible();
     expect(screen.getByText('2 seats are open.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: /Join the table/ }));
@@ -179,6 +194,66 @@ describe('invitation preview and seat requests', () => {
 });
 
 describe('replacement card room play flow', () => {
+  it('groups a manual 2v2 lobby into teams and sends an explicit team choice', () => {
+    state.mode = 'teams';
+    state.teamSelection = 'manual';
+    state.maxPlayers = 4;
+    state.isPrivate = true;
+    state.phase = 'waiting';
+    state.players.get('me')!.team = 0;
+    state.players.get('other')!.team = 1;
+    state.players.get('other')!.username = 'Ana';
+    render(<CardRoom authError="" />);
+    const board = within(screen.getByRole('region', { name: 'Teams' }));
+    expect(board.getByText('Blue')).toBeVisible();
+    expect(board.getByText('Red')).toBeVisible();
+    expect(board.getByText('Ana')).toBeVisible();
+    expect(board.getAllByText('Open seat')).toHaveLength(2);
+    fireEvent.click(board.getByRole('button', { name: 'Join Red' }));
+    expect(send).toHaveBeenCalledWith('switchTeam', { team: 1 });
+  });
+
+  it('shows a full team without offering an invalid switch', () => {
+    state.mode = 'teams';
+    state.teamSelection = 'manual';
+    state.maxPlayers = 4;
+    state.isPrivate = true;
+    state.phase = 'waiting';
+    state.players.get('me')!.team = 0;
+    state.players.get('other')!.team = 1;
+    const fourth = new Player('fourth');
+    fourth.team = 1;
+    state.players.set('fourth', fourth);
+    render(<CardRoom authError="" />);
+    expect(screen.getByRole('button', { name: 'Team full' })).toBeDisabled();
+  });
+
+  it('shows who is playing for each team during a match', () => {
+    state.mode = 'teams';
+    state.maxPlayers = 4;
+    state.players.get('me')!.team = 0;
+    state.players.get('other')!.team = 1;
+    state.players.get('other')!.username = 'Ana';
+    state.currentTurn = 'other';
+    render(<CardRoom authError="" />);
+    const board = within(screen.getByRole('region', { name: 'Teams' }));
+    expect(board.getByText('Ana')).toBeVisible();
+    expect(board.getByText('Playing')).toBeVisible();
+    expect(screen.getByText('Red team is playing. Stay ready.')).toBeVisible();
+  });
+
+  it('lets the team result replace a conflicting generic game-over toast', () => {
+    state.mode = 'teams';
+    state.phase = 'finished';
+    state.outcome = 'win';
+    state.winners.push('me');
+    state.winnerTeam = 0;
+    state.players.get('me')!.team = 0;
+    value.gameMessage = 'Game over. Another player went out first.';
+    render(<CardRoom authError="" />);
+    expect(screen.getByRole('heading', { name: 'Your team won this game.' })).toBeVisible();
+    expect(screen.queryByText(value.gameMessage)).toBeNull();
+  });
   it('reports a team loss to the losing team and a neutral result to spectators', () => {
     state.mode = 'teams';
     state.phase = 'finished';
@@ -337,6 +412,23 @@ describe('replacement card room play flow', () => {
     expect(send).toHaveBeenCalledWith('defend', {
       cards: [expect.objectContaining({ suit: 'Spades', rank: 16 })],
     });
+  });
+  it('shows each proposed defense beside its attack and clears the table preview when selection changes', async () => {
+    state.players.get('me')!.hand.push(new Card('Clubs', 8));
+    state.activeAttackCards.push(new Card('Hearts', 13), new Card('Clubs', 7));
+    render(<CardRoom authError="" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Card controls' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Ace of Spades' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select 8 of Clubs' }));
+    const pairs = within(screen.getByLabelText('Active table cards'));
+    expect(pairs.getByLabelText('Ace of Spades beats King of Hearts')).toBeVisible();
+    expect(pairs.getByLabelText('8 of Clubs beats 7 of Clubs')).toBeVisible();
+    expect((await screen.findByTestId('spatial-table')).getAttribute('data-preview')).toContain(
+      'Hearts:13:0>Spades:16:0',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Select 8 of Clubs' }));
+    expect(screen.getByTestId('spatial-table')).toHaveAttribute('data-preview', '');
+    expect(pairs.queryByLabelText('8 of Clubs beats 7 of Clubs')).toBeNull();
   });
   it('explains an illegal mass attack before submission', () => {
     render(<CardRoom authError="" />);

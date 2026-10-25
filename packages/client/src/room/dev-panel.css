@@ -55,6 +55,27 @@
 .dev-panel td {
   padding: 1px 4px 1px 0;
 }
+.dev-bot-hand {
+  margin-top: 6px;
+}
+.dev-bot-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.dev-bot-card {
+  min-width: 29px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: #f3f0e6;
+  color: #1c2e3c;
+  text-align: center;
+  font-weight: 700;
+}
+.dev-bot-card.red {
+  color: #aa3e43;
+}
 .dev-panel-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Card, BOT_AVATARS, avatarPreset, type PublicGesture } from '@durak/shared';
+import { Card, avatarPreset, type PublicGesture } from '@durak/shared';
 import { GesturePicker } from './GesturePicker';
 import { AvatarPicker } from './AvatarPicker';
 import { SeatRequest } from './SeatRequest';
@@ -19,6 +19,7 @@ import {
 } from '../game/tableSnapshot';
 import { RoomLobby, RoomMenu } from './RoomMenu';
 import { AccountPanel, RoomDialog, RulesPanel } from './RoomDialog';
+import { TeamBoard } from './TeamBoard';
 import './card-room.css';
 
 const ThreeTable = lazy(() => import('../components/three/ThreeTable'));
@@ -45,15 +46,7 @@ const demo: TableSnapshot = {
   huzur: demoCard('Hearts', 7),
   deckCount: 32,
   discardCount: 0,
-  // The bots keep the table warm until the player sits down.
-  seats: BOT_AVATARS.map((look, i) => ({
-    id: `welcome:${i}`,
-    name: look.name,
-    preset: look.id,
-    count: 5,
-    active: i === 2,
-    escaped: false,
-  })),
+  seats: [],
 };
 
 export function CardRoom({
@@ -68,6 +61,11 @@ export function CardRoom({
   const { imageUrl } = useCardBack();
   const [modal, setModal] = useState<'rules' | 'account' | 'leave' | null>(null);
   const [fallback, setFallback] = useState(false);
+  const [portrait, setPortrait] = useState(
+    () =>
+      typeof matchMedia !== 'undefined' &&
+      matchMedia('(max-width: 760px) and (orientation: portrait)').matches,
+  );
   const [preset, setPreset] = useState(
     () => avatarPreset(localStorage.getItem('durak_avatar')).id as string,
   );
@@ -81,6 +79,13 @@ export function CardRoom({
   const [dismissed, setDismissed] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [demoGesture, setDemoGesture] = useState<PublicGesture>({});
+  useEffect(() => {
+    if (typeof matchMedia === 'undefined') return;
+    const media = matchMedia('(max-width: 760px) and (orientation: portrait)');
+    const update = () => setPortrait(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const state = game.gameState;
   const live = Boolean(game.isConnected && state && game.room);
   const phase = live ? state!.phase : 'home';
@@ -96,6 +101,7 @@ export function CardRoom({
   const lost = Boolean(state?.outcome === 'win' && me && !won);
   const winnerName = state?.winnerName || 'A player';
   const winnerTeamName = state?.winnerTeam === 0 ? 'Blue' : 'Red';
+  const myTeamName = me?.team === 0 ? 'Blue' : 'Red';
   const resultTitle = draw
     ? 'An even table.'
     : game.isSpectator || !me
@@ -231,10 +237,14 @@ export function CardRoom({
           !me.pickedUpCardKeys.includes(`${c.suit}:${c.rank}:0`),
       ),
     );
-  const info = notice || game.error || authError || game.gameMessage || game.gameAbortReason;
+  const resultMessage =
+    showResult && game.gameMessage?.startsWith('Game over.') ? '' : game.gameMessage;
+  const info = notice || game.error || authError || resultMessage || game.gameAbortReason;
 
   return (
-    <main className={`card-room ${live ? 'in-game' : 'at-home'} ${fallback ? 'flat-view' : ''}`}>
+    <main
+      className={`card-room ${live ? 'in-game' : 'at-home'} ${playing || opening ? 'match-active' : ''} ${fallback ? 'flat-view' : ''}`}
+    >
       <header className="room-header">
         <a
           className="wordmark"
@@ -272,11 +282,27 @@ export function CardRoom({
         <div className="scene-atmosphere" />
         <div className="scene" aria-label="Interactive card table">
           {!fallback ? (
-            <Suspense fallback={<div className="scene-loading">Setting the table…</div>}>
+            <Suspense
+              fallback={
+                <div className="scene-loading" role="status">
+                  <span className="loading-cards" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span>Setting the table…</span>
+                </div>
+              }
+            >
               <ThreeTable
                 key={live ? `${game.room!.roomId}:${game.isSpectator}` : 'welcome'}
                 snapshot={view}
                 selectedKeys={selectedKeys.join('|')}
+                defensePairs={
+                  view.canSelect && preview?.legal && preview.kind === 'defense'
+                    ? preview.pairs
+                    : undefined
+                }
                 backUrl={imageUrl}
                 onSelect={toggle}
                 onLook={(yaw, pitch) => {
@@ -298,7 +324,7 @@ export function CardRoom({
                 {view.seats.map((seat) => (
                   <span key={seat.id}>
                     {seat.name}
-                    <small>{seatStatus(seat, view.betweenGames)}</small>
+                    <small>{seatStatus(seat, view.betweenGames, view.resultVisible)}</small>
                   </span>
                 ))}
                 {Array.from(
@@ -355,8 +381,8 @@ export function CardRoom({
         </div>
         {!live && (
           <section className="welcome-copy">
-            <p className="room-kicker">Your friends. Your table.</p>
-            <h1>Take your seat.</h1>
+            <h1>Play Durak.</h1>
+            <p>With friends or on your own.</p>
           </section>
         )}
         {playing && (
@@ -366,6 +392,11 @@ export function CardRoom({
           >
             <span className="status-dot" />
             <div>
+              {teamMode && me && !game.isSpectator && (
+                <span className={`turn-team turn-team--${myTeamName.toLowerCase()}`}>
+                  {me.team === 0 ? '◆' : '●'} {myTeamName} team
+                </span>
+              )}
               <h1>
                 {game.isSpectator
                   ? 'Watching the table'
@@ -380,7 +411,9 @@ export function CardRoom({
                   ? view.attacks.length
                     ? `Beat ${view.attacks.length === 1 ? 'the card' : `all ${view.attacks.length} cards`} or pick up the table.`
                     : 'Select your cards, then send them to the table.'
-                  : 'The table moves clockwise. Stay ready.'}
+                  : teamMode
+                    ? `${state!.players.get(state!.currentTurn)?.team === 0 ? 'Blue' : 'Red'} team is playing. Stay ready.`
+                    : 'The table moves clockwise. Stay ready.'}
               </p>
             </div>
             <span
@@ -477,6 +510,15 @@ export function CardRoom({
             </span>
             <h2>{resultTitle}</h2>
             <p>{resultLine}</p>
+            {teamMode && state && (
+              <TeamBoard
+                state={state}
+                sessionId={session}
+                variant="result"
+                spectator={game.isSpectator}
+              />
+            )}
+            {teamMode && won && !draw && <p className="result-aside">The cleanup can wait.</p>}
             {horse && (
               <p>
                 Game {horseGameShown} · Blue: {state!.horseTeamA || '—'} · Red:{' '}
@@ -581,16 +623,26 @@ export function CardRoom({
           >
             {fallback ? 'Try 3D view' : '2D view'}
           </button>
-          <button
-            className="quiet-button"
-            aria-pressed={keyboard}
-            onClick={() => setKeyboard(!keyboard)}
-          >
-            {keyboard ? 'Hide card controls' : 'Card controls'}
-          </button>
+          {!(portrait && playing) && (
+            <button
+              className="quiet-button"
+              aria-pressed={keyboard}
+              onClick={() => setKeyboard(!keyboard)}
+            >
+              {keyboard ? 'Hide card controls' : 'Card controls'}
+            </button>
+          )}
         </div>
       </div>
-      {(keyboard || fallback) && phase !== 'waiting' && (
+      {teamMode && playing && state && (
+        <TeamBoard
+          state={state}
+          sessionId={session}
+          variant="playing"
+          spectator={game.isSpectator}
+        />
+      )}
+      {(keyboard || fallback || (portrait && playing)) && phase !== 'waiting' && !showResult && (
         <section className="card-controls">
           <div className="keyboard-hand" aria-label="Your hand">
             {view.hand.map((card) => (
@@ -636,12 +688,31 @@ export function CardRoom({
                 </small>
               </div>
               <div
-                className="attack-cards"
-                style={{ gridTemplateColumns: `repeat(${view.attacks.length}, minmax(0, 42px))` }}
+                className={`attack-cards ${preview?.legal && preview.kind === 'defense' ? 'has-defense-preview' : ''}`}
               >
-                {view.attacks.map((card) => (
-                  <Face key={card.key} card={card} />
-                ))}
+                {view.attacks.map((card) => {
+                  const defense =
+                    preview?.legal && preview.kind === 'defense'
+                      ? preview.pairs?.find((pair) => pair.attack.key === card.key)?.defense
+                      : undefined;
+                  return (
+                    <div
+                      className="defense-pair"
+                      key={card.key}
+                      aria-label={
+                        defense ? `${cardLabel(defense)} beats ${cardLabel(card)}` : cardLabel(card)
+                      }
+                    >
+                      <Face card={card} />
+                      {defense && (
+                        <>
+                          <span aria-hidden="true">→</span>
+                          <Face card={defense} />
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -664,7 +735,9 @@ export function CardRoom({
                   ? 'Sending to the table…'
                   : !preview
                     ? view.attacks.length
-                      ? `Pick one card to beat each of the ${view.attacks.length === 1 ? 'attacking card' : `${view.attacks.length} attacking cards`}, or pick up.`
+                      ? view.attacks.length === 1
+                        ? 'Choose a card to beat the attack, or pick up.'
+                        : `Choose one card for each of the ${view.attacks.length} attacks, or pick up.`
                       : 'Select cards, then confirm your play.'
                     : !preview.legal
                       ? preview.reason

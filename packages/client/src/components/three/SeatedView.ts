@@ -7,6 +7,7 @@ export class SeatedView {
   private yaw = 0;
   private pitch = 0;
   private spectator = false;
+  private resultView = false;
   private eyeSource?: (
     yaw: number,
     pitch: number,
@@ -37,6 +38,11 @@ export class SeatedView {
       this.recenter();
     }
   }
+  setResultView(active: boolean) {
+    if (active === this.resultView) return;
+    this.resultView = active;
+    this.apply();
+  }
   getLook() {
     return { yaw: this.yaw, pitch: this.pitch };
   }
@@ -53,12 +59,13 @@ export class SeatedView {
   private apply() {
     if (this.spectator) {
       // Spectators look down on the table from beyond the chairs, above head height.
+      const radius = this.resultView ? 5 : 5.6;
       this.camera.position.set(
-        Math.sin(this.yaw) * 5.6,
-        4.3 + this.pitch * 2,
-        Math.cos(this.yaw) * 5.6,
+        Math.sin(this.yaw) * radius,
+        (this.resultView ? 4 : 4.3) + this.pitch * 2,
+        Math.cos(this.yaw) * radius,
       );
-      this.camera.lookAt(0, 0, 0);
+      this.camera.lookAt(0, this.resultView ? 0.2 : 0, 0);
     } else {
       this.camera.position.copy(seatedEyes(this.yaw, this.pitch));
       this.camera.rotation.order = 'YXZ';

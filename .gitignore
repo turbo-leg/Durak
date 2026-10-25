@@ -8,3 +8,5 @@ output/playwright/
 output/clips/
 output/voice/
 .playwright-cli/
+.claude/
+output/

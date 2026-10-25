@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '../contexts/GameContext';
+import { RANKS, SUITS } from '../game/cardGlyphs';
 import './dev-panel.css';
 
 /**
@@ -9,6 +10,11 @@ import './dev-panel.css';
  */
 
 type Stats = Record<'fps' | 'renderCalls' | 'geometries' | 'textures' | 'avatarCount', string>;
+type BotHand = {
+  id: string;
+  username: string;
+  cards: Array<{ suit: string; rank: number; isJoker: boolean }>;
+};
 const OPEN_KEY = 'durak_dev_panel';
 
 /** The 3D table's renderer counters, sampled once a second. */
@@ -47,7 +53,33 @@ export default function DevPanel() {
     }
   });
   const [note, setNote] = useState('');
+  const [botHands, setBotHands] = useState<{ roomId: string; hands: BotHand[] }>({
+    roomId: '',
+    hands: [],
+  });
   const stats = useRendererStats();
+  const { room, gameState: state } = game;
+  const players = state ? Array.from(state.players.values()) : [];
+  const host = Boolean(room && state && room.sessionId === state.hostId);
+  const canPeek = Boolean(
+    room && state?.isPrivate && state.players.get(room.sessionId)?.control === 'human',
+  );
+  const empty = state ? state.maxPlayers - players.length : 0;
+  const visibleBotHands = botHands.roomId === room?.roomId ? botHands.hands : [];
+
+  useEffect(() => {
+    if (!open || !room || !canPeek) return;
+    const off = room.onMessage('dev_bot_hands', (data: { hands: BotHand[] }) => {
+      setBotHands({ roomId: room.roomId, hands: data.hands });
+    });
+    const refresh = () => room.send('dev_action', { action: 'peek_bot_hands' });
+    refresh();
+    const timer = window.setInterval(refresh, 1000);
+    return () => {
+      window.clearInterval(timer);
+      off();
+    };
+  }, [open, room, canPeek]);
 
   useEffect(() => {
     const toggle = (event: KeyboardEvent) => {
@@ -70,10 +102,6 @@ export default function DevPanel() {
 
   if (!open) return null;
 
-  const { room, gameState: state } = game;
-  const players = state ? Array.from(state.players.values()) : [];
-  const host = Boolean(room && state && room.sessionId === state.hostId);
-  const empty = state ? state.maxPlayers - players.length : 0;
   const flash = (text: string) => {
     setNote(text);
     setTimeout(() => setNote(''), 2000);
@@ -156,6 +184,34 @@ export default function DevPanel() {
               </tbody>
             </table>
           </section>
+          {state.isPrivate && (
+            <section aria-label="Bot hands">
+              <strong>Bot hands</strong>
+              {!canPeek ? <p>Join as a player to inspect bot cards.</p> : null}
+              {canPeek && visibleBotHands.length === 0 ? <p>No bot cards to show.</p> : null}
+              {visibleBotHands.map((bot) => (
+                <div className="dev-bot-hand" key={bot.id}>
+                  <span>{bot.username || bot.id}</span>
+                  <div className="dev-bot-cards">
+                    {bot.cards.length === 0 ? <span>Empty hand</span> : null}
+                    {bot.cards.map((card, index) => (
+                      <span
+                        className={
+                          card.suit === 'Hearts' || card.suit === 'Diamonds' || card.rank === 18
+                            ? 'dev-bot-card red'
+                            : 'dev-bot-card'
+                        }
+                        key={`${card.suit}-${card.rank}-${index}`}
+                      >
+                        {RANKS[card.rank] || card.rank}
+                        {SUITS[card.suit] || card.suit}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
           <section className="dev-panel-actions">
             <button disabled={!host || empty <= 0} onClick={() => addBots(empty, 'easy')}>
               Fill with easy bots

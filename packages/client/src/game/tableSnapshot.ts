@@ -39,6 +39,10 @@ export interface TableSnapshot {
   readonly serverTimeOffset?: number;
   readonly spectator?: boolean;
   readonly teamMode?: boolean;
+  /** A confirmed result, including its short rematch countdown. */
+  readonly resultVisible?: boolean;
+  readonly resultDraw?: boolean;
+  readonly winnerTeam?: number;
   /** Selected seat count, so empty seats can be shown around the table. */
   readonly capacity?: number;
   /** Waiting, counting down or showing results: seats show readiness. */
@@ -46,7 +50,12 @@ export interface TableSnapshot {
 }
 
 /** Public seat status: readiness between games, card count during play. */
-export function seatStatus(seat: TableSeat, betweenGames?: boolean): string {
+export function seatStatus(
+  seat: TableSeat,
+  betweenGames?: boolean,
+  resultVisible?: boolean,
+): string {
+  if (resultVisible) return seat.escaped ? 'Won' : `${seat.count} cards`;
   if (seat.standin) return 'Bot playing';
   if (seat.connected === false) return 'Reconnecting';
   if (betweenGames) return seat.bot ? 'Bot' : seat.ready ? 'Ready' : 'Not ready';
@@ -136,6 +145,10 @@ export function tableSnapshot(
     spectator,
     serverTimeOffset,
     teamMode: state.mode !== 'classic',
+    resultVisible:
+      state.phase === 'finished' || (state.phase === 'countdown' && state.winners.length > 0),
+    resultDraw: state.outcome === 'draw',
+    winnerTeam: state.winnerTeam,
     capacity: state.maxPlayers,
     betweenGames: ['waiting', 'countdown', 'finished'].includes(state.phase),
     hand: spectator ? [] : copyCards(state.players.get(sessionId)?.hand),

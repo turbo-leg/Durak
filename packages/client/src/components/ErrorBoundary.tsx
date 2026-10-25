@@ -6,49 +6,36 @@ interface Props {
 }
 interface State {
   hasError: boolean;
-  error: Error | null;
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  state: State = { hasError: false };
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Sentry is optional — only report if configured
-    if (typeof Sentry?.captureException === 'function') {
-      Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
-    }
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-indigo-950 flex items-center justify-center p-6">
-          <div className="bg-indigo-900 border border-indigo-700 rounded-xl p-8 max-w-md text-center text-white">
-            <div className="text-5xl mb-4">🃏</div>
-            <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
-            <p className="text-indigo-300 text-sm mb-6">The game ran into an unexpected error.</p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => this.setState({ hasError: false, error: null })}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-semibold transition"
-              >
-                Try again
-              </button>
-              <a
-                href="https://github.com/yourusername/durak/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-indigo-700 hover:bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold transition inline-block"
-              >
-                Contact Support
-              </a>
-            </div>
+        <main className="recovery-screen">
+          <div className="recovery-content">
+            <span className="recovery-suit" aria-hidden="true">
+              ♠
+            </span>
+            <p className="recovery-brand">durak</p>
+            <h1>The table needs a reset.</h1>
+            <p>
+              Reload to return to your seat. If your game is still running, we’ll try to reconnect
+              you.
+            </p>
+            <button onClick={() => location.reload()}>Reload table</button>
           </div>
-        </div>
+        </main>
       );
     }
     return this.props.children;

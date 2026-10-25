@@ -32,17 +32,23 @@ function fixture() {
   scene.add(camera);
   hand.position.set(0, -1, -2);
   hand.scale.setScalar(0.5);
-  const cards = new Map<string, { mesh: THREE.Mesh; removing?: boolean }>();
+  const cards = new Map<
+    string,
+    { mesh: THREE.Mesh; removing?: boolean; pendingParent?: THREE.Object3D }
+  >();
   Object.assign(table, {
     scene,
     camera,
     hand,
     cards,
+    droppedCards: [],
+    pendingDrops: new Map(),
+    defensePreview: new THREE.Group(),
     ownPreset: 'copper',
     avatars: new Map(),
     resources: new Set(),
     labels: new THREE.Group(),
-    controls: { setSpectator: vi.fn() },
+    controls: { setSpectator: vi.fn(), setResultView: vi.fn() },
     cardGeometry: new THREE.BoxGeometry(0.82, 0.035, 1.2),
     heldGeometry: new THREE.BoxGeometry(0.82, 0.015, 1.2),
     edge: new THREE.MeshStandardMaterial(),
@@ -53,7 +59,15 @@ function fixture() {
     reducedMotion: { matches: false },
     renderer: { capabilities: { getMaxAnisotropy: () => 16 } },
   });
-  const update = (state: TableSnapshot) => table.update(state, new Set());
+  const update = (state: TableSnapshot) => {
+    table.update(state, new Set());
+    // The fixture has no render loop; finish card reparenting as a settled frame would.
+    for (const card of cards.values()) {
+      if (!card.pendingParent) continue;
+      card.pendingParent.attach(card.mesh);
+      card.pendingParent = undefined;
+    }
+  };
   return { table, update, cards, scene, hand };
 }
 

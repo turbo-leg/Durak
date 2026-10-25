@@ -4,6 +4,7 @@ import { GameState, Player } from '@durak/shared';
 import DevPanel from '../room/DevPanel';
 
 const send = vi.fn();
+const listeners = new Map<string, (data: unknown) => void>();
 const game: Record<string, unknown> = {};
 vi.mock('../contexts/GameContext', () => ({ useGame: () => game }));
 
@@ -28,8 +29,17 @@ describe('Dev panel', () => {
   beforeEach(() => {
     localStorage.clear();
     send.mockClear();
+    listeners.clear();
     Object.assign(game, {
-      room: { roomId: 'abc', sessionId: 'me', send },
+      room: {
+        roomId: 'abc',
+        sessionId: 'me',
+        send,
+        onMessage: (type: string, callback: (data: unknown) => void) => {
+          listeners.set(type, callback);
+          return () => listeners.delete(type);
+        },
+      },
       gameState: table(),
       createGame: vi.fn(),
       startLobbyGame: vi.fn(),
@@ -54,7 +64,7 @@ describe('Dev panel', () => {
     expect(screen.getByText('Orgil')).toBeTruthy();
     fireEvent.click(screen.getByText('Fill with hard bots'));
     // Two empty seats on a private table: two bots, through the real add-bot message.
-    expect(send.mock.calls).toEqual([
+    expect(send.mock.calls.filter(([type]) => type === 'addBot')).toEqual([
       ['addBot', { difficulty: 'hard' }],
       ['addBot', { difficulty: 'hard' }],
     ]);
@@ -66,6 +76,30 @@ describe('Dev panel', () => {
     toggle();
     expect((screen.getByText('Fill with easy bots') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByText('Start game') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows live bot cards returned privately by the dev action', () => {
+    const state = game.gameState as GameState;
+    state.phase = 'playing';
+    render(<DevPanel />);
+    toggle();
+    expect(send).toHaveBeenCalledWith('dev_action', { action: 'peek_bot_hands' });
+    act(() => {
+      listeners.get('dev_bot_hands')?.({
+        hands: [
+          {
+            id: 'bot-1',
+            username: 'Orgil',
+            cards: [
+              { suit: 'Hearts', rank: 13, isJoker: false },
+              { suit: 'None', rank: 18, isJoker: true },
+            ],
+          },
+        ],
+      });
+    });
+    expect(screen.getByLabelText('Bot hands').textContent).toContain('K♥');
+    expect(screen.getByLabelText('Bot hands').textContent).toContain('RJ✦');
   });
 
   it('offers a new table when not in a room', () => {

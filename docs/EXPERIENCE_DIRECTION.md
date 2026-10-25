@@ -1,5 +1,23 @@
 # Durak experience direction: a cozy evening with friends
 
+## Direction update — 2026-10-23
+
+The user wants the whole journey, from first load to play, to feel production
+ready and **quirky and fun**. Keep the card room tactile and readable, with small
+humorous details rather than constant spectacle. On a confirmed team win, winners
+let go of any cards they still hold, the cards fall onto the felt, and teammates
+stand from their chairs. The result view should show the whole table so the group
+moment is visible. The player's remaining cards stay face down. A short line of
+copy can carry the joke after the motion settles; it must not contradict the
+server's winner or insult the losing team.
+
+The 2026-10-23 client pass added the loading identity, a visible mobile creation
+action, a compact team lobby, clearer play hints, and the team result treatment.
+A real 2v2 browser match reached a server-confirmed win, and an isolated renderer
+check confirmed four local card backs fall without revealing their faces. Physical
+device timing, performance, and the final character pose still need review before
+calling the experience release ready.
+
 Status: proposed experience specification, 2026-10-21. The user selected this
 atmosphere: warm light, tactile cards, relaxed banter, and moments of tension.
 This document plans presentation; it does not claim the proposed lifecycle or

@@ -31,6 +31,45 @@ afterEach(() => {
 });
 
 describe('production room debug guards', () => {
+  it('reveals bot cards only to seated humans in a private development game', () => {
+    const { room, send } = createRoom('development', { isPrivate: true });
+    room.state.phase = 'playing';
+    const bot = new Player('bot-1');
+    bot.control = 'bot';
+    bot.hand.push(new Card('Hearts', 13), new Card('None', 18, true));
+    room.state.players.set(bot.id, bot);
+    const hostClient = { sessionId: 'host', send: vi.fn() };
+    send(hostClient, { action: 'peek_bot_hands' });
+    expect(hostClient.send).toHaveBeenCalledWith('dev_bot_hands', {
+      hands: [
+        {
+          id: 'bot-1',
+          username: '',
+          cards: [
+            { suit: 'Hearts', rank: 13, isJoker: false },
+            { suit: 'None', rank: 18, isJoker: true },
+          ],
+        },
+      ],
+    });
+    const guest = new Player('guest');
+    room.state.players.set(guest.id, guest);
+    const guestClient = { sessionId: 'guest', send: vi.fn() };
+    send(guestClient, { action: 'peek_bot_hands' });
+    expect(guestClient.send).toHaveBeenCalledWith('dev_bot_hands', expect.any(Object));
+    const outsider = { sessionId: 'outsider', send: vi.fn() };
+    send(outsider, { action: 'peek_bot_hands' });
+    expect(outsider.send).not.toHaveBeenCalled();
+  });
+
+  it('never reveals bot cards in production', () => {
+    const { room, send } = createRoom('production', { isPrivate: true });
+    room.state.phase = 'playing';
+    const client = { sessionId: 'host', send: vi.fn() };
+    send(client, { action: 'peek_bot_hands' });
+    expect(client.send).not.toHaveBeenCalled();
+  });
+
   it.each(['force_pass', 'play_as'])('rejects host debug action %s in production', (action) => {
     const { room, send } = createRoom('production');
     const pass = vi.spyOn(room as any, 'nextTurn').mockImplementation(() => {});

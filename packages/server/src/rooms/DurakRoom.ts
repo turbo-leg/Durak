@@ -48,8 +48,8 @@ export class DurakRoom extends Room<GameState> {
   private turnTimeoutId: NodeJS.Timeout | null = null;
   private testModeDeck?: any;
   private gameRandom: () => number = Math.random;
-  private readonly opponentResponseMemory: OpponentResponseMemory = new Map();
   private botIds = new Map<string, BotDifficulty>(); // sessionId → difficulty
+  private readonly opponentResponseMemory: OpponentResponseMemory = new Map();
   private soloDifficulty: BotDifficulty | null = null;
   private rateLimitMap = new Map<string, number[]>(); // sessionId → timestamps
   private spectators = new Set<string>(); // sessionIds of read-only spectators
@@ -76,10 +76,12 @@ export class DurakRoom extends Room<GameState> {
   // Horse on a private table: the next deal continues (or restarts) the match.
   private horseContinues = false;
 
+  /** Supplies a match-local random stream for reproducible offline games. */
   setGameRandom(random: () => number): void {
     this.gameRandom = random;
   }
 
+  /** Match-local public response history used when a bot chooses an attack. */
   getOpponentResponseMemory(): OpponentResponseMemory {
     return this.opponentResponseMemory;
   }
@@ -284,6 +286,27 @@ export class DurakRoom extends Room<GameState> {
           !['easy', 'hard'].includes(message.difficulty))
       )
         return;
+      if (message.action === 'peek_bot_hands') {
+        if (!this.state.isPrivate || !['playing', 'finished'].includes(this.state.phase)) return;
+        if (this.state.players.get(client.sessionId)?.control !== 'human') return;
+        client.send('dev_bot_hands', {
+          hands: Array.from(this.state.players.values())
+            .filter((player) => player.control === 'bot')
+            .map((player) => ({
+              id: player.id,
+              username: player.username,
+              cards: Array.from(player.hand)
+                .filter((card): card is Card => !!card)
+                .map((card) => ({
+                  suit: card.suit,
+                  rank: card.rank,
+                  isJoker: card.isJoker,
+                })),
+            })),
+        });
+        return;
+      }
+
       // Host-only: only the lobby leader can mutate game state via dev actions.
       if (client.sessionId !== this.state.hostId) return;
 
@@ -1376,7 +1399,7 @@ export class DurakRoom extends Room<GameState> {
     for (let i = hasHuzur ? 1 : 0; i < this.state.deck.length; i++) rest.push(this.state.deck[i]!);
 
     for (const card of cards) {
-      const idx = Math.floor(Math.random() * (rest.length + 1));
+      const idx = Math.floor(this.gameRandom() * (rest.length + 1));
       rest.splice(idx, 0, new Card(card.suit, card.rank, card.isJoker));
     }
 

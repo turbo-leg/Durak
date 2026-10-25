@@ -63,16 +63,58 @@ describe('Table events', () => {
     ]);
   });
 
-  it('names the winners and the one player left holding cards when a game ends', () => {
+  it('names the winners and players left holding cards when a game ends', () => {
     const playing = table({ seats: [seat('peer', 1)] });
     const finished = table({
       betweenGames: true,
+      resultVisible: true,
       hand: [],
       seats: [seat('peer', 1)],
       self: { preset: 'copper', played: 0, escaped: true },
     });
     expect(tableEvents(playing, finished)).toEqual([
-      { kind: 'gameOver', winners: [SELF], loser: 'peer' },
+      { kind: 'gameOver', winners: [SELF], losers: ['peer'], teamWin: false },
+    ]);
+  });
+
+  it('recognizes a team result once and includes a teammate still holding cards', () => {
+    const winningSeat = { ...seat('peer', 3, 0, true), team: 0 };
+    const playing = table({ seats: [winningSeat], teamMode: true });
+    const finished = table({
+      seats: [winningSeat],
+      teamMode: true,
+      winnerTeam: 0,
+      resultVisible: true,
+      betweenGames: true,
+      self: { preset: 'copper', played: 0, escaped: true },
+    });
+    expect(tableEvents(playing, finished)).toEqual([
+      { kind: 'gameOver', winners: ['peer', SELF], losers: [], teamWin: true },
+    ]);
+    expect(tableEvents(finished, finished)).toEqual([]);
+  });
+
+  it('includes both losing teammates, including the local player', () => {
+    const seats = [seat('winner', 0, 0, true), seat('loser', 3)];
+    const before = table({ seats, teamMode: true });
+    const after = table({ seats, teamMode: true, winnerTeam: 0, resultVisible: true });
+    expect(tableEvents(before, after)).toEqual([
+      { kind: 'gameOver', winners: ['winner'], losers: ['loser', SELF], teamWin: true },
+    ]);
+  });
+
+  it('does not celebrate either side of a draw', () => {
+    const before = table();
+    const after = table({
+      resultVisible: true,
+      resultDraw: true,
+      betweenGames: true,
+      seats: [seat('peer', 0, 0, true)],
+      hand: [],
+      self: { preset: 'copper', played: 0, escaped: true },
+    });
+    expect(tableEvents(before, after)).toEqual([
+      { kind: 'gameOver', winners: [], losers: [], teamWin: false },
     ]);
   });
 

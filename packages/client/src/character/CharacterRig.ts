@@ -279,6 +279,10 @@ function chair() {
 /** Another player at the table, sitting on a chair and holding their cards in `fan`. */
 export class SeatedCharacter extends CharacterBody {
   readonly fan = new THREE.Group();
+  private teamVictory = false;
+  private cardsReleased = false;
+  private stand = 0;
+  private cheerUntil = 0;
   private yaw = 0;
   private pitch = 0;
   /** The head turns to a new look quickly; the torso follows more slowly behind it. */
@@ -295,7 +299,7 @@ export class SeatedCharacter extends CharacterBody {
   }
 
   protected override loaded() {
-    this.fan.visible = true;
+    this.fan.visible = !this.teamVictory && !this.cardsReleased;
     this.animate(0, true);
   }
 
@@ -304,11 +308,41 @@ export class SeatedCharacter extends CharacterBody {
     this.pitch = pitch;
   }
 
+  /** A team result briefly turns the seated bind pose into a standing pose. */
+  setTeamVictory(active: boolean) {
+    this.teamVictory = active;
+    if (!active) this.cheerUntil = 0;
+    this.fan.visible = !active && !this.cardsReleased && Boolean(this.pose);
+  }
+
+  releaseCards() {
+    this.cardsReleased = true;
+    this.count = 0;
+    this.fan.visible = false;
+  }
+
+  resetCards() {
+    this.cardsReleased = false;
+  }
+
+  override react(id: ReactionId, now = this.clock()) {
+    super.react(id, now);
+    if (id === 'victory') this.cheerUntil = now + REACTIONS.victory.duration;
+  }
+
   /** Pose for `now` (seconds); returns whether the body is still visibly moving. */
   animate(now: number, reduced: boolean) {
     if (!this.pose) return false;
     const dt = Math.min(0.1, Math.max(0, now - this.lastFrame));
     this.lastFrame = now;
+    const goal = this.teamVictory ? 1 : 0;
+    this.stand = reduced ? goal : THREE.MathUtils.lerp(this.stand, goal, 1 - Math.exp(-5 * dt));
+    if (Math.abs(this.stand - goal) < 0.003) this.stand = goal;
+    const size = avatarPreset(this.presetId).size ?? 1;
+    this.model!.position.y = BODY.seat * (1 - size) + this.stand * 0.4;
+    this.model!.position.z = this.stand * 0.09;
+    const chair = this.root.getObjectByName('chair');
+    if (chair) chair.position.z = -this.stand * 0.22;
     if (reduced) {
       this.head.yaw.snap(this.yaw);
       this.head.pitch.snap(this.pitch);
@@ -321,7 +355,7 @@ export class SeatedCharacter extends CharacterBody {
     const yaw = this.head.yaw.value;
     const pitch = this.head.pitch.value;
     const motion = { torso: this.torso.value, time: reduced ? undefined : now * 1000 };
-    const count = Math.min(7, this.count);
+    const count = this.teamVictory || this.cardsReleased ? 0 : Math.min(7, this.count);
     // The fan is carried in front of the eyes as they look, not as an emote bows the head.
     this.root.updateWorldMatrix(true, true);
     this.pose.look(yaw, pitch, motion);
@@ -344,12 +378,37 @@ export class SeatedCharacter extends CharacterBody {
       // The eyes reach a new look first; the head turns after them.
       gaze: { yaw: this.yaw - yaw, pitch: this.pitch - pitch },
     });
+    // The character rises while both knees unfold. The chair stays at the table.
+    for (const side of ['L', 'R']) {
+      this.model!.getObjectByName(`UpperLeg${side}`)?.quaternion.setFromAxisAngle(
+        new THREE.Vector3(1, 0, 0),
+        this.stand * 1.48,
+      );
+      this.model!.getObjectByName(`LowerLeg${side}`)?.quaternion.setFromAxisAngle(
+        new THREE.Vector3(1, 0, 0),
+        -this.stand * 1.48,
+      );
+      // Once the short cheer ends, hands relax at the sides instead of hovering
+      // where the invisible fan used to be.
+      if (this.teamVictory && now * 1000 >= this.cheerUntil) {
+        this.model!.getObjectByName(`UpperArm${side}`)?.quaternion.slerp(
+          new THREE.Quaternion(),
+          this.stand,
+        );
+        this.model!.getObjectByName(`LowerArm${side}`)?.quaternion.slerp(
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 1.25),
+          this.stand,
+        );
+      }
+    }
+    this.model!.updateWorldMatrix(true, true);
     // Held low over the table, the cards are raised as far as the pose raised its grip.
     frame.premultiply(new THREE.Matrix4().makeTranslation(0, this.pose.fanLift, 0));
     const local = this.root.matrixWorld.clone().invert().multiply(frame);
     local.decompose(this.fan.position, this.fan.quaternion, this.fan.scale);
     return (
       moving ||
+      this.stand !== goal ||
       (!reduced &&
         !(
           this.head.yaw.settled(this.yaw) &&

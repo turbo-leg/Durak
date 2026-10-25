@@ -4,15 +4,57 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a3624" />
+    <meta name="theme-color" content="#101e2c" />
     <meta
       name="description"
       content="Play custom Hot Potato Durak with friends at a real-time 3D card table."
     />
     <title>Durak - The Fool's Game</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+      }
+      .boot-screen {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: #101e2c;
+        color: #f3f0e6;
+        font-family: Georgia, serif;
+      }
+      .boot-screen > div {
+        text-align: center;
+      }
+      .boot-screen strong {
+        display: block;
+        font-size: clamp(46px, 9vw, 74px);
+        font-weight: 400;
+        letter-spacing: -0.05em;
+      }
+      .boot-screen strong span {
+        color: #c69c72;
+        font-size: 0.55em;
+        vertical-align: 0.2em;
+        margin-right: 0.25em;
+      }
+      .boot-screen p {
+        font:
+          13px/1.5 Arial,
+          sans-serif;
+        color: #a4b3bd;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" role="status">
+        <div>
+          <strong><span>♠</span>durak</strong>
+          <p>Pulling up your chair…</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

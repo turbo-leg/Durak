@@ -8,6 +8,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { seatStatus, type TableCard, type TableSnapshot } from '../../game/tableSnapshot';
 import { SELF, tableEvents, type TableEvent } from '../../game/tableEvents';
 import { cardFaceUrl, highResolutionCardFaceUrl } from '../../game/cardArt';
+import { looseCardLaunch, stepLooseCard, type LooseCard } from './cardPhysics';
 import {
   CHARACTER_SCALE,
   CHARACTER_FLOOR,
@@ -66,19 +67,24 @@ const labelHeight = (preset: string) =>
 type AnimatedCard = {
   mesh: THREE.Mesh;
   target: THREE.Vector3;
+  targetScale: number;
+  /** Keep a card in world space while it travels into a moving card fan. */
+  pendingParent?: THREE.Object3D;
   angle: number;
   roll: number;
   tilt: number;
   removing?: boolean;
   /** A played card rides in the player's hand (world point) until it is let go. */
   carry?: { until: number; at: () => THREE.Vector3 | undefined };
+  motion?: { from: THREE.Vector3; fromScale: number; start: number; duration: number };
 };
-
 export class TableRenderer {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(39, 1, 0.025, 70);
   private cards = new Map<string, AnimatedCard>();
+  private defensePreview = new THREE.Group();
+  private droppedCards: LooseCard[] = [];
   private previousSnapshot?: TableSnapshot;
   private resources = new Set<{ dispose(): void }>();
   private labels = new THREE.Group();
@@ -90,6 +96,8 @@ export class TableRenderer {
   private edge = new THREE.MeshStandardMaterial({ color: '#d7d6cc', roughness: 0.8 });
   private controls: SeatedView;
   private avatars = new Map<string, SeatedCharacter>();
+  private resultSelf?: SeatedCharacter;
+  private pendingDrops = new Map<string, { at: number; frustrated: boolean }>();
   private firstHands: FirstPersonCharacter | undefined;
   private ownPreset = '';
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,6 +109,7 @@ export class TableRenderer {
   private observer: ResizeObserver;
   private frame = 0;
   private lastRender = 0;
+  private lastDropFrame = 0;
   private disposed = false;
   private mobileQuality = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760;
   private canSelect = false;
@@ -160,6 +169,7 @@ export class TableRenderer {
       key.shadow.bias = -0.001;
       this.scene.add(key);
       this.scene.add(this.labels);
+      this.scene.add(this.defensePreview);
       this.camera.add(this.hand);
       const fill = new THREE.DirectionalLight('#a8d9fa', 1.4);
       fill.position.set(5, 4, -5);
@@ -466,14 +476,15 @@ export class TableRenderer {
     }
   }
 
-  private label(text: string, x: number, y: number, z: number, active = false) {
+  private label(text: string, x: number, y: number, z: number, active = false, team?: number) {
     const texture = this.texture(
       (ctx) => {
-        ctx.fillStyle = active ? '#bddce8' : '#172d40';
+        const teamColor = team === 0 ? '#a7d1e5' : team === 1 ? '#e6a199' : '#6b879d';
+        ctx.fillStyle = active ? (team === 1 ? '#e6b6ae' : '#bddce8') : '#172d40';
         ctx.beginPath();
         ctx.roundRect(2, 8, 508, 94, 24);
         ctx.fill();
-        ctx.strokeStyle = active ? '#e0eff5' : '#6b879d';
+        ctx.strokeStyle = active ? '#f3f0e6' : teamColor;
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.fillStyle = active ? '#203245' : '#dce6e8';
@@ -500,20 +511,35 @@ export class TableRenderer {
   private sizeLabel(sprite: THREE.Sprite) {
     const height = this.host.clientHeight;
     if (!height) return;
-    const distance = this.camera.position.distanceTo(sprite.position);
+    const distance = Math.max(
+      0.1,
+      -sprite.position.clone().applyMatrix4(this.camera.matrixWorldInverse).z,
+    );
     const unitsPerPixel =
       (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * distance) / height;
     const width = (height < 300 ? 96 : this.host.clientWidth < 600 ? 118 : 156) * unitsPerPixel;
     sprite.scale.set(width, (width * 112) / 512, 1);
   }
 
-  update(snapshot: TableSnapshot, selected: ReadonlySet<string>) {
+  update(
+    snapshot: TableSnapshot,
+    selected: ReadonlySet<string>,
+    defensePairs?: readonly { attack: TableCard; defense: TableCard }[],
+  ) {
     const previous = this.previousSnapshot;
     const events = tableEvents(previous, snapshot);
+    if (!snapshot.resultVisible && this.droppedCards.length) {
+      this.droppedCards.forEach(({ mesh }) => mesh.removeFromParent());
+      this.droppedCards = [];
+    }
+    if (!snapshot.resultVisible) this.pendingDrops.clear();
     // A newly played card leaves its player's hand rather than appearing at the chair.
     const playedBy = new Map<string, string>();
     for (const event of events)
       if (event.kind === 'play') event.cards.forEach((key) => playedBy.set(key, event.seat));
+    const pickupSeats = new Set(
+      events.filter((event) => event.kind === 'pickup').map((event) => event.seat),
+    );
     // Every selected seat has a place at the table, occupied or not.
     const ringCount = Math.max(
       snapshot.capacity ?? 0,
@@ -530,8 +556,10 @@ export class TableRenderer {
       );
     };
     this.canSelect = snapshot.canSelect;
-    this.controls.setSpectator(Boolean(snapshot.spectator));
-    this.hand.visible = !snapshot.spectator;
+    const resultView = Boolean(snapshot.resultVisible);
+    this.controls.setResultView(resultView);
+    this.controls.setSpectator(Boolean(snapshot.spectator || resultView));
+    this.hand.visible = !snapshot.spectator && !resultView;
     const preset = snapshot.self?.preset || 'copper';
     if (preset !== this.ownPreset) {
       this.firstHands?.dispose();
@@ -547,13 +575,35 @@ export class TableRenderer {
       this.ownPreset = preset;
     }
     if (this.firstHands) {
-      this.firstHands.root.visible = !snapshot.spectator;
+      this.firstHands.root.visible = !snapshot.spectator && !resultView && snapshot.hand.length > 0;
       // The grip follows the fan as laid out now, which resizing alone does not change.
       this.firstHands.setCardCount(
         snapshot.hand.length,
         fanHalfAngle(snapshot.hand.length, this.camera.aspect),
       );
       this.firstHands.setGesture(snapshot.self || {}, snapshot.serverTimeOffset);
+    }
+    if (resultView && !snapshot.spectator && snapshot.self) {
+      if (this.resultSelf && this.resultSelf.presetId !== preset) {
+        this.resultSelf.dispose();
+        this.resultSelf = undefined;
+      }
+      if (!this.resultSelf) {
+        this.resultSelf = new SeatedCharacter(preset, () => this.requestFrame());
+        this.resultSelf.table = tableClearance;
+        this.scene.add(this.resultSelf.root);
+      }
+      this.resultSelf.root.scale.setScalar(SEATED_PLAYER_SCALE);
+      this.resultSelf.root.position.set(0, CHARACTER_FLOOR, SEAT_RADIUS_Z);
+      this.resultSelf.root.rotation.y = Math.PI;
+      this.resultSelf.update(0, 0);
+      this.resultSelf.setGesture(snapshot.self, snapshot.serverTimeOffset, snapshot.hand.length);
+      this.resultSelf.setTeamVictory(
+        Boolean(snapshot.self.escaped && (snapshot.winnerTeam ?? -1) >= 0),
+      );
+    } else if (this.resultSelf) {
+      this.resultSelf.dispose();
+      this.resultSelf = undefined;
     }
     const labels = JSON.stringify([
       snapshot.deckCount,
@@ -572,6 +622,8 @@ export class TableRenderer {
       snapshot.spectator,
       snapshot.teamMode,
       snapshot.betweenGames,
+      snapshot.resultVisible,
+      snapshot.winnerTeam,
       ringCount,
     ]);
     const refreshLabels = this.labelSignature !== labels;
@@ -587,6 +639,11 @@ export class TableRenderer {
       });
     if (refreshLabels) this.labels.clear();
     const live = new Set<string>();
+    const dealFromDeck = Boolean(
+      previous &&
+      (snapshot.deckCount < previous.deckCount ||
+        (previous.hand.length === 0 && snapshot.hand.length > 0 && snapshot.deckCount > 0)),
+    );
     const put = (
       id: string,
       card: TableCard | null,
@@ -598,10 +655,13 @@ export class TableRenderer {
       tilt = 0.12,
       roll = 0,
       parentOverride?: THREE.Object3D,
+      dealOrder = 0,
     ) => {
       const visualId = card ? `card:${card.key}` : id;
       live.add(visualId);
       let item = this.cards.get(visualId);
+      const fresh = !item;
+      const targetScale = handKey || parentOverride ? HELD_CARD_SCALE : TABLE_CARD_SCALE;
       if (!item) {
         const material = card ? this.face(card, id.startsWith('huzur:')) : this.back;
         const mesh = new THREE.Mesh(
@@ -613,9 +673,11 @@ export class TableRenderer {
         // Apply the upright tilt first, then fan around the viewer's forward axis.
         if (handKey) {
           mesh.rotation.order = 'ZYX';
-          mesh.scale.setScalar(HELD_CARD_SCALE);
-        } else mesh.scale.setScalar(TABLE_CARD_SCALE);
+        }
+        mesh.scale.setScalar(targetScale);
         mesh.position.copy(DECK_TOP);
+        if (id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!))
+          mesh.position.copy(TABLE_CENTRE);
         const sourceSeat = previous?.seats.find((seat) => seat.active);
         const player = card ? playedBy.get(card.key) : undefined;
         const palm = player
@@ -624,12 +686,7 @@ export class TableRenderer {
         if (palm) mesh.position.copy(palm);
         else if (sourceSeat && (id.startsWith('attack:') || id.startsWith('history:')))
           mesh.position.copy(seatPosition(sourceSeat.id));
-        if (handKey || parentOverride) {
-          const frame = parentOverride ?? this.hand;
-          frame.updateWorldMatrix(true, false);
-          frame.worldToLocal(mesh.position);
-        }
-        item = { mesh, target: new THREE.Vector3(), angle, roll, tilt };
+        item = { mesh, target: new THREE.Vector3(x, y, z), targetScale, angle, roll, tilt };
         if (palm && player) {
           const slot = new THREE.Vector3(x, y, z);
           item.carry = {
@@ -638,16 +695,23 @@ export class TableRenderer {
           };
         }
         this.cards.set(visualId, item);
-        (parentOverride ?? (handKey ? this.hand : this.scene)).add(mesh);
+        this.scene.add(mesh);
+        if (handKey || parentOverride) item.pendingParent = parentOverride ?? this.hand;
       }
       const parent = parentOverride ?? (handKey ? this.hand : this.scene);
-      if (item.mesh.parent !== parent) {
-        // Preserve the current world pose even when an exiting card returns to the hand.
-        parent.attach(item.mesh);
+      const parentChanged = (item.pendingParent ?? item.mesh.parent) !== parent;
+      if (parentChanged) {
+        if (parent !== this.scene && item.mesh.parent === this.scene) {
+          // Hands and fans move during pickup. Attach only after the flight lands.
+          item.pendingParent = parent;
+        } else {
+          item.pendingParent = undefined;
+          // Preserve the current world pose when a played card leaves the hand.
+          if (item.mesh.parent !== parent) parent.attach(item.mesh);
+        }
       }
       if (card) {
         item.mesh.geometry = handKey ? this.heldGeometry : this.cardGeometry;
-        item.mesh.scale.setScalar(handKey ? HELD_CARD_SCALE : TABLE_CARD_SCALE);
         item.mesh.rotation.reorder(handKey ? 'ZYX' : 'XYZ');
         item.mesh.material = [this.edge, this.face(card, id.startsWith('huzur:')), this.back];
         item.mesh.userData.cardKey = card.key;
@@ -655,7 +719,37 @@ export class TableRenderer {
       }
       item.removing = false;
       item.mesh.userData.handKey = handKey;
+      const nextTarget = new THREE.Vector3(x, y, z);
+      if (
+        fresh ||
+        parentChanged ||
+        item.target.distanceToSquared(nextTarget) > 0.000016 ||
+        item.targetScale !== targetScale
+      ) {
+        const deal = fresh && dealFromDeck && (Boolean(handKey) || id.startsWith('seat:'));
+        item.motion = {
+          from: item.mesh.position.clone(),
+          fromScale: item.mesh.scale.x,
+          start:
+            performance.now() +
+            (pickupSeats.has(SELF) && parent === this.hand && !fresh
+              ? 550
+              : id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!)
+                ? 550
+                : deal
+                  ? dealOrder * 65
+                  : 0),
+          duration: deal
+            ? 650
+            : pickupSeats.size && parent !== this.scene
+              ? 520
+              : handKey
+                ? 300
+                : 480,
+        };
+      }
       item.target.set(x, y, z);
+      item.targetScale = targetScale;
       item.angle = angle;
       item.roll = roll;
       item.tilt = tilt;
@@ -730,6 +824,7 @@ export class TableRenderer {
         0,
       ),
     );
+    this.updateDefensePreview(snapshot.attacks, defensePairs);
     const handStep = fanStep(snapshot.hand.length, this.camera.aspect);
     snapshot.hand.forEach((card, i) => {
       const { angle, position } = heldCard(
@@ -748,8 +843,31 @@ export class TableRenderer {
         card.key,
         Math.PI / 2,
         -angle,
+        undefined,
+        i * ringCount,
       );
     });
+    if (this.resultSelf) {
+      const fanCount = Math.min(7, snapshot.hand.length);
+      for (let n = 0; n < fanCount; n++) {
+        const { angle, position } = heldCard(n, fanCount, fanStep(fanCount));
+        put(
+          `result-self:${n}`,
+          null,
+          position.x,
+          position.y,
+          position.z,
+          0,
+          undefined,
+          Math.PI / 2,
+          -angle,
+          this.resultSelf.fan,
+        );
+        const mesh = this.cards.get(`result-self:${n}`)!.mesh;
+        mesh.scale.setScalar(HELD_CARD_SCALE);
+        mesh.rotation.order = 'ZYX';
+      }
+    }
     const present = new Set(snapshot.seats.map((s) => s.id));
     for (const [id, rig] of this.avatars) {
       if (!present.has(id)) {
@@ -802,6 +920,7 @@ export class TableRenderer {
       }
       rig.update(yaw, seat.pitch || 0);
       rig.setGesture(seat, snapshot.serverTimeOffset, seat.count);
+      if (!snapshot.resultVisible) rig.resetCards();
       const fanCount = Math.min(7, seat.count);
       for (let n = 0; n < fanCount; n++) {
         const { angle, position } = heldCard(n, fanCount, fanStep(fanCount));
@@ -816,33 +935,31 @@ export class TableRenderer {
           Math.PI / 2,
           -angle,
           rig.fan,
+          n * ringCount + i + 1,
         );
         const mesh = this.cards.get(`seat:${seat.id}:${n}`)!.mesh;
         mesh.scale.setScalar(HELD_CARD_SCALE);
         mesh.rotation.order = 'ZYX';
       }
+      rig.setTeamVictory(
+        Boolean(
+          snapshot.resultVisible &&
+          snapshot.teamMode &&
+          (snapshot.winnerTeam ?? -1) >= 0 &&
+          seat.team === snapshot.winnerTeam,
+        ),
+      );
       if (refreshLabels)
         this.label(
-          `${snapshot.teamMode ? (seat.team === 0 ? '◆ Blue · ' : '● Red · ') : ''}${seat.name.slice(0, 20)} · ${seatStatus(seat, snapshot.betweenGames)}`,
+          `${snapshot.teamMode ? (seat.team === 0 ? '◆ Blue · ' : '● Red · ') : ''}${seat.name.slice(0, 20)} · ${seatStatus(seat, snapshot.betweenGames, snapshot.resultVisible)}`,
           x,
-          labelHeight(preset),
+          labelHeight(preset) +
+            (snapshot.resultVisible && seat.team === snapshot.winnerTeam ? cm(40) : 0),
           z,
           seat.active,
+          snapshot.teamMode ? seat.team : undefined,
         );
     });
-    if (refreshLabels) {
-      // Unoccupied seats follow the occupied ones clockwise.
-      const offset = snapshot.spectator ? 0 : 1;
-      for (let i = snapshot.seats.length + offset; i < ringCount; i++) {
-        const angle = (i * Math.PI * 2) / ringCount;
-        this.label(
-          'Empty seat',
-          Math.sin(angle) * SEAT_RADIUS_X,
-          CHARACTER_FLOOR + cm(110),
-          Math.cos(angle) * SEAT_RADIUS_Z,
-        );
-      }
-    }
     for (const [id, card] of this.cards) {
       if (!live.has(id) && !card.removing) {
         const key = card.mesh.userData.cardKey;
@@ -881,6 +998,12 @@ export class TableRenderer {
         card.angle = -0.12;
         card.tilt = 0.12;
         card.roll = 0;
+        card.motion = {
+          from: card.mesh.position.clone(),
+          fromScale: card.mesh.scale.x,
+          start: performance.now() + (recipient ? 550 : 0),
+          duration: recipient ? 520 : 480,
+        };
       }
     }
     if (!this.reducedMotion.matches) this.actOut(events);
@@ -893,10 +1016,15 @@ export class TableRenderer {
     const body = (seat: string) => (seat === SELF ? this.firstHands : this.avatars.get(seat));
     for (const event of events) {
       if (event.kind === 'gameOver') {
-        // Seen on the other players; the local view keeps its eyes on the table.
-        if (event.loser && event.loser !== SELF) this.avatars.get(event.loser)?.react('cry');
-        for (const winner of event.winners)
-          if (winner !== SELF) this.avatars.get(winner)?.react('victory');
+        for (const loser of event.losers) {
+          (loser === SELF ? this.resultSelf : this.avatars.get(loser))?.react('cry');
+          this.pendingDrops.set(loser, { at: performance.now() + 1350, frustrated: true });
+        }
+        for (const winner of event.winners) {
+          if (event.teamWin)
+            this.pendingDrops.set(winner, { at: performance.now() + 620, frustrated: false });
+          (winner === SELF ? this.resultSelf : this.avatars.get(winner))?.react('victory');
+        }
         continue;
       }
       const actor = body(event.seat);
@@ -909,6 +1037,69 @@ export class TableRenderer {
     }
   }
 
+  /** A local, uncommitted card rests just above the attack it would beat. */
+  private updateDefensePreview(
+    attacks: readonly TableCard[],
+    pairs?: readonly { attack: TableCard; defense: TableCard }[],
+  ) {
+    for (const object of this.defensePreview.children) {
+      const mesh = object as THREE.Mesh;
+      (mesh.material as THREE.Material[])[1]?.dispose();
+    }
+    this.defensePreview.clear();
+    if (!pairs?.length || pairs.length !== attacks.length) return;
+    for (const { attack, defense } of pairs) {
+      const index = attacks.findIndex((card) => card.key === attack.key);
+      if (index < 0) continue;
+      const face = this.face(defense).clone();
+      face.transparent = true;
+      face.opacity = 0.78;
+      face.depthWrite = false;
+      const mesh = new THREE.Mesh(this.cardGeometry, [this.edge, face, this.back]);
+      mesh.position.set(
+        (index - (attacks.length - 1) / 2) * LAYOUT.spacing + cm(1.6),
+        TABLE_TOP + cm(1.4),
+        LAYOUT.attackZ - cm(4),
+      );
+      mesh.scale.setScalar(TABLE_CARD_SCALE);
+      mesh.rotation.x = 0.12;
+      mesh.rotation.y = -0.08;
+      mesh.renderOrder = 2;
+      this.defensePreview.add(mesh);
+    }
+  }
+
+  /** Loose cards tumble from a winning teammate's hand onto the felt. */
+  private dropCards(seat: string, frustrated: boolean) {
+    const rig = seat === SELF ? this.resultSelf : this.avatars.get(seat);
+    if (!rig) return;
+    rig.fan.updateWorldMatrix(true, true);
+    const cards = rig.fan.children.filter(
+      (object): object is THREE.Mesh => object instanceof THREE.Mesh,
+    );
+    cards.slice(0, 4).forEach((source, index) => {
+      const mesh = source.clone();
+      source.getWorldPosition(mesh.position);
+      source.getWorldQuaternion(mesh.quaternion);
+      source.getWorldScale(mesh.scale);
+      mesh.castShadow = true;
+      this.scene.add(mesh);
+      this.droppedCards.push({
+        mesh,
+        velocity: looseCardLaunch(mesh.position, index, frustrated),
+        angularVelocity: new THREE.Vector3(
+          (index % 2 ? 1 : -1) * (frustrated ? 5 : 3),
+          (index - 1.5) * 1.1,
+          (index % 2 ? -1 : 1) * (frustrated ? 3.2 : 2),
+        ),
+        bounces: 0,
+        grounded: false,
+        settled: false,
+      });
+    });
+    rig.releaseCards();
+  }
+
   recenter() {
     this.controls.recenter();
   }
@@ -919,7 +1110,7 @@ export class TableRenderer {
     const mobile = width < 760 || window.matchMedia('(pointer: coarse)').matches;
     this.mobileQuality = mobile;
     this.renderer.shadowMap.enabled = !mobile;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1.5 : 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1 : 2));
     this.faces.forEach((material) => {
       if (material instanceof THREE.MeshPhysicalMaterial) {
         material.clearcoat = mobile ? 0 : 0.18;
@@ -935,7 +1126,19 @@ export class TableRenderer {
     });
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
-    this.camera.fov = 80;
+    // Keep the same horizontal view as the scene grows into a portrait viewport.
+    this.camera.fov =
+      width < 760
+        ? Math.min(
+            110,
+            THREE.MathUtils.radToDeg(
+              2 *
+                Math.atan(
+                  Math.tan(THREE.MathUtils.degToRad(40)) * Math.max(1, 1.25 / this.camera.aspect),
+                ),
+            ),
+          )
+        : 80;
     this.camera.updateProjectionMatrix();
     // Fit the complete fan without distorting the proportions of each card.
     const depth = CARRY_DEPTH;
@@ -1013,15 +1216,27 @@ export class TableRenderer {
     if (this.disposed) return;
     let moving = false;
     const now = performance.now();
-    if (this.host.clientWidth < 760 && now - this.lastRender < 32) {
-      this.idleTimer = setTimeout(this.requestFrame, 32 - (now - this.lastRender));
+    if (this.mobileQuality && now - this.lastRender < 30) {
+      // Check on the next display frame. A timer followed by RAF skips another frame.
+      this.requestFrame();
       return;
     }
-    // Cards ease toward their places at the same pace whatever the frame rate.
-    const follow = 1 - Math.exp(-15 * Math.min(0.1, (now - this.lastRender) / 1000));
+    // Small hover and tilt changes stay responsive; large moves use fixed durations.
+    const follow = 1 - Math.exp(-10 * Math.min(0.1, (now - this.lastRender) / 1000));
     this.lastRender = now;
     for (const rig of this.avatars.values())
       moving = rig.animate(now / 1000, this.reducedMotion.matches) || moving;
+    if (this.resultSelf)
+      moving = this.resultSelf.animate(now / 1000, this.reducedMotion.matches) || moving;
+    for (const [seat, drop] of this.pendingDrops) {
+      if (now < drop.at) {
+        moving = true;
+        continue;
+      }
+      this.dropCards(seat, drop.frustrated);
+      this.pendingDrops.delete(seat);
+      moving = true;
+    }
     if (this.firstHands && this.hand.visible) {
       // The local fan is drawn up out of the way while the free hand reaches across.
       this.hand.position.set(
@@ -1031,10 +1246,12 @@ export class TableRenderer {
       );
       moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
     }
+    // The eye rig can move the camera after labels are created. Keep nameplates
+    // at a stable screen size as the seated view or result view settles.
+    this.labels.children.forEach((label) => this.sizeLabel(label as THREE.Sprite));
     for (const [id, card] of this.cards) {
       const held = card.carry && now < card.carry.until ? card.carry.at() : undefined;
-      if (!held) card.carry = undefined;
-      else {
+      if (held) {
         // In the hand: follow the palm exactly while turning toward its place on the table.
         card.mesh.position.copy(held);
         card.mesh.rotation.y = THREE.MathUtils.lerp(card.mesh.rotation.y, card.angle, follow);
@@ -1043,13 +1260,39 @@ export class TableRenderer {
         moving = true;
         continue;
       }
+      if (card.carry) {
+        card.carry = undefined;
+        card.motion = {
+          from: card.mesh.position.clone(),
+          fromScale: card.mesh.scale.x,
+          start: now,
+          duration: 360,
+        };
+      }
       this.targetPosition.copy(card.target);
       if (this.canSelect && card.mesh.userData.handKey === this.hoverKey)
         this.targetPosition.y += 0.22;
+      if (card.pendingParent) {
+        card.pendingParent.updateWorldMatrix(true, false);
+        card.pendingParent.localToWorld(this.targetPosition);
+      }
       const distance = card.mesh.position.distanceTo(this.targetPosition);
-      const tiltDelta = Math.abs(card.mesh.rotation.x - card.tilt);
-      if (this.reducedMotion.matches || distance < 0.004) {
+      const rotationDistance = Math.max(
+        Math.abs(card.mesh.rotation.x - card.tilt),
+        Math.abs(card.mesh.rotation.y - card.angle),
+        Math.abs(card.mesh.rotation.z - card.roll),
+      );
+      if (
+        this.reducedMotion.matches ||
+        (distance < 0.004 && rotationDistance < 0.004 && !card.motion)
+      ) {
         card.mesh.position.copy(this.targetPosition);
+        card.mesh.scale.setScalar(card.targetScale);
+        card.motion = undefined;
+        if (card.pendingParent) {
+          card.pendingParent.attach(card.mesh);
+          card.pendingParent = undefined;
+        }
         card.mesh.rotation.y = card.angle;
         card.mesh.rotation.z = card.roll;
         card.mesh.rotation.x = card.tilt;
@@ -1058,14 +1301,45 @@ export class TableRenderer {
           this.cards.delete(id);
         }
       } else {
-        card.mesh.position.lerp(this.targetPosition, follow);
+        if (card.motion) {
+          const progress = THREE.MathUtils.clamp(
+            (now - card.motion.start) / card.motion.duration,
+            0,
+            1,
+          );
+          const eased = progress * progress * (3 - 2 * progress);
+          card.mesh.position.copy(card.motion.from).lerp(this.targetPosition, eased);
+          card.mesh.scale.setScalar(
+            THREE.MathUtils.lerp(card.motion.fromScale, card.targetScale, eased),
+          );
+          if (progress >= 1) {
+            card.motion = undefined;
+            if (card.pendingParent) {
+              card.pendingParent.attach(card.mesh);
+              card.pendingParent = undefined;
+            }
+          }
+        } else {
+          card.mesh.position.lerp(this.targetPosition, follow);
+          card.mesh.scale.setScalar(card.targetScale);
+        }
         card.mesh.rotation.y = THREE.MathUtils.lerp(card.mesh.rotation.y, card.angle, follow);
         card.mesh.rotation.z = THREE.MathUtils.lerp(card.mesh.rotation.z, card.roll, follow);
         card.mesh.rotation.x = THREE.MathUtils.lerp(card.mesh.rotation.x, card.tilt, follow);
-        if (tiltDelta > 0.002) moving = true;
         moving = true;
       }
     }
+    const dropSeconds = Math.min(0.05, Math.max(0, (now - (this.lastDropFrame || now)) / 1000));
+    this.droppedCards = this.droppedCards.filter((drop) => {
+      const outcome = stepLooseCard(drop, dropSeconds);
+      if (outcome === 'gone') {
+        drop.mesh.removeFromParent();
+        return false;
+      }
+      if (outcome === 'moving') moving = true;
+      return true;
+    });
+    this.lastDropFrame = now;
     this.renderer.render(this.scene, this.camera);
     if (import.meta.env.DEV) {
       this.host.dataset.renderCalls = String(this.renderer.info.render.calls);
@@ -1075,10 +1349,9 @@ export class TableRenderer {
       // Frames drawn so far; the dev panel turns this into frames per second.
       this.host.dataset.frames = String(Number(this.host.dataset.frames ?? 0) + 1);
     }
-    if (moving) this.idleTimer = setTimeout(this.requestFrame, 16);
-    // Seated players keep breathing: slow, small motion that reads smoothly at 20 fps.
-    else if (this.avatars.size > 0 && !this.reducedMotion.matches)
-      this.idleTimer = setTimeout(this.requestFrame, this.mobileQuality ? 125 : 50);
+    // Keep one frame cadence through an action and back to breathing. Switching
+    // from a timer to RAF at each turn made the whole table appear to stutter.
+    if (moving || (this.avatars.size > 0 && !this.reducedMotion.matches)) this.requestFrame();
   };
 
   dispose() {
@@ -1088,8 +1361,12 @@ export class TableRenderer {
     this.observer?.disconnect();
     this.controls?.dispose();
     this.avatars.forEach((rig) => rig.dispose());
+    this.resultSelf?.dispose();
+    this.pendingDrops.clear();
+    this.droppedCards.forEach(({ mesh }) => mesh.removeFromParent());
     this.avatars.clear();
     this.firstHands?.dispose();
+    this.updateDefensePreview([], undefined);
     document.removeEventListener('visibilitychange', this.visibility);
     this.reducedMotion.removeEventListener('change', this.requestFrame);
     const canvas = this.renderer.domElement;

@@ -42,6 +42,7 @@ describe('public seat status', () => {
     expect(seatStatus({ ...seat, bot: true }, true)).toBe('Bot');
     expect(seatStatus(seat, false)).toBe('4 cards');
     expect(seatStatus({ ...seat, escaped: true }, false)).toBe('Won');
+    expect(seatStatus({ ...seat, escaped: true }, true, true)).toBe('Won');
     expect(seatStatus({ ...seat, connected: false }, false)).toBe('Reconnecting');
     expect(seatStatus({ ...seat, connected: false, standin: true }, false)).toBe('Bot playing');
   });

@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { TableRenderer } from './TableRenderer';
-import { cardLabel, type TableSnapshot } from '../../game/tableSnapshot';
+import { cardLabel, type TableCard, type TableSnapshot } from '../../game/tableSnapshot';
 
 interface Props {
   snapshot: TableSnapshot;
   selectedKeys: string;
+  defensePairs?: readonly { attack: TableCard; defense: TableCard }[];
   backUrl: string | null;
   onSelect: (key: string) => void;
   onUnavailable: () => void;
@@ -15,6 +16,7 @@ interface Props {
 export default function ThreeTable({
   snapshot,
   selectedKeys,
+  defensePairs,
   backUrl,
   onSelect,
   onUnavailable,
@@ -23,9 +25,9 @@ export default function ThreeTable({
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<TableRenderer | null>(null);
-  const latest = useRef({ snapshot, selectedKeys, onSelect, onUnavailable, onLook });
+  const latest = useRef({ snapshot, selectedKeys, defensePairs, onSelect, onUnavailable, onLook });
   useEffect(() => {
-    latest.current = { snapshot, selectedKeys, onSelect, onUnavailable, onLook };
+    latest.current = { snapshot, selectedKeys, defensePairs, onSelect, onUnavailable, onLook };
   });
   useEffect(() => {
     if (!host.current) return;
@@ -38,7 +40,11 @@ export default function ThreeTable({
         (yaw, pitch) => latest.current.onLook?.(yaw, pitch),
       );
       renderer.current = table;
-      table.update(latest.current.snapshot, new Set(latest.current.selectedKeys.split('|')));
+      table.update(
+        latest.current.snapshot,
+        new Set(latest.current.selectedKeys.split('|')),
+        latest.current.defensePairs,
+      );
       return () => {
         renderer.current = null;
         table.dispose();
@@ -49,7 +55,11 @@ export default function ThreeTable({
   }, [backUrl]);
   // The signature changes only on meaningful schema changes, not HUD timer frames.
   useEffect(() => {
-    renderer.current?.update(latest.current.snapshot, new Set(selectedKeys.split('|')));
+    renderer.current?.update(
+      latest.current.snapshot,
+      new Set(selectedKeys.split('|')),
+      latest.current.defensePairs,
+    );
   }, [snapshot.signature, selectedKeys]);
   useEffect(() => {
     renderer.current?.recenter();

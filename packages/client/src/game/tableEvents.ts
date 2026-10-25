@@ -11,7 +11,7 @@ export type TableEvent =
   | { kind: 'play'; seat: string; cards: string[] }
   | { kind: 'pickup'; seat: string }
   | { kind: 'draw'; seat: string; count: number }
-  | { kind: 'gameOver'; winners: string[]; loser?: string };
+  | { kind: 'gameOver'; winners: string[]; losers: string[]; teamWin: boolean };
 
 const onTable = (s: TableSnapshot) => new Set([...s.attacks, ...s.history].map((c) => c.key));
 
@@ -59,14 +59,14 @@ export function tableEvents(
     if (pickedUp) events.push({ kind: 'pickup', seat: person.id });
     else if (drawn) events.push({ kind: 'draw', seat: person.id, count: gained });
   }
-  if (!previous.betweenGames && next.betweenGames) {
-    const winners = people.filter((p) => p.escaped).map((p) => p.id);
-    const holding = people.filter((p) => !p.escaped && p.count > 0);
-    // The durak is the one player left holding cards.
+  if (!previous.resultVisible && next.resultVisible) {
+    const winners = next.resultDraw ? [] : people.filter((p) => p.escaped).map((p) => p.id);
+    const holding = next.resultDraw ? [] : people.filter((p) => !p.escaped && p.count > 0);
     events.push({
       kind: 'gameOver',
       winners,
-      ...(holding.length === 1 ? { loser: holding[0]!.id } : {}),
+      losers: holding.map((person) => person.id),
+      teamWin: Boolean(next.teamMode && (next.winnerTeam ?? -1) >= 0),
     });
   }
   return events;
