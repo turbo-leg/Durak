@@ -54,6 +54,11 @@ beforeEach(() => {
     isSpectator: false,
     isReconnecting: false,
     serverTimeOffset: 0,
+    // Mirrors the server's 'private' message for the seat 'me'.
+    get privateView() {
+      const self = state.players.get('me');
+      return { hand: self?.hand ?? [], pickedUpCardKeys: self?.pickedUpCardKeys ?? [] };
+    },
     createGame: create,
     clearGameMessage: vi.fn(),
     clearGameAbortReason: vi.fn(),

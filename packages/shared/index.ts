@@ -8,3 +8,4 @@ export * from './src/engine/DurakEngine';
 export * from './src/badges';
 export * from './src/ladder/tiers';
 export * from './src/presence';
+export * from './src/privateView';

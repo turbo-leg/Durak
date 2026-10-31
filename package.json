@@ -18,6 +18,7 @@
     "bot:lab": "node scripts/run-bot-lab.mjs",
     "bot:duel": "node scripts/run-bot-duel.mjs",
     "bot:selfplay": "node scripts/run-bot-selfplay.mjs",
+    "load:test": "node scripts/load-test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "knip": "knip",

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { Client, Room } from 'colyseus.js';
 import type { RoomAvailable } from 'colyseus.js';
-import { GameState } from '@durak/shared';
+import { GameState, EMPTY_PRIVATE_VIEW } from '@durak/shared';
+import type { PrivateView } from '@durak/shared';
 import { discordSdk, getDiscordSessionToken, clearDiscordSessionToken } from '../discordAuth';
 import { isSessionTokenCurrent } from '../game/sessionToken';
 import { useAuth } from './AuthContext';
@@ -16,6 +17,10 @@ type DefenseSnapshot = {
 export type SuhuhDraw = { playerId: string; suit: string; rank: number; isJoker: boolean };
 export type SuhuhResult = { draws: SuhuhDraw[]; winnerId: string } | null;
 export type DiscardedCard = { suit: string; rank: number; isJoker: boolean };
+
+// The server sends a private view just before the patch it belongs to; this is how
+// long it waits for that patch before applying the view alone (join, reconnect).
+const PRIVATE_VIEW_FALLBACK_MS = 150;
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'waiting_opponent';
 
@@ -93,6 +98,8 @@ interface GameContextState {
   updateLobbySettings: (settings: Partial<GameState>) => void;
   startLobbyGame: () => void;
   serverTimeOffset: number;
+  /** Your own hand and pickup marks; never part of synced state. */
+  privateView: PrivateView;
 }
 
 const GameContext = createContext<GameContextState>({
@@ -130,6 +137,7 @@ const GameContext = createContext<GameContextState>({
   updateLobbySettings: () => {},
   startLobbyGame: () => {},
   serverTimeOffset: 0,
+  privateView: EMPTY_PRIVATE_VIEW,
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -239,6 +247,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const reconnectAttemptRef = useRef<Promise<boolean> | null>(null);
   const activeRoomRef = useRef<Room<GameState> | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
+  const [privateView, setPrivateView] = useState<PrivateView>(EMPTY_PRIVATE_VIEW);
   // Colyseus mutates state in place, so we need a manual tick to trigger React updates
   const [, setTick] = useState(0);
   const gameState = room?.state || null;
@@ -308,7 +317,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessionStorage.setItem(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
     }
 
+    setPrivateView(EMPTY_PRIVATE_VIEW);
+    // A private view arrives just ahead of its patch; hold it so the hand and the
+    // table change in the same render instead of a card vanishing for a frame.
+    let pendingView: PrivateView | null = null;
+    let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+    const applyPendingView = () => {
+      clearTimeout(pendingTimer);
+      if (activeRoomRef.current !== roomInstance || !pendingView) return;
+      setPrivateView(pendingView);
+      pendingView = null;
+    };
+    roomInstance.onMessage('private', (view: PrivateView) => {
+      pendingView = view;
+      clearTimeout(pendingTimer);
+      pendingTimer = setTimeout(applyPendingView, PRIVATE_VIEW_FALLBACK_MS);
+    });
+
     roomInstance.onStateChange((state) => {
+      applyPendingView();
       setTick((t) => t + 1);
       if (state.phase === 'playing') setRematchState(null);
       // A watcher who was given a seat (invitation or late arrival) is now a player.
@@ -672,6 +699,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateLobbySettings,
         startLobbyGame,
         serverTimeOffset,
+        privateView,
       }}
     >
       {children}

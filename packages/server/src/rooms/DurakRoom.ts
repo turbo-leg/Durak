@@ -17,6 +17,7 @@ import {
   TAKEOVER_GRACE_MS,
   OpeningDraw,
   SeatRequest,
+  privateView,
 } from '@durak/shared';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
@@ -57,6 +58,11 @@ export class DurakRoom extends Room<GameState> {
   private rematchVotes = new Set<string>(); // sessionIds that voted for rematch
   private horseNextGameTimer?: { clear(): void };
   private lookTimes = new Map<string, number>();
+  // Signature of the last private view sent per connection. Keyed by Client so every
+  // join and reconnect (a new Client, even with the same sessionId) gets a fresh copy
+  // on its first patch tick. No client request is needed: an unknown message type
+  // gets a client kicked in production, so new clients must not depend on one.
+  private sentPrivate = new WeakMap<Client, string>();
   private gestureTimes = new Map<string, number>();
   private watcherIdentities = new Map<string, RoomIdentity>();
   private pendingSeatOptions = new Map<string, Record<string, unknown>>();
@@ -779,6 +785,24 @@ export class DurakRoom extends Room<GameState> {
 
   onBeforePatch() {
     this.syncPublicCounts();
+    this.sendPrivateViews();
+  }
+
+  /**
+   * Hands travel as per-owner messages, not filtered state. Sent here, right before
+   * the patch on the same socket, so the client can apply both together.
+   */
+  private sendPrivateViews() {
+    for (const client of this.clients) {
+      if (this.spectators.has(client.sessionId)) continue;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) continue;
+      const view = privateView(player);
+      const signature = JSON.stringify(view);
+      if (this.sentPrivate.get(client) === signature) continue;
+      this.sentPrivate.set(client, signature);
+      client.send('private', view);
+    }
   }
 
   private syncPublicCounts() {
