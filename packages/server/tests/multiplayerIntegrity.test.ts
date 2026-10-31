@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { Card, DurakEngine, GameState, Rank, Suit } from '@durak/shared';
 import { DurakRoom } from '../src/rooms/DurakRoom';
 import { sessionSecret, verifyRoomIdentity } from '../src/auth/session';
+import { listen, type Inbox } from './inbox';
 
 const USER_A = '0123456789abcdef01234567';
 const USER_B = 'abcdef0123456789abcdef01';
@@ -89,8 +90,10 @@ describe('multiplayer network privacy and authentication', () => {
     });
     const a = await server.connectTo(room);
     const b = await server.connectTo(room);
-    a.onMessage('*', () => {});
-    b.onMessage('*', () => {});
+    const inboxes = new Map<Room<GameState>, Inbox>([
+      [a, listen(a)],
+      [b, listen(b)],
+    ]);
     room.state.deck.push(...DurakEngine.createDeck());
     const take = (suit: string, rank: number) => {
       const index = room.state.deck.findIndex((card) => card.suit === suit && card.rank === rank);
@@ -103,7 +106,7 @@ describe('multiplayer network privacy and authentication', () => {
     // Pin the visible Huzur at the actual bottom, preserving all 42 cards.
     const bottom = take(Suit.Spades, Rank.Eight);
     const remaining = Array.from(room.state.deck).filter((c): c is Card => !!c);
-    room.state.deck.clear();
+    room.state.deck.length = 0;
     room.state.deck.push(bottom, ...remaining);
     const pa = room.state.players.get(a.sessionId)!;
     const pb = room.state.players.get(b.sessionId)!;
@@ -118,91 +121,110 @@ describe('multiplayer network privacy and authentication', () => {
     room.state.currentTurn = a.sessionId;
     await vi.waitFor(() => expect(a.state?.deckCount).toBe(38));
     const spectator = await server.connectTo(room, { spectator: true });
-    spectator.onMessage('*', () => {});
+    inboxes.set(spectator, listen(spectator));
     await vi.waitFor(() => expect(spectator.state?.deckCount).toBe(38));
-    return { room, a, b, spectator };
+    const inbox = (view: Room<GameState>) => inboxes.get(view)!;
+    /** A client's own hand: it only ever arrives in the 'private' message. */
+    const handOf = (view: Room<GameState>) => inbox(view).view?.hand ?? [];
+    return { room, a, b, spectator, inbox, handOf };
   }
 
-  function assertPrivate(view: Room<GameState>, ownerId?: string) {
-    expect(Array.from(view.state.deck ?? [])).toHaveLength(0);
-    expect(Array.from(view.state.actionLog ?? [])).toHaveLength(0);
-    expect(JSON.stringify(view.state.toJSON())).not.toContain('PRIVATE_REPLAY_CANARY');
+  const serverHand = (room: { state: GameState }, id: string) =>
+    room.state.players.get(id)!.hand.map(({ suit, rank, isJoker }) => ({ suit, rank, isJoker }));
+  const field = (value: object, key: string) => (value as Record<string, unknown>)[key];
+
+  /**
+   * Synced state holds no hidden cards at all, and messages carry only the viewer's
+   * own hand: never the deck, the replay log, draw logs or another seat's data.
+   */
+  function assertPrivate(
+    room: { state: GameState },
+    view: Room<GameState>,
+    inbox: Inbox,
+    ownerId?: string,
+  ) {
+    expect(JSON.stringify(view.state.toJSON())).not.toContain('PRIVATE_');
+    expect(field(view.state, 'deck')).toBeUndefined();
+    expect(field(view.state, 'actionLog')).toBeUndefined();
     view.state.players.forEach((p) => {
-      if (p.id !== ownerId) {
-        expect(Array.from(p.hand ?? [])).toHaveLength(0);
-        expect(Array.from(p.lastDrawLog ?? [])).toHaveLength(0);
-        expect(Array.from(p.pickedUpCardKeys ?? [])).toHaveLength(0);
-      }
+      expect(field(p, 'hand')).toBeUndefined();
+      expect(field(p, 'pickedUpCardKeys')).toBeUndefined();
+      expect(field(p, 'lastDrawLog')).toBeUndefined();
     });
+    const sent = inbox.raw.join('\n');
+    expect(sent).not.toContain('PRIVATE_DRAW');
+    expect(sent).not.toContain('PRIVATE_REPLAY_CANARY');
+    room.state.players.forEach((p) => {
+      if (p.id === ownerId) return;
+      for (const key of p.pickedUpCardKeys) expect(sent).not.toContain(key);
+    });
+    if (ownerId) expect(inbox.view?.hand).toEqual(serverHand(room, ownerId));
+    else expect(inbox.privateCount).toBe(0);
   }
 
   it('filters initial snapshots and incremental draws, swaps and pickup for players and spectators', async () => {
-    const { room, a, b, spectator } = await controlledGame();
+    const { room, a, b, spectator, inbox, handOf } = await controlledGame();
+    await vi.waitFor(() => expect(handOf(a)).toHaveLength(2));
+    await vi.waitFor(() => expect(handOf(b)).toHaveLength(2));
+    expect(inbox(b).view?.pickedUpCardKeys).toEqual(['PRIVATE_PROVENANCE_B']);
     for (const [view, owner] of [
       [a, a.sessionId],
       [b, b.sessionId],
       [spectator, undefined],
     ] as const) {
-      assertPrivate(view, owner);
+      assertPrivate(room, view, inbox(view), owner);
       expect(view.state.players.get(a.sessionId)?.handCount).toBe(2);
       expect(view.state.players.get(b.sessionId)?.handCount).toBe(2);
     }
-    expect(a.state.players.get(a.sessionId)?.hand.length).toBe(2);
-    expect(b.state.players.get(b.sessionId)?.lastDrawLog[0]).toBe('PRIVATE_DRAW_B');
 
     a.send('swapHuzur');
     await vi.waitFor(() => expect(a.state.huzurCard.rank).toBe(Rank.Seven));
-    expect(
-      a.state.players
-        .get(a.sessionId)
-        ?.hand.some((c) => c.suit === Suit.Spades && c.rank === Rank.Eight),
-    ).toBe(true);
+    await vi.waitFor(() =>
+      expect(handOf(a).some((c) => c.suit === Suit.Spades && c.rank === Rank.Eight)).toBe(true),
+    );
     a.send('attack', { cards: [{ suit: Suit.Hearts, rank: Rank.Seven, isJoker: false }] });
     await vi.waitFor(() => expect(b.state.activeAttackCards.length).toBe(1));
     b.send('pickUp');
     await vi.waitFor(() => expect(b.state.activeAttackCards.length).toBe(0));
     await vi.waitFor(() => expect(spectator.state.deckCount).toBe(room.state.deck.length));
+    // Both players refill after attack; the defender then picks up the attack.
+    await vi.waitFor(() => expect(handOf(a)).toHaveLength(5));
+    await vi.waitFor(() => expect(handOf(b)).toHaveLength(6));
     for (const [view, owner] of [
       [a, a.sessionId],
       [b, b.sessionId],
       [spectator, undefined],
     ] as const) {
-      assertPrivate(view, owner);
+      assertPrivate(room, view, inbox(view), owner);
       room.state.players.forEach((p) =>
         expect(view.state.players.get(p.id)?.handCount).toBe(p.hand.length),
       );
     }
-    expect(a.state.players.get(a.sessionId)?.hand.length).toBe(5);
-    // Both players refill after attack; the defender then picks up the attack.
-    expect(b.state.players.get(b.sessionId)?.hand.length).toBe(6);
   });
 
   it('restores only the owner hand on reconnect and keeps next-game deals private', async () => {
-    const { room, a, b, spectator } = await controlledGame();
+    const { room, a, b, spectator, inbox, handOf } = await controlledGame();
     const reconnectToken = a.reconnectionToken;
     a.connection.close();
     await vi.waitFor(() =>
       expect(room.clients.some((c) => c.sessionId === a.sessionId)).toBe(false),
     );
     const restored = await server.sdk.reconnect<GameState>(reconnectToken);
-    restored.onMessage('*', () => {});
-    await vi.waitFor(() =>
-      expect(restored.state?.players.get(restored.sessionId)?.hand.length).toBe(2),
-    );
-    assertPrivate(restored, restored.sessionId);
+    const restoredInbox = listen(restored);
+    await vi.waitFor(() => expect(restoredInbox.view?.hand).toHaveLength(2));
+    assertPrivate(room, restored, restoredInbox, restored.sessionId);
     room.state.phase = 'finished';
     await vi.waitFor(() => expect(b.state.phase).toBe('finished'));
     // Private tables ready up for the next game instead of voting for a rematch.
     restored.send('toggleReady', { isReady: true });
     b.send('toggleReady', { isReady: true });
     await vi.waitFor(() => expect(b.state.phase).toBe('playing'));
-    await vi.waitFor(() =>
-      expect(restored.state.players.get(restored.sessionId)?.hand.length).toBe(5),
-    );
+    await vi.waitFor(() => expect(restoredInbox.view?.hand).toHaveLength(5));
+    await vi.waitFor(() => expect(handOf(b)).toHaveLength(5));
     await vi.waitFor(() => expect(spectator.state.deckCount).toBe(32));
-    assertPrivate(restored, restored.sessionId);
-    assertPrivate(b, b.sessionId);
-    assertPrivate(spectator);
+    assertPrivate(room, restored, restoredInbox, restored.sessionId);
+    assertPrivate(room, b, inbox(b), b.sessionId);
+    assertPrivate(room, spectator, inbox(spectator));
   });
 
   it('rejects forged joins and assigns canonical signed identities through real matchmaking', async () => {

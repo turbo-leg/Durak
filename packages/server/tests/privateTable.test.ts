@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { boot, type ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from 'colyseus.js';
-import { GameState, Player } from '@durak/shared';
+import { GameState, Player, privateView } from '@durak/shared';
+import { listen, type Inbox } from './inbox';
 import { DurakRoom } from '../src/rooms/DurakRoom';
 
 // Short test-only timings; production uses COUNTDOWN_MS / OPENING_MS.
@@ -30,12 +31,14 @@ describe('private table lifecycle over the network', () => {
       ...options,
     });
     const clients: Room<GameState>[] = [];
+    const inboxes = new Map<Room, Inbox>();
     for (let i = 0; i < guests; i++) {
       const client = await server.connectTo(room, { username: `Guest ${i + 1}` });
-      client.onMessage('*', () => {});
+      inboxes.set(client, listen(client));
       clients.push(client);
     }
-    return { room, clients };
+    const handOf = (client: Room) => inboxes.get(client)?.view?.hand ?? [];
+    return { room, clients, handOf };
   }
 
   async function barrier(room: { waitForMessage(t: string): Promise<unknown> }, c: Room) {
@@ -53,7 +56,7 @@ describe('private table lifecycle over the network', () => {
 
   it('lets two invited guests ready, start automatically, finish and play again in the same room', async () => {
     // Long enough for clients to observe each phase over the patch interval.
-    const { room, clients } = await table({
+    const { room, clients, handOf } = await table({
       lifecycleTiming: { countdownMs: 300, openingMs: 300 },
     });
     const [a, b] = clients as [Room<GameState>, Room<GameState>];
@@ -72,7 +75,7 @@ describe('private table lifecycle over the network', () => {
     expect(b.state.turnStartTime).toBe(0);
     expect(b.state.currentTurn).not.toBe('');
     expect(b.state.openingDraws.length).toBe(2);
-    expect(b.state.players.get(b.sessionId)?.hand.length).toBe(5);
+    await vi.waitFor(() => expect(handOf(b)).toHaveLength(5));
 
     // Actions are rejected until the opening ends.
     const first = room.state.currentTurn === a.sessionId ? a : b;
@@ -100,7 +103,10 @@ describe('private table lifecycle over the network', () => {
     await vi.waitFor(() => expect(b.state.phase).toBe('playing'));
     expect(room.state.players.size).toBe(2);
     expect(room.state.outcome).toBe('');
-    expect(b.state.players.get(b.sessionId)?.hand.length).toBe(5);
+    await vi.waitFor(() =>
+      expect(handOf(b)).toEqual(privateView(room.state.players.get(b.sessionId)!).hand),
+    );
+    expect(handOf(b)).toHaveLength(5);
   });
 
   it('cancels the countdown when a player unreadies, and on settings changes resets readiness', async () => {
@@ -237,8 +243,9 @@ describe('invitations and seat requests over the network', () => {
       lifecycleTiming: FAST,
     });
     const host = await server.connectTo(room, { username: 'Host' });
-    host.onMessage('*', () => {});
-    const guest = await watch(room);
+    const hostInbox = listen(host);
+    const guest = await server.connectTo(room as any, { spectator: true });
+    const guestInbox = listen(guest);
     // The preview shows the format, occupants and phase before taking a seat.
     await vi.waitFor(() => expect(guest.state.players.size).toBe(1));
     expect(guest.state.maxPlayers).toBe(2);
@@ -258,8 +265,12 @@ describe('invitations and seat requests over the network', () => {
     guest.send('toggleReady', { isReady: true });
     await vi.waitFor(() => expect(guest.state.phase).toBe('playing'));
     // A promoted watcher receives only their own hand.
-    expect(guest.state.players.get(guest.sessionId)?.hand.length).toBe(5);
-    expect(Array.from(guest.state.players.get(host.sessionId)?.hand ?? [])).toHaveLength(0);
+    await vi.waitFor(() => expect(guestInbox.view?.hand).toHaveLength(5));
+    expect(guestInbox.view?.hand).toEqual(
+      privateView(room.state.players.get(guest.sessionId)!).hand,
+    );
+    await vi.waitFor(() => expect(hostInbox.view?.hand).toHaveLength(5));
+    expect(guestInbox.raw.join()).not.toContain(JSON.stringify(hostInbox.view?.hand));
   });
 
   it('queues late arrivals in order, never displacing a seated player, and seats them as seats open', async () => {
@@ -276,6 +287,7 @@ describe('invitations and seat requests over the network', () => {
     await vi.waitFor(() => expect(room.state.phase).toBe('playing'));
 
     const first = await watch(room);
+    const firstInbox = listen(first);
     const second = await watch(room);
     first.send('requestSeat', { username: 'First' });
     await barrier(room, first);
@@ -286,7 +298,7 @@ describe('invitations and seat requests over the network', () => {
     first.send('attack', { cards: [{ suit: 'Hearts', rank: 7, isJoker: false }] });
     await barrier(room, first);
     expect(room.state.activeAttackCards.length).toBe(0);
-    expect(Array.from(first.state.players.get(a.sessionId)?.hand ?? [])).toHaveLength(0);
+    expect(firstInbox.privateCount).toBe(0);
     // Direct joins cannot skip the line.
     await expect(server.connectTo(room, { username: 'Skipper' })).rejects.toThrow();
 

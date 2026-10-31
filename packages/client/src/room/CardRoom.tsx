@@ -140,7 +140,9 @@ export function CardRoom({
   const horseGameShown =
     privateTable || horseMatchOver ? state?.horseGame : (state?.horseGame ?? 1) - 1;
   const view = live
-    ? tableSnapshot(state!, session, game.isSpectator, game.serverTimeOffset)
+    ? tableSnapshot(state!, session, game.isSpectator, game.serverTimeOffset, {
+        hand: game.privateView.hand,
+      })
     : {
         ...demo,
         self: { preset, played: 0, ...demoGesture },
@@ -227,14 +229,14 @@ export function CardRoom({
     !game.isSpectator &&
     view.deckCount > 0 &&
     Boolean(
-      me?.hand.some(
+      me &&
+      game.privateView.hand.some(
         (c) =>
-          c &&
           !c.isJoker &&
           (state?.huzurCard.isJoker
             ? c.rank === 16 && c.suit === 'Spades'
             : c.rank === 7 && c.suit === state?.huzurSuit) &&
-          !me.pickedUpCardKeys.includes(`${c.suit}:${c.rank}:0`),
+          !game.privateView.pickedUpCardKeys.includes(`${c.suit}:${c.rank}:0`),
       ),
     );
   const resultMessage =

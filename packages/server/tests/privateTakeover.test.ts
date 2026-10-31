@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { boot, type ColyseusTestServer } from '@colyseus/testing';
 import type { Room } from 'colyseus.js';
-import { GameState } from '@durak/shared';
+import { GameState, privateView } from '@durak/shared';
+import { listen } from './inbox';
 import { DurakRoom } from '../src/rooms/DurakRoom';
 
 // Bots think for 0.8–2 s after their turn begins; allow for that in waits.
@@ -92,12 +93,12 @@ describe('temporary bot control on private tables', () => {
     await vi.waitFor(() => expect(room.state.currentTurn).toBe(second.sessionId), SLOW_WAIT);
     const attack = room.state.activeAttackCards.length;
     expect(attack).toBeGreaterThan(0);
-    const restored = await reconnect(token);
+    const restored = await server.sdk.reconnect<GameState>(token);
+    const inbox = listen(restored);
     await vi.waitFor(() => expect(seat.control).toBe('human'));
     expect(room.state.activeAttackCards.length).toBe(attack);
-    await vi.waitFor(() =>
-      expect(restored.state.players.get(restored.sessionId)?.hand.length).toBe(seat.hand.length),
-    );
+    // The returning person is sent the hand the stand-in left them.
+    await vi.waitFor(() => expect(inbox.view?.hand).toEqual(privateView(seat).hand));
   }, 15000);
 
   it('hands the seat to a bot at once on explicit departure, moves host, and releases it at game end', async () => {
