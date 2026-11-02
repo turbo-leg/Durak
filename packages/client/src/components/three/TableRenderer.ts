@@ -45,6 +45,12 @@ const RANKS: Record<number, string> = {
 };
 // Real-size table layout, in world units: centimetres times CHARACTER_SCALE / 100.
 const cm = (value: number) => (value * CHARACTER_SCALE) / 100;
+/**
+ * Where seat slot `slot` sits round the table (slot 0 is you, at +Z). Slots follow turn
+ * order, and play goes clockwise seen from above, so the next player sits on your left
+ * (-X from your seat). Every seat, character, head-look and deal pile uses this angle.
+ */
+const ringAngle = (slot: number, count: number) => (-slot * Math.PI * 2) / Math.max(1, count);
 /** Card-relative distances, laid out for a real card and grown with the game's card size. */
 const card = (value: number) => cm(value * CARD_SIZE);
 /** Where the deck, trump and discard lie, and how far apart table cards sit. */
@@ -625,7 +631,7 @@ export class TableRenderer {
     const seatPosition = (id: string) => {
       const index = snapshot.seats.findIndex((seat) => seat.id === id);
       const count = ringCount;
-      const angle = ((index + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
+      const angle = ringAngle(index + (snapshot.spectator ? 0 : 1), count);
       return new THREE.Vector3(
         Math.sin(angle) * SEAT_RADIUS_X,
         TABLE_TOP + cm(25),
@@ -723,8 +729,7 @@ export class TableRenderer {
           (previous.hand.length === 0 && snapshot.hand.length > 0 && snapshot.deckCount > 0)),
       ) && !this.reducedMotion.matches;
     // The opening deal goes clockwise, one card at a time, onto a pile at each seat. Seat slots
-    // run anticlockwise round the ring (slot 0 is you), so clockwise is the reverse order.
-    const clockwise = (slot: number) => (ringCount - slot) % ringCount;
+    // already run clockwise (see ringAngle), so the deal simply follows slot order.
     const dealCounts = [snapshot.hand.length, ...snapshot.seats.map((s) => Math.min(7, s.count))];
     const dealCards = dealCounts.reduce((n, count) => n + count, 0);
     const dealRounds = Math.max(0, ...dealCounts);
@@ -815,8 +820,8 @@ export class TableRenderer {
         item.targetScale !== targetScale
       ) {
         if (fresh && dealFromDeck && dealAt) {
-          const turn = clockwise(dealAt.slot);
-          const angle = (dealAt.slot * Math.PI * 2) / Math.max(1, ringCount);
+          const turn = dealAt.slot;
+          const angle = ringAngle(dealAt.slot, ringCount);
           // A slightly untidy pile, the way real cards land.
           const jitter = (((dealAt.round * 7 + dealAt.slot * 3) % 5) - 2) / 2;
           item.mesh.scale.setScalar(TABLE_CARD_SCALE);
@@ -976,7 +981,7 @@ export class TableRenderer {
     }
     snapshot.seats.forEach((seat, i) => {
       const count = ringCount;
-      const angle = ((i + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
+      const angle = ringAngle(i + (snapshot.spectator ? 0 : 1), count);
       const x = Math.sin(angle) * SEAT_RADIUS_X;
       const z = Math.cos(angle) * SEAT_RADIUS_Z;
       const facing = angle + Math.PI;
@@ -1000,9 +1005,7 @@ export class TableRenderer {
       if (seat.bot) {
         const active = snapshot.seats.findIndex((s) => s.active);
         const targetAngle =
-          active < 0
-            ? 0
-            : ((active + (snapshot.spectator ? 0 : 1)) * Math.PI * 2) / Math.max(1, count);
+          active < 0 ? 0 : ringAngle(active + (snapshot.spectator ? 0 : 1), count);
         const target = new THREE.Vector3(
           Math.sin(targetAngle) * SEAT_RADIUS_X - x,
           0,
