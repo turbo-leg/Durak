@@ -83,8 +83,13 @@ type AnimatedCard = {
   /** A played card rides in the player's hand (world point) until it is let go. */
   carry?: { until: number; at: () => THREE.Vector3 | undefined };
   motion?: { from: THREE.Vector3; fromScale: number; start: number; duration: number };
-  /** An opening-deal card: deck, then a face-down pile at its owner's seat, then the hand. */
+  /**
+   * A card travelling via a pile: the opening deal (deck, face-down pile at its owner's seat,
+   * hand) or a pickup (table, pile in the middle, the picker's hand).
+   */
   deal?: DealPath;
+  /** A card that joins a fan only once the picked-up pile reaches it. */
+  hiddenUntil?: number;
 };
 type DealPath = {
   /** When the card leaves the deck. */
@@ -93,7 +98,15 @@ type DealPath = {
   pickAt: number;
   /** Where it lands on the table (world space). */
   pile: THREE.Vector3;
-  pileYaw: number;
+  /** How the card lies on the pile. */
+  pileTurn: THREE.Quaternion;
+  /** Where the flight to the pile begins; the deck unless set. */
+  from?: THREE.Vector3;
+  fromTurn?: THREE.Quaternion;
+  flightMs?: number;
+  arc?: number;
+  /** A pickup by another player: the faces go private once the pile is lifted. */
+  hideFace?: boolean;
 };
 /** One card's flight from the deck to its pile. */
 const DEAL_FLIGHT_MS = 420;
@@ -106,6 +119,16 @@ const DEAL_PEEL_MS = 45;
 const DEAL_ARC = cm(10);
 /** How far from the table centre each pile sits, as a share of the table radius. */
 const DEAL_PILE_REACH = 0.42;
+/** A pickup first sweeps the table into one pile, then the player lifts it. */
+const GATHER_MS = 340;
+/** Cards join the pile one after another, capped so a big table still gathers quickly. */
+const GATHER_STAGGER_MS = 45;
+const GATHER_PAUSE_MS = 160;
+const PICKUP_LIFT_MS = 520;
+const PICKUP_PEEL_MS = 35;
+/** While you sweep up the table, your held cards drop toward your lap so the pile is in view. */
+const PICKUP_DIP = cm(16);
+const PICKUP_DIP_IN_MS = 220;
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 /**
  * Dealt cards lie truly face down: flipped end over end, so turning one up into the hand
@@ -146,7 +169,8 @@ export class TableRenderer {
   private labelSignature = '';
   private hoverKey: string | null = null;
   private targetPosition = new THREE.Vector3();
-  private dealPileTurn = new THREE.Quaternion();
+  /** Your own pickup: the held fan dips from `start`, holds until `rise`, back by `end`. */
+  private handDip: { start: number; rise: number; end: number } | null = null;
   private dealHeldTurn = new THREE.Quaternion();
   private dealParentTurn = new THREE.Quaternion();
   private dealEuler = new THREE.Euler();
@@ -289,21 +313,42 @@ export class TableRenderer {
     return mesh;
   }
 
+  /** How far your held fan is dipped for a pickup, 0 to 1. */
+  private dipAmount(now: number) {
+    const dip = this.handDip;
+    if (!dip) return 0;
+    if (now >= dip.end) {
+      this.handDip = null;
+      return 0;
+    }
+    if (now < dip.rise)
+      return smoothstep(THREE.MathUtils.clamp((now - dip.start) / PICKUP_DIP_IN_MS, 0, 1));
+    return 1 - smoothstep((now - dip.rise) / (dip.end - dip.rise));
+  }
+
   /** One frame of an opening-deal card: in flight, waiting on its pile, or being picked up. */
   private stepDeal(card: AnimatedCard, deal: DealPath, now: number) {
     const mesh = card.mesh;
     mesh.visible = now >= deal.start;
-    const pileTurn = this.dealPileTurn.setFromAxisAngle(UP_AXIS, deal.pileYaw).multiply(FACE_DOWN);
+    const pileTurn = deal.pileTurn;
     if (now < deal.pickAt) {
-      const t = THREE.MathUtils.clamp((now - deal.start) / DEAL_FLIGHT_MS, 0, 1);
+      const t = THREE.MathUtils.clamp((now - deal.start) / (deal.flightMs ?? DEAL_FLIGHT_MS), 0, 1);
       const eased = smoothstep(t);
-      mesh.position.copy(DECK_TOP).lerp(deal.pile, eased);
-      mesh.position.y += Math.sin(Math.PI * t) * DEAL_ARC;
-      mesh.scale.setScalar(TABLE_CARD_SCALE);
-      mesh.quaternion.copy(FACE_DOWN).slerp(pileTurn, eased);
+      mesh.position.copy(deal.from ?? DECK_TOP).lerp(deal.pile, eased);
+      mesh.position.y += Math.sin(Math.PI * t) * (deal.arc ?? DEAL_ARC);
+      if (!deal.from) mesh.scale.setScalar(TABLE_CARD_SCALE);
+      mesh.quaternion.slerpQuaternions(deal.fromTurn ?? FACE_DOWN, pileTurn, eased);
       return;
     }
-    const t = THREE.MathUtils.clamp((now - deal.pickAt) / DEAL_PICKUP_MS, 0, 1);
+    if (deal.hideFace) {
+      mesh.material = this.back;
+      deal.hideFace = false;
+    }
+    const t = THREE.MathUtils.clamp(
+      (now - deal.pickAt) / (deal.from ? PICKUP_LIFT_MS : DEAL_PICKUP_MS),
+      0,
+      1,
+    );
     const eased = smoothstep(t);
     // The pose in the hand, in world space: the hand or fan may be turned.
     const held = this.dealHeldTurn.setFromEuler(
@@ -315,6 +360,11 @@ export class TableRenderer {
     }
     mesh.position.copy(deal.pile).lerp(this.targetPosition, eased);
     mesh.position.y += Math.sin(Math.PI * t) * cm(4);
+    if (card.removing && t >= 1) {
+      // A pile that went to another player's palm: their fan now shows these cards.
+      mesh.removeFromParent();
+      return;
+    }
     mesh.scale.setScalar(THREE.MathUtils.lerp(TABLE_CARD_SCALE, card.targetScale, eased));
     mesh.quaternion.slerpQuaternions(pileTurn, held, eased);
     if (t < 1) return;
@@ -623,6 +673,47 @@ export class TableRenderer {
     const pickupSeats = new Set(
       events.filter((event) => event.kind === 'pickup').map((event) => event.seat),
     );
+    // A pickup sweeps everything on the table into one pile in the middle (where the picker
+    // reaches), then the picker lifts it into their hand.
+    const onTable = (card: AnimatedCard) =>
+      !card.removing &&
+      card.mesh.parent === this.scene &&
+      ['attack', 'history'].includes(card.mesh.userData.zone);
+    const pileCount =
+      pickupSeats.size && !this.reducedMotion.matches
+        ? Array.from(this.cards.values()).filter(onTable).length
+        : 0;
+    const gatherNow = performance.now();
+    const gatherStep = Math.min(GATHER_STAGGER_MS, 360 / Math.max(1, pileCount));
+    const liftAt = gatherNow + (pileCount - 1) * gatherStep + GATHER_MS + GATHER_PAUSE_MS;
+    const liftEnd = liftAt + PICKUP_LIFT_MS + pileCount * PICKUP_PEEL_MS;
+    let pileIndex = 0;
+    if (pileCount && pickupSeats.has(SELF))
+      this.handDip = { start: gatherNow, rise: liftAt, end: liftAt + PICKUP_LIFT_MS };
+    const gather = (card: AnimatedCard, hideFace: boolean) => {
+      const i = pileIndex++;
+      // Squared up, but not machine-perfect.
+      const jitter = (((i * 7) % 5) - 2) / 2;
+      const fromTurn = card.mesh.quaternion.clone();
+      card.carry = undefined;
+      card.motion = undefined;
+      card.deal = {
+        start: gatherNow + i * gatherStep,
+        pickAt: liftAt + i * PICKUP_PEEL_MS,
+        from: card.mesh.position.clone(),
+        fromTurn,
+        flightMs: GATHER_MS,
+        arc: cm(2),
+        pile: new THREE.Vector3(
+          TABLE_CENTRE.x + jitter * cm(0.5),
+          TABLE_TOP + cm(0.3) + i * cm(0.25),
+          TABLE_CENTRE.z - jitter * cm(0.4),
+        ),
+        // Someone else's pickup turns face down as it is squared up; yours stays face up.
+        pileTurn: hideFace ? fromTurn.clone().multiply(FACE_DOWN) : fromTurn,
+        hideFace,
+      };
+    };
     // Every selected seat has a place at the table, occupied or not.
     const ringCount = Math.max(
       snapshot.capacity ?? 0,
@@ -754,6 +845,7 @@ export class TableRenderer {
       live.add(visualId);
       let item = this.cards.get(visualId);
       const fresh = !item;
+      const fromTable = Boolean(pileCount && item && onTable(item));
       const targetScale = handKey || parentOverride ? HELD_CARD_SCALE : TABLE_CARD_SCALE;
       if (!item) {
         const material = card ? this.face(card, id.startsWith('huzur:')) : this.back;
@@ -769,8 +861,8 @@ export class TableRenderer {
         }
         mesh.scale.setScalar(targetScale);
         mesh.position.copy(DECK_TOP);
-        if (id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!))
-          mesh.position.copy(TABLE_CENTRE);
+        const pickerFan = id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!);
+        if (pickerFan) mesh.position.copy(TABLE_CENTRE);
         const sourceSeat = previous?.seats.find((seat) => seat.active);
         const player = card ? playedBy.get(card.key) : undefined;
         const palm = player
@@ -780,6 +872,11 @@ export class TableRenderer {
         else if (sourceSeat && (id.startsWith('attack:') || id.startsWith('history:')))
           mesh.position.copy(seatPosition(sourceSeat.id));
         item = { mesh, target: new THREE.Vector3(x, y, z), targetScale, angle, roll, tilt };
+        // The picker's fan grows only once the pile reaches their hand.
+        if (pickerFan && pileCount) {
+          mesh.visible = false;
+          item.hiddenUntil = liftEnd;
+        }
         if (palm && player) {
           const slot = new THREE.Vector3(x, y, z);
           item.carry = {
@@ -835,17 +932,29 @@ export class TableRenderer {
               TABLE_TOP + cm(0.3) + dealAt.round * cm(0.25),
               Math.cos(angle) * TABLE_RADIUS_Z * DEAL_PILE_REACH - jitter * cm(0.4),
             ),
-            pileYaw: angle + jitter * 0.05,
+            pileTurn: new THREE.Quaternion()
+              .setFromAxisAngle(UP_AXIS, angle + jitter * 0.05)
+              .multiply(FACE_DOWN),
           };
         }
-        if (!item.deal)
+        if (fromTable && pickupSeats.has(SELF) && parent === this.hand) gather(item, false);
+        else if (item.hiddenUntil)
+          item.motion = {
+            from: item.mesh.position.clone(),
+            fromScale: item.mesh.scale.x,
+            start: item.hiddenUntil,
+            duration: 1,
+          };
+        else if (!item.deal)
           item.motion = {
             from: item.mesh.position.clone(),
             fromScale: item.mesh.scale.x,
             start:
               performance.now() +
               (pickupSeats.has(SELF) && parent === this.hand && !fresh
-                ? 550
+                ? pileCount
+                  ? liftAt - gatherNow
+                  : 550
                 : id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!)
                   ? 550
                   : 0),
@@ -1088,6 +1197,14 @@ export class TableRenderer {
           card.target.copy(
             this.avatars.get(recipient.id)?.palm(TABLE_CENTRE) ?? seatPosition(recipient.id),
           );
+          card.angle = -0.12;
+          card.tilt = 0.12;
+          card.roll = 0;
+          if (pileCount) {
+            // Gathered face down, then lifted; the faces go private as it leaves the pile.
+            gather(card, true);
+            continue;
+          }
           // The identity becomes private again on pickup; only the back is shown.
           card.mesh.material = this.back;
         } else if (snapshot.discardCount > (previous?.discardCount ?? 0)) {
@@ -1344,7 +1461,7 @@ export class TableRenderer {
       // The local fan is drawn up out of the way while the free hand reaches across.
       this.hand.position.set(
         0,
-        CARRY_Y + CARRY_RAISE * this.firstHands.cardsRaised(),
+        CARRY_Y + CARRY_RAISE * this.firstHands.cardsRaised() - PICKUP_DIP * this.dipAmount(now),
         -CARRY_DEPTH,
       );
       moving = this.firstHands.animate(now / 1000, this.reducedMotion.matches) || moving;
@@ -1379,9 +1496,14 @@ export class TableRenderer {
         card.pendingParent.updateWorldMatrix(true, false);
         card.pendingParent.localToWorld(this.targetPosition);
       }
+      if (card.hiddenUntil) {
+        card.mesh.visible = now >= card.hiddenUntil || this.reducedMotion.matches;
+        if (card.mesh.visible) card.hiddenUntil = undefined;
+      }
       if (card.deal && this.reducedMotion.matches) finishDeal(card);
       if (card.deal) {
         this.stepDeal(card, card.deal, now);
+        if (!card.mesh.parent) this.cards.delete(id);
         moving = true;
         continue;
       }
