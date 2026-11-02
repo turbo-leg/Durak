@@ -6,6 +6,7 @@ import { SeatRequest } from './SeatRequest';
 import { Face } from './CardFace';
 import { SUITS } from '../game/cardGlyphs';
 import { describePairs, previewPlay } from '../game/playPreview';
+import { HAND_ORDER_LABEL, HAND_ORDERS, saveHandOrder, savedHandOrder } from '../game/handOrder';
 import { useGame } from '../contexts/GameContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCardBack } from '../contexts/CardBackContext';
@@ -71,6 +72,7 @@ export function CardRoom({
     () => avatarPreset(localStorage.getItem('durak_avatar')).id as string,
   );
   const [recenterKey, setRecenterKey] = useState(0);
+  const [handOrder, setHandOrder] = useState(savedHandOrder);
   const [keyboard, setKeyboard] = useState(
     () => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 760px)').matches,
   );
@@ -143,6 +145,7 @@ export function CardRoom({
   const view = live
     ? tableSnapshot(state!, session, game.isSpectator, game.serverTimeOffset, {
         hand: game.privateView.hand,
+        handOrder,
       })
     : {
         ...demo,
@@ -611,6 +614,20 @@ export function CardRoom({
               else setDemoGesture({ gestureId: id, gestureStartedAt: Date.now() });
             }}
           />
+          {live && !game.isSpectator && (
+            <button
+              className="quiet-button"
+              title="Change how your hand is arranged"
+              onClick={() => {
+                const next =
+                  HAND_ORDERS[(HAND_ORDERS.indexOf(handOrder) + 1) % HAND_ORDERS.length]!;
+                setHandOrder(next);
+                saveHandOrder(next);
+              }}
+            >
+              Sort: {HAND_ORDER_LABEL[handOrder]}
+            </button>
+          )}
           {!fallback && (
             <button className="quiet-button" onClick={() => setRecenterKey((value) => value + 1)}>
               Recenter
