@@ -77,7 +77,43 @@ type AnimatedCard = {
   /** A played card rides in the player's hand (world point) until it is let go. */
   carry?: { until: number; at: () => THREE.Vector3 | undefined };
   motion?: { from: THREE.Vector3; fromScale: number; start: number; duration: number };
+  /** An opening-deal card: deck, then a face-down pile at its owner's seat, then the hand. */
+  deal?: DealPath;
 };
+type DealPath = {
+  /** When the card leaves the deck. */
+  start: number;
+  /** When its owner picks up the pile. */
+  pickAt: number;
+  /** Where it lands on the table (world space). */
+  pile: THREE.Vector3;
+  pileYaw: number;
+};
+/** One card's flight from the deck to its pile. */
+const DEAL_FLIGHT_MS = 420;
+/** Everyone sees the full piles for a moment before they are picked up. */
+const DEAL_PAUSE_MS = 250;
+const DEAL_PICKUP_MS = 560;
+/** Cards leave the pile one after another, so the fan opens instead of popping in. */
+const DEAL_PEEL_MS = 45;
+/** How high a card lifts on its way to the pile. */
+const DEAL_ARC = cm(10);
+/** How far from the table centre each pile sits, as a share of the table radius. */
+const DEAL_PILE_REACH = 0.42;
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+/**
+ * Dealt cards lie truly face down: flipped end over end, so turning one up into the hand
+ * is a single tip toward the player that shows the face as it turns.
+ */
+const FACE_DOWN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+/** Ends a deal early and shows the card. */
+function finishDeal(card: AnimatedCard) {
+  if (!card.deal) return;
+  card.mesh.visible = true;
+  card.deal = undefined;
+}
 export class TableRenderer {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -104,6 +140,10 @@ export class TableRenderer {
   private labelSignature = '';
   private hoverKey: string | null = null;
   private targetPosition = new THREE.Vector3();
+  private dealPileTurn = new THREE.Quaternion();
+  private dealHeldTurn = new THREE.Quaternion();
+  private dealParentTurn = new THREE.Quaternion();
+  private dealEuler = new THREE.Euler();
   private back: THREE.MeshStandardMaterial;
   private raycaster = new THREE.Raycaster();
   private observer: ResizeObserver;
@@ -241,6 +281,43 @@ export class TableRenderer {
     mesh.receiveShadow = true;
     this.scene.add(mesh);
     return mesh;
+  }
+
+  /** One frame of an opening-deal card: in flight, waiting on its pile, or being picked up. */
+  private stepDeal(card: AnimatedCard, deal: DealPath, now: number) {
+    const mesh = card.mesh;
+    mesh.visible = now >= deal.start;
+    const pileTurn = this.dealPileTurn.setFromAxisAngle(UP_AXIS, deal.pileYaw).multiply(FACE_DOWN);
+    if (now < deal.pickAt) {
+      const t = THREE.MathUtils.clamp((now - deal.start) / DEAL_FLIGHT_MS, 0, 1);
+      const eased = smoothstep(t);
+      mesh.position.copy(DECK_TOP).lerp(deal.pile, eased);
+      mesh.position.y += Math.sin(Math.PI * t) * DEAL_ARC;
+      mesh.scale.setScalar(TABLE_CARD_SCALE);
+      mesh.quaternion.copy(FACE_DOWN).slerp(pileTurn, eased);
+      return;
+    }
+    const t = THREE.MathUtils.clamp((now - deal.pickAt) / DEAL_PICKUP_MS, 0, 1);
+    const eased = smoothstep(t);
+    // The pose in the hand, in world space: the hand or fan may be turned.
+    const held = this.dealHeldTurn.setFromEuler(
+      this.dealEuler.set(card.tilt, card.angle, card.roll, mesh.rotation.order),
+    );
+    if (card.pendingParent) {
+      card.pendingParent.getWorldQuaternion(this.dealParentTurn);
+      held.premultiply(this.dealParentTurn);
+    }
+    mesh.position.copy(deal.pile).lerp(this.targetPosition, eased);
+    mesh.position.y += Math.sin(Math.PI * t) * cm(4);
+    mesh.scale.setScalar(THREE.MathUtils.lerp(TABLE_CARD_SCALE, card.targetScale, eased));
+    mesh.quaternion.slerpQuaternions(pileTurn, held, eased);
+    if (t < 1) return;
+    finishDeal(card);
+    if (card.pendingParent) {
+      card.pendingParent.attach(card.mesh);
+      card.pendingParent = undefined;
+    }
+    mesh.rotation.set(card.tilt, card.angle, card.roll);
   }
 
   private makeHeldGeometry() {
@@ -639,11 +716,22 @@ export class TableRenderer {
       });
     if (refreshLabels) this.labels.clear();
     const live = new Set<string>();
-    const dealFromDeck = Boolean(
-      previous &&
-      (snapshot.deckCount < previous.deckCount ||
-        (previous.hand.length === 0 && snapshot.hand.length > 0 && snapshot.deckCount > 0)),
-    );
+    const dealFromDeck =
+      Boolean(
+        previous &&
+        (snapshot.deckCount < previous.deckCount ||
+          (previous.hand.length === 0 && snapshot.hand.length > 0 && snapshot.deckCount > 0)),
+      ) && !this.reducedMotion.matches;
+    // The opening deal goes clockwise, one card at a time, onto a pile at each seat. Seat slots
+    // run anticlockwise round the ring (slot 0 is you), so clockwise is the reverse order.
+    const clockwise = (slot: number) => (ringCount - slot) % ringCount;
+    const dealCounts = [snapshot.hand.length, ...snapshot.seats.map((s) => Math.min(7, s.count))];
+    const dealCards = dealCounts.reduce((n, count) => n + count, 0);
+    const dealRounds = Math.max(0, ...dealCounts);
+    // Bigger tables deal faster so the whole opening fits before the first turn.
+    const dealStep = Math.min(120, 1700 / Math.max(1, dealCards));
+    const dealNow = performance.now();
+    const dealEnd = dealNow + (dealRounds * ringCount - 1) * dealStep + DEAL_FLIGHT_MS;
     const put = (
       id: string,
       card: TableCard | null,
@@ -655,7 +743,7 @@ export class TableRenderer {
       tilt = 0.12,
       roll = 0,
       parentOverride?: THREE.Object3D,
-      dealOrder = 0,
+      dealAt?: { slot: number; round: number },
     ) => {
       const visualId = card ? `card:${card.key}` : id;
       live.add(visualId);
@@ -726,27 +814,38 @@ export class TableRenderer {
         item.target.distanceToSquared(nextTarget) > 0.000016 ||
         item.targetScale !== targetScale
       ) {
-        const deal = fresh && dealFromDeck && (Boolean(handKey) || id.startsWith('seat:'));
-        item.motion = {
-          from: item.mesh.position.clone(),
-          fromScale: item.mesh.scale.x,
-          start:
-            performance.now() +
-            (pickupSeats.has(SELF) && parent === this.hand && !fresh
-              ? 550
-              : id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!)
+        if (fresh && dealFromDeck && dealAt) {
+          const turn = clockwise(dealAt.slot);
+          const angle = (dealAt.slot * Math.PI * 2) / Math.max(1, ringCount);
+          // A slightly untidy pile, the way real cards land.
+          const jitter = (((dealAt.round * 7 + dealAt.slot * 3) % 5) - 2) / 2;
+          item.mesh.scale.setScalar(TABLE_CARD_SCALE);
+          item.mesh.quaternion.copy(FACE_DOWN);
+          item.mesh.visible = false;
+          item.deal = {
+            start: dealNow + (dealAt.round * ringCount + turn) * dealStep,
+            pickAt: dealEnd + DEAL_PAUSE_MS + turn * 90 + dealAt.round * DEAL_PEEL_MS,
+            pile: new THREE.Vector3(
+              Math.sin(angle) * TABLE_RADIUS_X * DEAL_PILE_REACH + jitter * cm(0.6),
+              TABLE_TOP + cm(0.3) + dealAt.round * cm(0.25),
+              Math.cos(angle) * TABLE_RADIUS_Z * DEAL_PILE_REACH - jitter * cm(0.4),
+            ),
+            pileYaw: angle + jitter * 0.05,
+          };
+        }
+        if (!item.deal)
+          item.motion = {
+            from: item.mesh.position.clone(),
+            fromScale: item.mesh.scale.x,
+            start:
+              performance.now() +
+              (pickupSeats.has(SELF) && parent === this.hand && !fresh
                 ? 550
-                : deal
-                  ? dealOrder * 65
+                : id.startsWith('seat:') && pickupSeats.has(id.split(':')[1]!)
+                  ? 550
                   : 0),
-          duration: deal
-            ? 650
-            : pickupSeats.size && parent !== this.scene
-              ? 520
-              : handKey
-                ? 300
-                : 480,
-        };
+            duration: pickupSeats.size && parent !== this.scene ? 520 : handKey ? 300 : 480,
+          };
       }
       item.target.set(x, y, z);
       item.targetScale = targetScale;
@@ -844,7 +943,7 @@ export class TableRenderer {
         Math.PI / 2,
         -angle,
         undefined,
-        i * ringCount,
+        { slot: 0, round: i },
       );
     });
     if (this.resultSelf) {
@@ -935,7 +1034,7 @@ export class TableRenderer {
           Math.PI / 2,
           -angle,
           rig.fan,
-          n * ringCount + i + 1,
+          { slot: i + (snapshot.spectator ? 0 : 1), round: n },
         );
         const mesh = this.cards.get(`seat:${seat.id}:${n}`)!.mesh;
         mesh.scale.setScalar(HELD_CARD_SCALE);
@@ -969,6 +1068,7 @@ export class TableRenderer {
           this.cards.delete(id);
           continue;
         }
+        finishDeal(card);
         if (card.mesh.parent === this.hand) this.scene.attach(card.mesh);
         card.removing = true;
         const recipient =
@@ -1275,6 +1375,12 @@ export class TableRenderer {
       if (card.pendingParent) {
         card.pendingParent.updateWorldMatrix(true, false);
         card.pendingParent.localToWorld(this.targetPosition);
+      }
+      if (card.deal && this.reducedMotion.matches) finishDeal(card);
+      if (card.deal) {
+        this.stepDeal(card, card.deal, now);
+        moving = true;
+        continue;
       }
       const distance = card.mesh.position.distanceTo(this.targetPosition);
       const rotationDistance = Math.max(

@@ -1,8 +1,11 @@
 import type { Card, GameState, PrivateCard, PublicGesture } from '@durak/shared';
+import { sortHand, type HandOrder } from './handOrder';
 
 /** Data that never travels in synced state: the owner's hand, from the 'private' message. */
 export interface OffStateView {
   readonly hand?: Iterable<PrivateCard | undefined>;
+  /** The owner's chosen layout for their hand; the server's order when absent. */
+  readonly handOrder?: HandOrder;
 }
 
 export interface TableCard {
@@ -158,7 +161,13 @@ export function tableSnapshot(
     winnerTeam: state.winnerTeam,
     capacity: state.maxPlayers,
     betweenGames: ['waiting', 'countdown', 'finished'].includes(state.phase),
-    hand: spectator ? [] : copyCards(offState.hand ?? state.players.get(sessionId)?.hand),
+    hand: spectator
+      ? []
+      : sortHand(
+          copyCards(offState.hand ?? state.players.get(sessionId)?.hand),
+          offState.handOrder ?? 'dealt',
+          state.huzurSuit,
+        ),
     attacks: copyCards(state.activeAttackCards),
     history: copyCards(state.tableStacks),
     seats,
