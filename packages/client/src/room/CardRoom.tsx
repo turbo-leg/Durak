@@ -21,6 +21,7 @@ import { RoomLobby, RoomMenu } from './RoomMenu';
 import { AccountPanel, RoomDialog, RulesPanel } from './RoomDialog';
 import { TeamBoard } from './TeamBoard';
 import './card-room.css';
+import './goofy.css';
 
 const ThreeTable = lazy(() => import('../components/three/ThreeTable'));
 // Developer tools exist only in dev builds; production drops the import entirely.
@@ -383,8 +384,8 @@ export function CardRoom({
         </div>
         {!live && (
           <section className="welcome-copy">
-            <h1>Play Durak.</h1>
-            <p>With friends or on your own.</p>
+            <h1>Don’t be the Durak.</h1>
+            <p>Durak means fool. The last one holding cards wears the title.</p>
           </section>
         )}
         {playing && (
@@ -762,7 +763,7 @@ export function CardRoom({
           )}
           {view.canSelect && view.attacks.length > 0 && (
             <button
-              className="secondary-button"
+              className="secondary-button pickup-button"
               onClick={() => {
                 game.room?.send('pickUp');
                 setSelected([]);

@@ -1,0 +1,656 @@
+/*
+ * Goofy theme layer. Loaded after card-room.css and overrides it.
+ * Idea: Durak means "fool", so the room is a cheeky card night, not a quiet salon.
+ * The one bold move is the chunky sticker button (ink outline, hard shadow,
+ * squishes on press). Everything else stays calm so the 3D table carries the scene.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+.card-room,
+.room-dialog {
+  --room: #15203a;
+  --panel: #1f2c4b;
+  --panel-deep: #18233f;
+  --text: #fff3d6;
+  --muted: #b9c2dc;
+  --ink: #0e1424;
+  --mustard: #ffc53d;
+  --mustard-hi: #ffd76e;
+  --tomato: #ff5d4f;
+  --tomato-hi: #ff7a6e;
+  --felt: #5fb0e6;
+  --copper: #ffc53d;
+  --blue: #5fb0e6;
+  --press: 5px;
+  --display: 'Bagel Fat One', 'Baloo 2', system-ui, sans-serif;
+  --ui: 'Baloo 2', 'Segoe UI', system-ui, sans-serif;
+}
+
+.card-room {
+  font-family: var(--ui);
+  font-size: 15px;
+  background:
+    radial-gradient(circle at 1px 1px, #ffffff0a 1px, transparent 1.5px) 0 0 / 22px 22px,
+    var(--room);
+}
+.card-room h1,
+.card-room h2,
+.card-room h3,
+.room-dialog h2,
+.room-dialog h3 {
+  font-family: var(--display);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* ---------- wordmark: a little crooked, like a sticker slapped on ---------- */
+.card-room .wordmark {
+  font-family: var(--display);
+  letter-spacing: 0;
+  transform: rotate(-3deg);
+  color: var(--text);
+  text-shadow: 3px 3px 0 var(--ink);
+}
+.card-room .brand-suit {
+  color: var(--tomato);
+  text-shadow: none;
+}
+.card-room .brand-caption {
+  font-family: var(--ui);
+  font-size: 13px;
+  font-weight: 600;
+  border-color: #ffffff30;
+}
+
+/* ---------- the sticker button ---------- */
+.card-room .primary-button,
+.card-room .secondary-button,
+.room-dialog .primary-button,
+.room-dialog .secondary-button,
+.card-room .team-join {
+  min-height: 56px;
+  padding: 12px 22px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  font-family: var(--ui);
+  font-weight: 800 !important;
+  font-size: 17px !important;
+  letter-spacing: 0.01em;
+  box-shadow: 0 var(--press) 0 var(--ink);
+  transform: translateY(0);
+  transition:
+    transform 0.09s ease-out,
+    box-shadow 0.09s ease-out,
+    background 0.15s !important;
+}
+.card-room .primary-button,
+.room-dialog .primary-button {
+  background: var(--mustard);
+  color: var(--ink);
+}
+.card-room .primary-button:hover:not(:disabled),
+.room-dialog .primary-button:hover:not(:disabled) {
+  background: var(--mustard-hi);
+  transform: translateY(-2px) rotate(-0.6deg);
+  box-shadow: 0 calc(var(--press) + 2px) 0 var(--ink);
+}
+.card-room .secondary-button,
+.room-dialog .secondary-button {
+  background: var(--text);
+  color: var(--ink);
+}
+.card-room .secondary-button:hover:not(:disabled),
+.room-dialog .secondary-button:hover:not(:disabled) {
+  background: #fffaf0;
+  transform: translateY(-2px) rotate(0.6deg);
+  box-shadow: 0 calc(var(--press) + 2px) 0 var(--ink);
+}
+/* Picking up is the fool's move: tomato red. */
+.card-room .pickup-button {
+  background: var(--tomato);
+  color: var(--ink);
+}
+.card-room .pickup-button:hover:not(:disabled) {
+  background: var(--tomato-hi);
+}
+.card-room .primary-button:active:not(:disabled),
+.card-room .secondary-button:active:not(:disabled),
+.room-dialog .primary-button:active:not(:disabled),
+.room-dialog .secondary-button:active:not(:disabled),
+.card-room .team-join:active:not(:disabled) {
+  transform: translateY(var(--press)) scale(0.98, 0.94);
+  box-shadow: 0 0 0 var(--ink);
+}
+.card-room .primary-button:disabled,
+.card-room .secondary-button:disabled,
+.room-dialog .primary-button:disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--muted);
+  border: 3px dashed #ffffff40;
+  box-shadow: none;
+  transform: none;
+}
+.card-room .primary-button:disabled > span {
+  background: #ffffff1a;
+  color: var(--muted);
+}
+.card-room .primary-button > span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--mustard);
+  font-size: 16px;
+}
+.card-room .button-face {
+  display: inline-block;
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+/* ---------- quiet buttons become real pills ---------- */
+.card-room .quiet-button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 2px solid #ffffff26;
+  background: #ffffff0d;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 15px;
+}
+.card-room .quiet-button:hover {
+  background: #ffffff1c;
+  border-color: #ffffff4d;
+  color: #fff;
+}
+.card-room .quiet-button[aria-pressed='true'] {
+  background: var(--felt);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.card-room .room-header .quiet-button {
+  font-size: 15px;
+}
+.card-room .account-button {
+  font-weight: 700;
+  font-size: 15px;
+}
+.card-room .avatar {
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--ink);
+  background: var(--felt);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+/* View tools over the table: chunky chips that read on top of the felt */
+.card-room .view-tools {
+  gap: 10px;
+  font-size: 14px;
+}
+.card-room .view-tools .quiet-button {
+  background: #15203ad9;
+  border-color: #ffffff33;
+  backdrop-filter: blur(6px);
+}
+.card-room .view-tools .quiet-button[aria-pressed='true'] {
+  background: var(--felt);
+}
+.card-room .scene-caption {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---------- home dock ---------- */
+.card-room .play-dock,
+.card-room.at-home .play-dock,
+.card-room .lobby-dock {
+  border: 3px solid var(--ink);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 8px 0 var(--ink);
+}
+.card-room.at-home .play-dock {
+  width: 360px;
+  padding: 22px;
+  scrollbar-width: thin;
+}
+.card-room .dock-title h2,
+.card-room.at-home .dock-title h2,
+.card-room .lobby-dock .dock-title h2 {
+  font-size: 34px;
+  line-height: 1;
+}
+.card-room .dock-title > span,
+.card-room.at-home .dock-title > span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* Tabs: segmented pill, big enough for thumbs */
+.card-room .dock-tabs,
+.card-room.at-home .dock-tabs {
+  gap: 4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--panel-deep);
+  box-shadow: inset 0 2px 0 #0e142480;
+}
+.card-room .dock-tabs button,
+.card-room.at-home .dock-tabs button {
+  flex: 1;
+  min-height: 46px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 700;
+}
+.card-room .dock-tabs button:hover {
+  color: var(--text);
+}
+.card-room .dock-tabs button[aria-selected='true'],
+.card-room.at-home .dock-tabs button[aria-selected='true'] {
+  background: var(--text);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+/* Fields */
+.card-room .field,
+.card-room.at-home .field,
+.card-room .lobby-dock .field,
+.card-room .avatar-picker legend {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.card-room .field input,
+.card-room .field select,
+.card-room.at-home .field input,
+.card-room.at-home .field select,
+.card-room .lobby-dock .field input,
+.card-room .lobby-dock .field select,
+.room-dialog .field input,
+.room-dialog .field select {
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 2px solid #ffffff22;
+  border-radius: 14px;
+  background: var(--panel-deep);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 17px;
+  font-weight: 600;
+}
+.card-room .field input:focus,
+.card-room .field select:focus,
+.card-room.at-home .field input:focus,
+.card-room.at-home .field select:focus {
+  border-color: var(--mustard);
+}
+
+/* Character picker: faces bounce when picked */
+.card-room.at-home .avatar-picker button,
+.card-room .avatar-picker button {
+  padding: 5px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  background: #ffffff08;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.card-room.at-home .avatar-picker button:hover,
+.card-room .avatar-picker button:hover {
+  background: #ffffff14;
+}
+.card-room.at-home .avatar-picker button[aria-pressed='true'],
+.card-room .avatar-picker button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--mustard);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  transform: translateY(-3px) rotate(-3deg);
+}
+.card-room .avatar-picker svg,
+.card-room .avatar-picker img {
+  border-radius: 11px;
+}
+
+/* Format + difficulty choices: chunky toggles */
+.card-room.at-home .format-options,
+.card-room .format-options {
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.card-room.at-home .format-options button,
+.card-room .format-options button,
+.card-room.at-home .difficulty-options button,
+.card-room .difficulty-options button {
+  min-height: 52px;
+  border: 2px solid #ffffff26;
+  border-radius: 14px;
+  background: var(--panel-deep);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: none;
+}
+.card-room.at-home .format-options button:nth-child(n),
+.card-room .format-options button:nth-child(n) {
+  border: 2px solid #ffffff26;
+}
+.card-room.at-home .format-options button:hover,
+.card-room.at-home .difficulty-options button:hover {
+  border-color: #ffffff55;
+}
+.card-room.at-home .format-options button[aria-pressed='true'],
+.card-room .format-options button[aria-pressed='true'],
+.card-room.at-home .difficulty-options button[aria-pressed='true'],
+.card-room .difficulty-options button[aria-pressed='true'] {
+  border: 3px solid var(--ink);
+  background: var(--felt);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+}
+.card-room .difficulty-options button {
+  padding: 12px 14px;
+}
+.card-room .difficulty-options button span {
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.card-room .dock-description,
+.card-room.at-home .dock-footnote,
+.card-room .dock-footnote {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.card-room .join-row button {
+  height: auto;
+  min-height: 52px;
+}
+.card-room .lobby-dock .invitation-code {
+  border: 2px dashed #ffffff40;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.card-room .lobby-dock .invitation-code:hover {
+  border-color: var(--mustard);
+}
+
+/* ---------- welcome ---------- */
+.card-room .welcome-copy h1,
+.card-room.at-home .welcome-copy h1 {
+  font-size: clamp(44px, 4.6vw, 68px);
+  line-height: 0.95;
+  transform: rotate(-2deg);
+  transform-origin: left center;
+  text-shadow: 4px 4px 0 var(--ink);
+}
+.card-room .welcome-copy p {
+  margin-top: 12px;
+  max-width: 30ch;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ---------- in game ---------- */
+.card-room .turn-banner h1 {
+  font-size: 38px;
+  text-shadow: 3px 3px 0 var(--ink);
+}
+.card-room .turn-banner p {
+  font-size: 15px;
+  font-weight: 600;
+}
+.card-room .turn-clock {
+  font-family: var(--display);
+  font-size: 40px;
+  border-color: #ffffff30;
+}
+.card-room .turn-clock small {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+}
+.card-room .turn-clock.urgent {
+  color: var(--tomato);
+  animation: clock-wobble 0.5s ease-in-out infinite;
+}
+@keyframes clock-wobble {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg) scale(1.08);
+  }
+}
+.card-room .your-turn .status-dot {
+  background: var(--mustard);
+  box-shadow: 0 0 0 6px #ffc53d33;
+}
+.card-room .table-meta {
+  font-size: 14px;
+  font-weight: 600;
+}
+.card-room .huzur-reference {
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 5px 0 var(--ink);
+}
+.card-room .huzur-reference strong,
+.card-room .huzur-reference span:not(.paper-card):not(.card-corner):not(.card-pip),
+.card-room .huzur-reference div > small {
+  font-size: 14px;
+}
+
+.card-room .action-dock {
+  gap: 14px;
+}
+.card-room .action-copy strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 22px;
+}
+.card-room .action-copy span {
+  font-size: 15px;
+  font-weight: 600;
+}
+.card-room .play-button {
+  min-width: 200px;
+  min-height: 64px;
+  justify-content: center;
+  gap: 12px;
+  font-size: 20px !important;
+}
+.card-room .action-dock .secondary-button,
+.card-room .action-dock .pickup-button {
+  min-height: 64px;
+  min-width: 130px;
+  font-size: 19px !important;
+}
+.card-room .hand-card.selected {
+  transform: translateY(-16px) rotate(-3deg);
+  outline: 4px solid var(--mustard);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ---------- notices + dialogs ---------- */
+.card-room .room-notice,
+.card-room .connection-overlay {
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 6px 0 var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.room-dialog {
+  font-family: var(--ui);
+  font-size: 16px;
+  border: 3px solid var(--ink);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 10px 0 var(--ink);
+}
+.room-dialog h2 {
+  font-family: var(--display);
+  font-size: 40px;
+  line-height: 1;
+}
+.room-dialog h3 {
+  font-family: var(--display);
+  font-size: 23px;
+  line-height: 1.1;
+  color: var(--mustard);
+}
+.room-dialog .dialog-heading + p {
+  margin-top: 10px;
+}
+.room-dialog .rules-grid p {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.room-dialog .icon-button {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--ink);
+  font-size: 26px !important;
+  line-height: 1;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.room-dialog .primary-button {
+  justify-content: center;
+}
+
+/* ---------- phones: even bigger thumbs ---------- */
+@media (max-width: 760px) {
+  .card-room .room-header {
+    padding: 0 14px;
+  }
+  .card-room .room-header nav {
+    gap: 8px;
+  }
+  .card-room .room-header .quiet-button {
+    min-width: 0;
+    font-size: 13px;
+    padding: 4px 10px;
+    white-space: nowrap;
+  }
+  .card-room .wordmark {
+    flex-shrink: 0;
+    font-size: 28px;
+    gap: 4px;
+  }
+  .card-room .brand-suit {
+    font-size: 18px;
+    margin-right: 0;
+  }
+  .card-room .hand-card.selected {
+    transform: translateY(-9px) rotate(-3deg);
+    outline-width: 3px;
+  }
+  .card-room.at-home .play-dock,
+  .card-room.in-game .lobby-dock {
+    width: auto;
+    padding: 20px;
+  }
+  .card-room.at-home .welcome-copy h1 {
+    font-size: 44px;
+  }
+  .room-dialog {
+    padding: 22px;
+  }
+  .room-dialog h2 {
+    font-size: 32px;
+  }
+  .room-dialog .rules-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .card-room .turn-banner h1 {
+    font-size: 30px;
+  }
+  .card-room .view-tools .quiet-button,
+  .card-room.in-game .view-tools button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+@media (max-width: 760px), (max-height: 520px) and (orientation: landscape) {
+  .card-room.match-active .view-tools {
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 8px 0;
+  }
+  .card-room.match-active .view-tools > button,
+  .card-room.match-active .view-tools .quiet-button {
+    min-height: 44px;
+    padding: 6px 14px;
+  }
+  .card-room.match-active .action-copy strong {
+    font-size: 19px;
+  }
+  .card-room.match-active .action-copy span {
+    font-size: 13px;
+  }
+  .card-room.match-active .play-button,
+  .card-room.in-game .play-button {
+    min-width: 0;
+    min-height: 60px;
+    font-size: 19px !important;
+  }
+  .card-room.match-active .action-dock .secondary-button,
+  .card-room.in-game .action-dock .secondary-button {
+    min-height: 60px;
+    min-width: 0;
+    padding-inline: 18px;
+    font-size: 18px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-room .turn-clock.urgent {
+    animation: none;
+  }
+  .card-room .primary-button,
+  .card-room .secondary-button,
+  .room-dialog .primary-button,
+  .room-dialog .secondary-button {
+    transition: background 0.15s !important;
+  }
+  .card-room .primary-button:hover:not(:disabled),
+  .card-room .secondary-button:hover:not(:disabled),
+  .room-dialog .primary-button:hover:not(:disabled),
+  .room-dialog .secondary-button:hover:not(:disabled) {
+    transform: none;
+  }
+}
