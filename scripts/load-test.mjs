@@ -65,6 +65,12 @@ const server = spawn(process.execPath, ['-r', 'ts-node/register/transpile-only',
     ...process.env,
     PORT: String(PORT),
     NODE_ENV: 'development',
+    // Every simulated player shares this machine's IP; lift the per-IP limits for this run.
+    TRAFFIC_LIMITS: 'off',
+    // Measure the raw server, above production's per-process admission caps.
+    MAX_CONNECTED_CLIENTS: '5000',
+    MAX_ACTIVE_ROOMS: '2000',
+    MAX_ACTIVE_BOTS: '2000',
     LOG_LEVEL: 'warn',
     MONGO_URI: '',
     REDIS_URL: '',

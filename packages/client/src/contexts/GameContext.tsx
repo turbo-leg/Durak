@@ -265,6 +265,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [client]);
 
   // Stable ref so the onLeave closure can read current spectator state
+  useEffect(() => {
+    if (!room) return;
+    const timer = setInterval(() => {
+      if (activeRoomRef.current === room && room.connection.isOpen)
+        room.send('ping', { clientTime: Date.now() });
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [room]);
+
   const isSpectatorRef = useRef(false);
   useEffect(() => {
     isSpectatorRef.current = isSpectator;
@@ -318,6 +327,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleRoomEvents = (roomInstance: Room<GameState>) => {
     activeRoomRef.current = roomInstance;
+    setServerTimeOffset(0);
     // Persist token so the client can reconnect after a network drop or page refresh
     if (roomInstance.reconnectionToken) {
       sessionStorage.setItem(RECONNECT_TOKEN_KEY, roomInstance.reconnectionToken);
@@ -358,6 +368,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Calculate server time offset
     roomInstance.onMessage('pong', (data: { clientTime: number; serverTime: number }) => {
+      if (
+        activeRoomRef.current !== roomInstance ||
+        !Number.isFinite(data?.clientTime) ||
+        !Number.isFinite(data?.serverTime)
+      )
+        return;
       const now = Date.now();
       const latency = (now - data.clientTime) / 2;
       const offset = data.serverTime - data.clientTime - latency;
@@ -404,6 +420,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setConnectionStatus('connected');
       }
     });
+    // Seat ownership itself is patch-driven; consume the notice without warning.
+    roomInstance.onMessage('seatControl', () => {});
 
     roomInstance.onMessage('roundDiscarded', (data: { cards: DiscardedCard[] }) => {
       if (discardTimerRef.current) clearTimeout(discardTimerRef.current);

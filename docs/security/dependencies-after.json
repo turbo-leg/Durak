@@ -1,0 +1,531 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@colyseus/auth": {
+      "name": "@colyseus/auth",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["@colyseus/core", "grant"],
+      "effects": ["colyseus"],
+      "range": "*",
+      "nodes": ["node_modules/@colyseus/auth"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "@colyseus/core": {
+      "name": "@colyseus/core",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["nanoid"],
+      "effects": [
+        "@colyseus/auth",
+        "@colyseus/redis-driver",
+        "@colyseus/redis-presence",
+        "@colyseus/testing",
+        "@colyseus/tools",
+        "@colyseus/ws-transport",
+        "colyseus"
+      ],
+      "range": "<=0.16.26",
+      "nodes": ["node_modules/@colyseus/core"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "@colyseus/redis-driver": {
+      "name": "@colyseus/redis-driver",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": ["@colyseus/core"],
+      "effects": ["colyseus"],
+      "range": "<=0.16.1",
+      "nodes": ["node_modules/@colyseus/redis-driver"],
+      "fixAvailable": {
+        "name": "@colyseus/redis-driver",
+        "version": "0.18.5",
+        "isSemVerMajor": true
+      }
+    },
+    "@colyseus/redis-presence": {
+      "name": "@colyseus/redis-presence",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": ["@colyseus/core"],
+      "effects": [],
+      "range": "<=0.16.4",
+      "nodes": ["node_modules/@colyseus/redis-presence"],
+      "fixAvailable": {
+        "name": "@colyseus/redis-presence",
+        "version": "0.18.5",
+        "isSemVerMajor": true
+      }
+    },
+    "@colyseus/testing": {
+      "name": "@colyseus/testing",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": ["@colyseus/core", "@colyseus/tools"],
+      "effects": [],
+      "range": "<=0.16.0-preview.7 || 0.16.1 - 0.17.0",
+      "nodes": ["node_modules/@colyseus/testing"],
+      "fixAvailable": {
+        "name": "@colyseus/testing",
+        "version": "0.18.6",
+        "isSemVerMajor": true
+      }
+    },
+    "@colyseus/tools": {
+      "name": "@colyseus/tools",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["@colyseus/core", "@colyseus/ws-transport"],
+      "effects": ["@colyseus/testing"],
+      "range": "<=0.16.0-preview.6 || 0.16.1 - 0.17.0",
+      "nodes": ["node_modules/@colyseus/tools"],
+      "fixAvailable": {
+        "name": "@colyseus/testing",
+        "version": "0.18.6",
+        "isSemVerMajor": true
+      }
+    },
+    "@colyseus/ws-transport": {
+      "name": "@colyseus/ws-transport",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["@colyseus/core"],
+      "effects": ["@colyseus/tools", "colyseus"],
+      "range": "<=0.16.0-preview.10 || 0.16.1 - 0.17.0",
+      "nodes": ["node_modules/@colyseus/ws-transport"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "@discord/embedded-app-sdk": {
+      "name": "@discord/embedded-app-sdk",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": ["uuid"],
+      "effects": [],
+      "range": "<=2.2.0",
+      "nodes": ["node_modules/@discord/embedded-app-sdk"],
+      "fixAvailable": {
+        "name": "@discord/embedded-app-sdk",
+        "version": "2.5.0",
+        "isSemVerMajor": true
+      }
+    },
+    "@vitest/coverage-v8": {
+      "name": "@vitest/coverage-v8",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": ["vitest"],
+      "effects": ["vitest"],
+      "range": "2.1.0-beta.1 - 4.1.10",
+      "nodes": ["node_modules/@vitest/coverage-v8"],
+      "fixAvailable": true
+    },
+    "@vitest/mocker": {
+      "name": "@vitest/mocker",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1193684,
+          "name": "@vitest/mocker",
+          "dependency": "@vitest/mocker",
+          "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+          "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+          "severity": "moderate",
+          "cwe": ["CWE-22"],
+          "cvss": {
+            "score": 5.9,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N"
+          },
+          "range": ">=2.1.0 <4.1.11"
+        }
+      ],
+      "effects": ["vitest"],
+      "range": "2.1.0 - 4.1.10",
+      "nodes": ["node_modules/@vitest/mocker"],
+      "fixAvailable": true
+    },
+    "braces": {
+      "name": "braces",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1240992,
+          "name": "braces",
+          "dependency": "braces",
+          "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "severity": "high",
+          "cwe": ["CWE-674"],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<=3.0.3"
+        }
+      ],
+      "effects": ["chokidar"],
+      "range": "*",
+      "nodes": ["node_modules/braces"],
+      "fixAvailable": {
+        "name": "nodemon",
+        "version": "1.14.10",
+        "isSemVerMajor": true
+      }
+    },
+    "chokidar": {
+      "name": "chokidar",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["braces"],
+      "effects": ["nodemon"],
+      "range": "2.0.0 - 3.6.0",
+      "nodes": ["node_modules/chokidar"],
+      "fixAvailable": {
+        "name": "nodemon",
+        "version": "1.14.10",
+        "isSemVerMajor": true
+      }
+    },
+    "colyseus": {
+      "name": "colyseus",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@colyseus/auth",
+        "@colyseus/core",
+        "@colyseus/redis-driver",
+        "@colyseus/redis-presence",
+        "@colyseus/ws-transport"
+      ],
+      "effects": [],
+      "range": "0.14.17-alpha.2 - 0.14.17-alpha.9 || 0.14.18 - 0.17.0",
+      "nodes": ["node_modules/colyseus"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "elliptic": {
+      "name": "elliptic",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1112030,
+          "name": "elliptic",
+          "dependency": "elliptic",
+          "title": "Elliptic Uses a Cryptographic Primitive with a Risky Implementation",
+          "url": "https://github.com/advisories/GHSA-848j-6mx2-7j84",
+          "severity": "low",
+          "cwe": ["CWE-1240"],
+          "cvss": {
+            "score": 5.6,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:L"
+          },
+          "range": "<=6.6.1"
+        }
+      ],
+      "effects": ["jwk-to-pem"],
+      "range": "*",
+      "nodes": ["node_modules/elliptic"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "esbuild": {
+      "name": "esbuild",
+      "severity": "low",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1120680,
+          "name": "esbuild",
+          "dependency": "esbuild",
+          "title": "esbuild allows arbitrary file read when running the development server on Windows",
+          "url": "https://github.com/advisories/GHSA-g7r4-m6w7-qqqr",
+          "severity": "low",
+          "cwe": ["CWE-22"],
+          "cvss": {
+            "score": 2.5,
+            "vectorString": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:N/I:L/A:N"
+          },
+          "range": ">=0.27.3 <0.28.1"
+        }
+      ],
+      "effects": [],
+      "range": "0.27.3 - 0.28.0",
+      "nodes": ["node_modules/esbuild"],
+      "fixAvailable": true
+    },
+    "grant": {
+      "name": "grant",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["jwk-to-pem", "request-oauth"],
+      "effects": ["@colyseus/auth"],
+      "range": ">=4.0.0",
+      "nodes": ["node_modules/grant"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "jwk-to-pem": {
+      "name": "jwk-to-pem",
+      "severity": "low",
+      "isDirect": false,
+      "via": ["elliptic"],
+      "effects": ["grant"],
+      "range": "*",
+      "nodes": ["node_modules/jwk-to-pem"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "nanoid": {
+      "name": "nanoid",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1109563,
+          "name": "nanoid",
+          "dependency": "nanoid",
+          "title": "Predictable results in nanoid generation when given non-integer values",
+          "url": "https://github.com/advisories/GHSA-mwcw-c2x4-8c55",
+          "severity": "moderate",
+          "cwe": ["CWE-835"],
+          "cvss": {
+            "score": 4.3,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:L/A:N"
+          },
+          "range": "<3.3.8"
+        },
+        {
+          "source": 1138811,
+          "name": "nanoid",
+          "dependency": "nanoid",
+          "title": "nanoid: non-secure generators can loop indefinitely with negative size",
+          "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+          "severity": "high",
+          "cwe": ["CWE-835"],
+          "cvss": {
+            "score": 5.9,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<3.3.16"
+        },
+        {
+          "source": 1139427,
+          "name": "nanoid",
+          "dependency": "nanoid",
+          "title": "nanoid: custom generators can loop indefinitely when size is zero",
+          "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8",
+          "severity": "high",
+          "cwe": ["CWE-835"],
+          "cvss": {
+            "score": 5.9,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<3.3.18"
+        },
+        {
+          "source": 1153189,
+          "name": "nanoid",
+          "dependency": "nanoid",
+          "title": "nanoid: Integer Overflow or Wraparound",
+          "url": "https://github.com/advisories/GHSA-xwg4-73v4-xw9w",
+          "severity": "high",
+          "cwe": ["CWE-190"],
+          "cvss": {
+            "score": 7.4,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N"
+          },
+          "range": "<3.3.12"
+        }
+      ],
+      "effects": ["@colyseus/core"],
+      "range": "<=3.3.17",
+      "nodes": ["node_modules/nanoid"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "nodemon": {
+      "name": "nodemon",
+      "severity": "high",
+      "isDirect": true,
+      "via": ["chokidar"],
+      "effects": [],
+      "range": "0.0.0-development || >=1.14.11",
+      "nodes": ["node_modules/nodemon"],
+      "fixAvailable": {
+        "name": "nodemon",
+        "version": "1.14.10",
+        "isSemVerMajor": true
+      }
+    },
+    "qs": {
+      "name": "qs",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1119502,
+          "name": "qs",
+          "dependency": "qs",
+          "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+          "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
+          "severity": "moderate",
+          "cwe": ["CWE-476"],
+          "cvss": {
+            "score": 5.3,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+          },
+          "range": ">=6.11.1 <=6.15.1"
+        },
+        {
+          "source": 1158506,
+          "name": "qs",
+          "dependency": "qs",
+          "title": "qs array-limit bypass via bracket-key comma parsing",
+          "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+          "severity": "moderate",
+          "cwe": ["CWE-770"],
+          "cvss": {
+            "score": 3.7,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+          },
+          "range": ">=6.14.2 <=6.15.3"
+        },
+        {
+          "source": 1158507,
+          "name": "qs",
+          "dependency": "qs",
+          "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+          "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+          "severity": "moderate",
+          "cwe": ["CWE-248", "CWE-703"],
+          "cvss": {
+            "score": 5.3,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+          },
+          "range": ">=2.2.5 <6.16.0"
+        }
+      ],
+      "effects": [],
+      "range": "2.2.5 - 6.15.3",
+      "nodes": ["node_modules/qs"],
+      "fixAvailable": true
+    },
+    "request-oauth": {
+      "name": "request-oauth",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["uuid"],
+      "effects": ["grant"],
+      "range": "*",
+      "nodes": ["node_modules/request-oauth"],
+      "fixAvailable": {
+        "name": "colyseus",
+        "version": "0.18.9",
+        "isSemVerMajor": true
+      }
+    },
+    "uuid": {
+      "name": "uuid",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1119441,
+          "name": "uuid",
+          "dependency": "uuid",
+          "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+          "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+          "severity": "moderate",
+          "cwe": ["CWE-787", "CWE-1285"],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+          },
+          "range": "<11.1.1"
+        }
+      ],
+      "effects": ["@discord/embedded-app-sdk", "request-oauth"],
+      "range": "<11.1.1",
+      "nodes": ["node_modules/request-oauth/node_modules/uuid", "node_modules/uuid"],
+      "fixAvailable": {
+        "name": "@discord/embedded-app-sdk",
+        "version": "2.5.0",
+        "isSemVerMajor": true
+      }
+    },
+    "vitest": {
+      "name": "vitest",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@vitest/coverage-v8",
+        "@vitest/mocker",
+        {
+          "source": 1193683,
+          "name": "vitest",
+          "dependency": "vitest",
+          "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+          "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+          "severity": "moderate",
+          "cwe": ["CWE-22"],
+          "cvss": {
+            "score": 5.9,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N"
+          },
+          "range": ">=2.1.0 <4.1.11"
+        }
+      ],
+      "effects": ["@vitest/coverage-v8"],
+      "range": "2.1.0-beta.1 - 4.1.10",
+      "nodes": ["node_modules/vitest"],
+      "fixAvailable": true
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 3,
+      "moderate": 16,
+      "high": 4,
+      "critical": 0,
+      "total": 23
+    },
+    "dependencies": {
+      "prod": 279,
+      "dev": 419,
+      "optional": 71,
+      "peer": 24,
+      "peerOptional": 0,
+      "total": 768
+    }
+  }
+}

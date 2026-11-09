@@ -160,7 +160,7 @@ export function RulesPanel({ close }: { close: () => void }) {
           <h3>{t('Make a mass')}</h3>
           <p>
             {t(
-              'Masses contain 3, 5 or 7 cards under our pairing rules. Select all your cards before confirming. The table checks legality.',
+              'Play 3 cards with at least 1 pair, 5 with 2 pairs, or 7 with 3 pairs. Every seated player must hold at least that many cards before you play, including teammates and players later in the circle. A 5-card mass needs an empty deck in a 5-card game. A 7-card mass needs a 7-card game and an empty deck.',
             )}
           </p>
         </div>

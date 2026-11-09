@@ -116,7 +116,7 @@ flyctl secrets set MONGO_URI=... DISCORD_CLIENT_SECRET=... JWT_SECRET=...
 flyctl logs                           # tail logs
 ```
 
-`fly.toml` configures auto-stop/auto-start machines, sticky sessions (required for Colyseus), and a 35s kill timeout to let in-flight rooms drain cleanly. For free-tier setup notes see [DEPLOY_FREE_TIER.md](DEPLOY_FREE_TIER.md).
+`fly.toml` keeps one machine warm, checks `/ready`, and allows 45 seconds for a 30-second game drain and result flush. A persistent volume at `/data` retains pending results through restarts. The first release targets one server process; adding machines requires verified room-owner routing. See [operations](docs/OPERATIONS.md) for capacity limits, metrics, persistence, and rollout checks. For free-tier setup notes see [DEPLOY_FREE_TIER.md](DEPLOY_FREE_TIER.md).
 
 ## Troubleshooting
 
@@ -133,3 +133,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. In short: branch o
 ## License
 
 [MIT](LICENSE)
+
+## Bayesian Networks assignment — Question 6
+
+The student grade prediction application is in [`packages/grades`](packages/grades/README.md).
+From the repository root, run `npm install` and `npm run dev:grades`, then open
+http://127.0.0.1:5174. Run `npm run test:grades` for its tests and `npm run build:grades`
+for its production build. This workspace runs independently of the Durak game.

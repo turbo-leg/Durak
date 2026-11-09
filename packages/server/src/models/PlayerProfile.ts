@@ -21,6 +21,7 @@ export interface IPlayerProfile extends mongoose.Document {
   equippedCardBack: string;
   equippedTableSkin: string;
   equippedEmotes: string[];
+  appliedResultIds: string[];
   updatedAt: Date;
 }
 
@@ -46,6 +47,8 @@ const PlayerProfileSchema = new mongoose.Schema(
     equippedCardBack: { type: String, default: '' },
     equippedTableSkin: { type: String, default: '' },
     equippedEmotes: { type: [String], default: [] },
+    // Only incomplete results keep receipts; completion is recorded permanently in GameLog.
+    appliedResultIds: { type: [String], default: [], select: false },
   },
   { timestamps: true },
 );

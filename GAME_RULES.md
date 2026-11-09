@@ -44,17 +44,19 @@ This game operates in a continuous circle (clockwise direction):
 When initiating an attack, a player can play either a **Single Card** or a **Mass Attack**.
 
 - **Single Card**: Play exactly 1 card.
-- **Mass Attacks**: Must contain exactly N cards with at least floor(N/2) pairs of cards with the same rank.
+- **Mass Attacks**: Must contain exactly N cards (3, 5, or 7) with at least floor(N/2) pairs of cards with the same rank.
+  - **Hand-size requirement for every mass**: Before the attack is played, every seated player must have at least N cards in hand. This includes the attacker, teammates, and every player later in the clockwise defense chain. Spectators do not count. Use current hand sizes, not the lobby's target hand size or a possible later refill.
   - **3-Card Mass** (1 Pair + 1 Random card):
-    - **Standard max while the deck is intact** (has cards remaining).
-    - **Always allowed if targetHandSize >= 3**.
+    - Allowed in both 5-card and 7-card lobbies, whether the deck has cards remaining or is empty, provided every player has at least 3 cards.
   - **5-Card Mass** (2 Pairs + 1 Random card):
-    - **In targetHandSize = 5 lobbies**: ONLY allowed if the deck is empty AND all defending players have >= 5 cards in hand.
-    - **In targetHandSize = 7 lobbies**: Always allowed (deck intact or empty).
+    - **In targetHandSize = 5 lobbies**: ONLY allowed if the deck is empty AND every player has at least 5 cards in hand.
+    - **In targetHandSize = 7 lobbies**: Allowed with cards remaining in the deck or with an empty deck, provided every player has at least 5 cards.
   - **7-Card Mass** (3 Pairs + 1 Random card):
-    - **In targetHandSize = 7 lobbies**: ONLY allowed if the deck is empty AND all defending players have >= 7 cards in hand.
+    - **In targetHandSize = 7 lobbies**: ONLY allowed if the deck is empty AND every player has at least 7 cards in hand.
     - **Not applicable in targetHandSize = 5 lobbies**.
-  - **7+ Card Masses** are not defined in the current implementation.
+  - No other mass sizes are allowed.
+
+For example, with current hands of 7, 7, 2, and 7 cards, a 3-card mass is illegal even if the next defender has 7 cards. The player holding 2 cards could also have to defend later in the circle.
 
 ## 5. Defending Mechanics
 

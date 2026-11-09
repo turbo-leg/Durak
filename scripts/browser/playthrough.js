@@ -20,8 +20,9 @@ async function browserPlaythrough(page) {
   };
   let actions = 0;
   const trace = [];
-  for (let tick = 0; tick < 240 && actions < 100; tick++) {
-    if (await page.getByRole('button', { name: /Rematch/ }).count())
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline && actions < 200) {
+    if (await page.getByRole('region', { name: 'Game result' }).count())
       return { finished: true, actions };
     // Read one coherent DOM frame instead of mixing data from different patches.
     const view = await page.evaluate(() => ({
@@ -97,6 +98,7 @@ async function browserPlaythrough(page) {
   return {
     finished: false,
     actions,
+    reason: Date.now() >= deadline ? 'playthrough deadline exceeded' : 'action budget exceeded',
     status: await page.getByRole('region', { name: 'Table state' }).innerText(),
   };
 }

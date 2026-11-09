@@ -28,10 +28,15 @@ services:
       - REDIS_URL=redis://redis:6379
       # The compose database unless .env names another.
       - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/durak}
+      - RESULT_OUTBOX_DIR=/data/results
+    volumes:
+      - result-outbox:/data
     depends_on:
       - mongo
       - redis
     restart: unless-stopped
+    stop_grace_period: 45s
 
 volumes:
   mongo-data:
+  result-outbox:
