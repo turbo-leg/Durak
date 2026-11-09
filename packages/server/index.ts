@@ -2,6 +2,7 @@ import { Server, matchMaker } from 'colyseus';
 import { RedisPresence } from '@colyseus/redis-presence';
 import { RedisDriver } from '@colyseus/redis-driver';
 import express from 'express';
+import compression from 'compression';
 import http from 'http';
 import cors from 'cors';
 import { monitor } from '@colyseus/monitor';
@@ -94,6 +95,15 @@ if (process.env.MONGO_URI) {
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
+// Compress text and the character model. Fly's proxy only compresses text types, and the
+// 1 MB model (model/gltf-binary) shrinks to about 290 KB, most of a phone's first download.
+app.use(
+  compression({
+    filter: (req, res) =>
+      /model\/gltf-binary/.test(String(res.getHeader('Content-Type') ?? '')) ||
+      compression.filter(req, res),
+  }),
+);
 app.use(express.json());
 
 // Issue #69: Allow Discord to embed this application in an iframe
@@ -483,7 +493,18 @@ if (process.env.NODE_ENV !== 'production') app.use('/colyseus', monitor());
 
 const clientDistPath = path.resolve(__dirname, '../client/dist');
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  app.use(
+    express.static(clientDistPath, {
+      setHeaders: (res, filePath) => {
+        // Vite's hashed bundles never change; everything else revalidates.
+        if (
+          filePath.includes(`${path.sep}assets${path.sep}`) &&
+          /-[\w-]{8}\.(js|css)$/.test(filePath)
+        )
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    }),
+  );
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/colyseus') || req.path.startsWith('/matchmake')) {
       return next();

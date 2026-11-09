@@ -15,7 +15,8 @@ primary_region = "iad"
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 0
+  # Keep one machine awake: a stopped machine made the first visitor wait about 9 s.
+  min_machines_running = 1
   processes = ["app"]
   sticky_sessions = true
 
