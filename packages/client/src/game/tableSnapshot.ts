@@ -1,4 +1,9 @@
-import type { Card, GameState, PublicGesture } from '@durak/shared';
+import type { Card, GameState, PrivateCard, PublicGesture } from '@durak/shared';
+
+/** Data that never travels in synced state: the owner's hand, from the 'private' message. */
+export interface OffStateView {
+  readonly hand?: Iterable<PrivateCard | undefined>;
+}
 
 export interface TableCard {
   readonly key: string;
@@ -78,15 +83,16 @@ export function cardLabel(card: Pick<Card, 'suit' | 'rank' | 'isJoker'>): string
   return `${rank[card.rank] ?? card.rank} of ${card.suit}`;
 }
 
-const copyCard = (card: Card): TableCard => ({
+type CardFace = Pick<Card, 'suit' | 'rank' | 'isJoker'>;
+const copyCard = (card: CardFace): TableCard => ({
   key: cardIdentity(card),
   suit: card.suit,
   rank: card.rank,
   isJoker: card.isJoker,
 });
-const copyCards = (cards: Iterable<Card | undefined> | undefined) =>
+const copyCards = (cards: Iterable<CardFace | undefined> | undefined) =>
   Array.from(cards ?? [])
-    .filter((c): c is Card => !!c)
+    .filter((c): c is CardFace => !!c)
     .map(copyCard);
 
 /** Resolved attack cards on the table: the ranks a single-card attack may add. */
@@ -99,6 +105,7 @@ export function tableSnapshot(
   sessionId: string,
   spectator: boolean,
   serverTimeOffset = 0,
+  offState: OffStateView = {},
 ): TableSnapshot {
   const order = Array.from(state.seatOrder).filter((id): id is string => !!id);
   const ids = order.length ? order : Array.from(state.players.keys());
@@ -151,7 +158,7 @@ export function tableSnapshot(
     winnerTeam: state.winnerTeam,
     capacity: state.maxPlayers,
     betweenGames: ['waiting', 'countdown', 'finished'].includes(state.phase),
-    hand: spectator ? [] : copyCards(state.players.get(sessionId)?.hand),
+    hand: spectator ? [] : copyCards(offState.hand ?? state.players.get(sessionId)?.hand),
     attacks: copyCards(state.activeAttackCards),
     history: copyCards(state.tableStacks),
     seats,

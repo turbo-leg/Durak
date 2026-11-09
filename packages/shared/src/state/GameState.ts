@@ -1,4 +1,4 @@
-import { type, filter, Schema, MapSchema, ArraySchema } from '@colyseus/schema';
+import { type, Schema, MapSchema, ArraySchema } from '@colyseus/schema';
 import { Player } from './Player';
 import { Card } from './Card';
 import { OpeningDraw } from './OpeningDraw';
@@ -6,10 +6,9 @@ import { SeatRequest } from './SeatRequest';
 
 export class GameState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
-  // Never send deck order to players or spectators, including debug clients.
-  @filter(() => false)
-  @type([Card])
-  deck = new ArraySchema<Card>();
+  // Server-only: deck order is never sent to players or spectators. Not part of the
+  // schema at all, so state carries no @filter and each patch is encoded once.
+  deck: Card[] = [];
   @type([Card]) discardPile = new ArraySchema<Card>();
   @type([Card]) table = new ArraySchema<Card>();
   @type([Card]) tableStacks = new ArraySchema<Card>(); // Pairs of [attacker, defender] for visual history
@@ -48,9 +47,8 @@ export class GameState extends Schema {
 
   // Developer Mode: Full turn-by-turn game log for easy e2e test export
   // Replay includes initial hands and private draws; persistence remains server-side.
-  @filter(() => false)
-  @type(['string'])
-  actionLog = new ArraySchema<string>();
+  // Server-only, like deck.
+  actionLog: string[] = [];
 
   @type('number') spectatorCount: number = 0;
 

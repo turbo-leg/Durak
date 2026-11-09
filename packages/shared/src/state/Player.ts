@@ -1,4 +1,4 @@
-import { type, filter, Schema, ArraySchema } from '@colyseus/schema';
+import { type, Schema } from '@colyseus/schema';
 import { Card } from './Card';
 
 export class Player extends Schema {
@@ -14,24 +14,15 @@ export class Player extends Schema {
   @type('uint32') gestureSequence: number = 0;
   @type('string') discordId: string = '';
   @type('string') userId: string = ''; // internal ID for email/password accounts
-  @filter(function (this: Player, client: { sessionId: string }) {
-    return client.sessionId === this.id;
-  })
-  @type([Card])
-  hand = new ArraySchema<Card>();
-  @filter(function (this: Player, client: { sessionId: string }) {
-    return client.sessionId === this.id;
-  })
-  @type(['string'])
-  pickedUpCardKeys = new ArraySchema<string>();
+  // Private, server-only. The owner receives it in a 'private' message sent just
+  // before each patch (see DurakRoom.sendPrivateViews). Keeping it out of the
+  // schema means state has no @filter, so one patch is encoded for all clients.
+  hand: Card[] = [];
+  pickedUpCardKeys: string[] = [];
   @type('boolean') hasPickedUp: boolean = false;
   @type('number') team: number = 0; // 0 or 1 for 3v3
   @type('boolean') isReady: boolean = false;
-  @filter(function (this: Player, client: { sessionId: string }) {
-    return client.sessionId === this.id;
-  })
-  @type(['string'])
-  lastDrawLog = new ArraySchema<string>();
+  lastDrawLog: string[] = []; // server-only
 
   // Public count is maintained by the authoritative room before each patch.
   @type('number') handCount: number = 0;
