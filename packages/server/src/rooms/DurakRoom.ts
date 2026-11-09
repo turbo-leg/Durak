@@ -65,6 +65,8 @@ export class DurakRoom extends Room<GameState> {
   private sentPrivate = new WeakMap<Client, string>();
   private gestureTimes = new Map<string, number>();
   private watcherIdentities = new Map<string, RoomIdentity>();
+  /** Where each player arrived from (a link's ?src=), for counting plays per promo post. */
+  private sources = new Map<string, string>();
   private pendingSeatOptions = new Map<string, Record<string, unknown>>();
   // Temporary bot control: takeover grace timers, held reconnections, and
   // serials that invalidate delayed bot work when a game, turn or seat owner changes.
@@ -861,7 +863,12 @@ export class DurakRoom extends Room<GameState> {
   }
 
   onJoin(client: Client, options: any, identity?: RoomIdentity) {
-    logger.info({ sessionId: client.sessionId }, 'client joined');
+    const src =
+      typeof options?.src === 'string' && /^[a-z0-9_-]{1,40}$/i.test(options.src)
+        ? options.src.toLowerCase()
+        : undefined;
+    if (src) this.sources.set(client.sessionId, src);
+    logger.info({ sessionId: client.sessionId, roomId: this.roomId, src }, 'client joined');
 
     if (options?.spectator) {
       this.syncPublicCounts();
@@ -1167,6 +1174,18 @@ export class DurakRoom extends Room<GameState> {
     const playerCount = Array.from(this.state.players.values()).length;
     if (playerCount < 2) return; // Guard: never start with fewer than 2 players
     this.gameSerial++;
+    const humans = Array.from(this.state.players.values()).filter((p) => p.control === 'human');
+    logger.info(
+      {
+        event: 'game_started',
+        roomId: this.roomId,
+        humans: humans.length,
+        bots: playerCount - humans.length,
+        private: this.state.isPrivate,
+        sources: humans.map((p) => this.sources.get(p.id) ?? 'direct'),
+      },
+      'game started',
+    );
 
     if (this.state.isPrivate && this.state.mode === 'horse') {
       // Letters carry between sub-games; a finished match starts over.
