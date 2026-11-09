@@ -5,6 +5,7 @@ import { GameState, EMPTY_PRIVATE_VIEW } from '@durak/shared';
 import type { PrivateView } from '@durak/shared';
 import { discordSdk, getDiscordSessionToken, clearDiscordSessionToken } from '../discordAuth';
 import { isSessionTokenCurrent } from '../game/sessionToken';
+import { trafficSource } from '../game/trafficSource';
 import { useAuth } from './AuthContext';
 
 type DefenseSnapshot = {
@@ -170,6 +171,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     delete guestOptions.userId;
     delete guestOptions.discordId;
     const session = sessionOptions();
+    const src = trafficSource();
+    if (src) {
+      options = { ...options, src };
+      guestOptions.src = src;
+    }
     try {
       return await join({ ...(session.token ? options : guestOptions), ...session });
     } catch (error) {
