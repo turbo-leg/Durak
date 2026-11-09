@@ -1,0 +1,453 @@
+DURAK PROJECT MANAGER / ENGINEERING REPORT
+
+Durak
+Project Audit
+& Roadmap
+
+20 October 2026
+
+Current status
+
+The existing React / Colyseus / shared-rules monorepo has a substantial working gameplay core. A playable Three.js table
+and multiplayer integrity tranche are implemented. Further polish and public-release validation remain.
+Baseline: 218 tests passed; four lint warnings; ten server type errors; root production build failed.
+Current checks: 297 tests pass, all workspace type checks pass, client lint is clean and the root build succeeds. The client
+bundle-size warning remains.
+Implemented: private network state, verified room identities, lobby guards, a real 3D table, complete bot and two-client
+browser matches, rematch/refresh recovery and WebGL fallback. Custom shared engine rules are retained.
+Next release blockers: four high dependency advisories remain after compatible updates removed all critical findings.
+Physical-device performance, production persistence, Redis, external Discord integration and deployment need validation.
+
+Report contents
+
+1. Full project audit — architecture, baseline checks, prioritized findings and custom rules.
+2. Implementation roadmap — milestones, acceptance criteria and first-tranche results.
+
+Source of record: docs/PROJECT_AUDIT.md and docs/PROJECT_PLAN.md. The audit describes the original baseline; the
+roadmap records subsequent fixes. Local browser smoke checks passed; no deployment or complete production
+acceptance run has been performed.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                                1
+Durak project audit
+
+Owner: Durak Project Manager. Inspected 2026-10-20 at commit 9b23e50. This records the unmodified baseline;
+implementation results appear in PROJECT_PLAN.md.
+
+Architecture and working behavior
+
+This is an npm workspace monorepo, not a Three.js application yet.
+
+Client
+
+packages/client/src/main.tsx, App.tsx; React 19, Vite 8, Tailwind, Framer Motion. contexts/GameContext.tsx owns
+Colyseus connections, patch-driven rerenders, reconnect tokens, broadcasts and matchmaking. AuthContext.tsx handles
+browser identity.
+Evidence and limits: 88 component tests pass. Active play uses components/GameBoard.tsx; home uses HomePage.tsx. No
+Three.js dependency or scene exists.
+
+Server
+
+packages/server/index.ts: Express APIs, OAuth/JWT, profiles/shop/history, optional Redis, static client hosting.
+src/rooms/DurakRoom.ts: lobby, dealing, Suhuh, action validation, clockwise progression, timeout, bots, reconnect,
+spectators, results/rematch and persistence.
+Evidence and limits: 64 tests pass, including a real Colyseus client/server action sequence. Most room tests call private
+handlers directly; these do not prove browser flows or deployment.
+
+Shared
+
+packages/shared/index.ts exports schemas, engine, badges and ladder. src/state/* is the network schema;
+src/engine/DurakEngine.ts supplies comparisons, mass composition, defense matching, drawing, pickup and Huzur
+exchange.
+Evidence and limits: 66 tests pass across 16 files: custom modes, conservation, stacking, swaps, tiers. Engine helpers
+mutate state; the architecture description calling everything stateless is inaccurate.
+
+Bots
+
+packages/server/src/ai/BotEngine.ts is imported and executed by the room. Easy/hard bots evaluate actual moves.
+Evidence and limits: Shared src/ai/GrandmasterBot.ts, MCTS.ts, InferenceEngine.ts form a separate, unconnected
+prototype. Grandmaster only returns pickup; MCTS scores random coin flips.
+
+Deployment
+
+Root Dockerfile and packages/server/Dockerfile build client assets and run server TypeScript through ts-node.
+.github/workflows/ci.yml runs checks and Fly deployment. Capacitor native projects are present.
+Evidence and limits: External MongoDB, Redis, Discord, Fly and native builds were not exercised. Docker does not
+compile and run a plain-JS server as README claims.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                             2
+Baseline checks
+
+Local installed dependencies; Windows PowerShell, Node v24.19.0, npm 11.17.0. Raw output: docs/audit-baseline/*.log.
+No dependency installation or upgrades preceded these checks.
+
+Check                          Baseline result
+
+npm test                       PASS: 218 tests, 28 files (client 88/4, server 64/8, shared 66/16).
+
+npm run lint                   PASS with 4 warnings, 0 errors. Only client has a lint script.
+
+Client TypeScript              PASS via tsc -b in client production build. Root client tsconfig has no files; CI's tsc
+                               --noEmit -p packages/client/tsconfig.json does not traverse its referenced
+                               projects.
+
+npx tsc --noEmit -p            FAIL: 10 errors, all potentially undefined array accesses in
+packages/server/tsconfig.json  tests/DurakRoom.unit.test.ts and tests/e2e.test.ts. CI omits server checking.
+
+npx tsc --noEmit -p            PASS.
+packages/shared/tsconfig.json
+
+npm run build                  FAIL: client succeeds, server and shared lack build scripts. Client's largest JS bundle is
+                               694.66 kB / 202.38 kB gzip, above Vite's warning threshold.
+
+Passing automated checks establish a useful existing core, not a polished or secure release. Browser multiplayer, full
+matches against bots, real reconnect after refresh, touch interactions, WebGL and external integrations still need
+acceptance testing.
+
+Prioritized findings
+
+P0 = blocks public competitive release; P1 = blocks reliable development or target functionality; P2 = maintainability /
+polish.
+
+P0 / Hidden information is serialized publicly: shared/src/state/Player.ts exposes hand, lastDrawLog,
+pickedUpCardKeys; GameState.ts exposes full ordered deck and actionLog.
+server/src/rooms/DurakRoom.ts::logPendingDraws puts exact draws into that log. CSS card backs
+cannot protect these values.
+
+Action: Design owner-only hands, public hand/deck counts and server-only deck/replay data; test decoded snapshots
+and patches for two players plus spectator and reconnect. Audit broadcasts as well as schema fields.
+
+P0 / DurakRoom.ts::onAuth validates room eligibility, not identity. onJoin accepts arbitrary userId /
+discordId from options; saveGameLog uses them for profiles/rating/rewards. API JWT verification
+does not secure room joins.
+
+Action: Verify server-issued tokens at join; derive profile identities from verified claims; keep explicit guests unrated. Test
+impersonation rejection.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                                   3
+P0 / DurakRoom.ts::onCreate registers production-accessible dev_action: host can play_as another
+player or force_pass; arbitrary testModeDeck is accepted at creation.
+
+Action: Deny debug mutation and deck injection in production while retaining legitimate lobby bot setup. Add
+handler-level regression tests.
+
+P1 / Root build fails; server type errors and missing server CI validation (see baseline).
+Source-based server runtime is intentional today.
+
+Action: Establish reliable workspace build/typecheck commands and exercise them in CI; describe runtime accurately.
+
+P1 / No Three.js renderer. client/src/components/GameBoard.tsx mixes lobby, scene layout, drag
+staging, developer controls, results and audio in ~2,700 lines.
+
+Action: Extract reusable action/presentation adapters; add a lazy-loaded scene without duplicating rules or connection
+ownership. Preserve a functional accessible DOM path.
+
+P1 / Solo UI in HomePage.tsx::SinglePlayerSheet sends botDifficulty, ignored by the baseline room,
+and handSize: 6. The UI advertises medium difficulty, but server/src/ai/BotEngine.ts only
+implements easy/hard.
+
+Action: Wire solo creation to real bots, use a documented hand size, and expose only supported difficulties. Verify the
+actual room join/start path.
+
+P1 / Room options are weakly validated in DurakRoom.ts::onCreate / updateSettings: raw parseInt for
+capacity/hand size, arbitrary mode strings, client-controlled test fixtures. Several handlers
+assume non-null payloads.
+
+Action: Centralize supported combinations and payload validation; ensure malformed traffic cannot crash handlers or
+create invalid games.
+
+P1 / Rule/documentation divergence: GAME_RULES.md calls this single-player despite existing
+multiplayer; Suhuh specifies a separate deck and team choice, while DurakRoom.ts::resolveSuhuh
+draws/returns actual undealt cards and resolves automatically. Engine initializeGame deals
+round-robin with shift and chooses player zero; production room deals a whole hand per
+player with pop, then Suhuh. GAME_NOTATION.md still mentions six-card refills and nonexistent
+sixes.
+
+Action: Preserve current behavior pending explicit rule decisions; characterize differences in tests, then converge setup
+paths. Do not silently substitute standard Durak.
+
+P1 / server/index.ts exposes /colyseus monitor without access control. Broad CORS/frame
+policy, identity APIs, proxy and production config need a deployment review.
+
+Action: Protect/disable monitor in production and test the actual deployment configuration before public launch.
+
+P2 / Four hook warnings in GameBoard.tsx and PlayerProfilePanel.tsx. Profile fetch depends only
+on discordId despite reading email userId; it can show stale content.
+
+Action: Capture primitive effect inputs, use explicit dependencies and verify existing tests.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                             4
+P2 / ARCHITECTURE.md backlog marks game loop, reconnect, client and bots unimplemented
+although code/tests exist. PROGRESS.md describes a stale branch and prototype bot as the
+active work. Client README is a Vite template.
+
+Action: Point old status docs to this audit/plan, replace template onboarding and correct root check/deploy instructions.
+
+P2 / Duplicate lobby systems: components/Lobby.tsx is referenced only by its tests; active app
+uses HomePage and GameBoard lobby. Duplicate container definitions have different start
+modes; privacy/terms exist as markdown and public HTML.
+
+Action: Inventory consumers and differences before consolidation. Keep native projects, documentation and custom art
+until usage/history is verified.
+
+P2 / Likely template assets client/src/assets/react.svg, vite.svg, hero.png have no code references
+found. server/tests/dummy.test.ts only asserts true. Shared AI prototype is not exported from
+the shared entry point.
+
+Action: Mark as candidates, not automatic deletions. Preserve useful experiments and confirm non-code consumers
+before removal.
+
+P2 / Existing tests largely mock GameContext / invoke room internals; no browser
+acceptance or renderer lifecycle suite. Bundle already exceeds warning budget.
+
+Action: Add targeted network/acceptance tests for release risks, split routes/3D code and measure mobile performance.
+
+Custom rules to preserve
+
+Read GAME_RULES.md and GAME_NOTATION.md before rule work. Verified in the engine/room/tests: 42 cards; ranks 7–K then 3,
+2, A; black/red Jokers 17/18; Joker trump mapping; five/seven-card targets; clockwise Hot Potato chaining; 3/5/7 mass
+conditions and pair counting; one-to-one defense assignment; table pickup; refill to target; picked-up swap-card
+provenance; deck-empty escape. Teams and Horse also exist and must survive presentation changes.
+
+Ambiguities remain explicit: Suhuh implementation versus prose, mass eligibility of low-hand defenders, prototype setup
+differences, and the meaning of the opening single-player/no-fixed-hand-size wording. No rule changes are authorized
+by stale standard-Durak assumptions.
+
+Follow-up findings during implementation
+
+The baseline above remains historical. Implemented fixes and current validation are in PROJECT_PLAN.md.
+
+• Full-match simulations exposed voluntary-pickup cycles in hard-bot decisions and a last-defender turn pointing at a
+    player who had already escaped. Fixed the decision policy and clockwise skip; shared engine rules were retained.
+
+• Browser validation exposed a leading attacker frozen at zero seconds, a duplicate Enter-key selection handler, and
+    invitation input that uppercased/truncated case-sensitive room IDs. These have been addressed; tests and browser
+    checks are recorded in the plan.
+
+• Rematch/refresh validation exposed a cleared reconnect token never restored for the next match. Active seated-player
+    state now persists it again; a real browser rematch followed by refresh recovered the game with one canvas.
+
+• Dependency review found critical/high advisories that were not part of the initial test/build audit. Compatible updates
+    removed all four critical findings. Remaining advisories and migration limits are documented in
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                             5
+security/DEPENDENCY_REVIEW.md.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026  6
+Durak implementation roadmap
+
+Owner: Durak Project Manager. Updated 2026-10-20. Baseline and file evidence: PROJECT_AUDIT.md.
+
+Technical direction
+
+Keep Colyseus authoritative, shared custom rules intact and React responsible for connection, lobby, HUD and
+accessibility. Introduce Three.js as a presentation layer over the same observable game state and action interface. Do not
+create a second rules engine inside the renderer. Preserve the existing artwork and play path while migrating deliberately.
+
+Milestones and acceptance criteria
+
+0. Audit and reproducible checks (first implementation tranche)
+
+• Completed: Map source, custom rules and active/prototype systems; capture unmodified baseline.
+• Completed: Write audit and this roadmap before implementation.
+• Completed: Add workspace typecheck/build validation for the source-based server/shared packages; retain the current
+
+    ts-node deployment model until a separate artifact migration.
+• Completed: Repair unsafe seeded test accesses; make CI actually check client, server and shared and run the root build.
+• Completed: Close production debug mutation/deck injection paths without removing supported lobby bot creation;
+
+    cover policy with registered-handler tests.
+• Completed: Correct four effect warnings and stale onboarding/status pointers; retain cleanup candidates pending
+
+    evidence.
+• Completed: Repair the discovered Solo entry point: create/start a real easy/hard bot match, use five-card default, and
+
+    stop advertising unimplemented medium difficulty.
+• Completed: Rerun tests, lint, typecheck and production build; record outcome below.
+Exit: all explicit check commands succeed; no assertion-only typecheck workaround or silent skipping of missing build
+scripts; no game-rule change.
+
+1. Multiplayer integrity (before public competitive release)
+
+• Verify JWTs on room joins for browser/Discord users; preserve guests and define unrated guest behavior. Test forged
+    IDs and expired/invalid credentials.
+
+• Separate authoritative secrets from public view: private hands, deck order, draw logs and replay trace; add public
+    counts and owner-only hand payloads. Update every UI consumer atomically.
+
+• Test real serialized snapshots and incremental patches for owner, opponent and spectator, including swaps, pickup,
+    refresh/reconnect and rematch. No private card data may leak through logs/broadcasts.
+
+• Validate lobby options, supported modes/capacities, hand targets and malformed messages. Protect production
+    monitor. Keep valid team/Horse behavior.
+
+• Characterize complete matches, turn expiration, bot legality, disconnect/rejoin, result persistence and rematch. Record
+    rule discrepancies before resolving them.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                               7
+Exit: no impersonation or private-card leak in network tests; valid modes finish without losing/duplicating any of the 42
+cards. MongoDB/Redis/Discord integration remains explicitly separate from isolated test results.
+
+2. Presentation boundary and Three.js vertical slice
+
+• Extract typed immutable render snapshots, card identities, seats and action callbacks from GameBoard; maintain
+    Colyseus patch-driven updates despite mutable schemas.
+
+• Extract lobby/results/HUD and card-selection/defense-assignment interaction from the large board. Use shared
+    validation for previews; server always decides legality.
+
+• Add Three.js dependencies after checking current official documentation. Lazy-load a real WebGL table scene: camera,
+    lighting, felt surface, deck, Huzur, local hand, opponent backs and active attack/defense stacks.
+
+• Add pointer picking, card selection, attack and defense submission, pickup and Huzur swap using existing room
+    messages. Keep keyboard/touch DOM controls and a fallback when WebGL is unavailable or loses context.
+
+• Dispose textures/geometries/materials/listeners on leave; resize correctly, cap pixel ratio and avoid hidden-tab
+    rendering.
+
+Exit: two browser clients play a complete custom-rules match through the 3D path, reconnect, rematch and leave without
+renderer leaks. Spectators never receive hidden cards. DOM fallback remains playable.
+
+3. Visual and interaction polish
+
+Establish a cohesive table/art direction using existing card backs and brand assets. Animate deal, selection, staging,
+reveal, pickup and discard with intentional timing; synchronize sound without obstructing input. Support reduced motion,
+mute, readable timers, clear illegal-move feedback, narrow screens and safe areas.
+
+Exit: documented desktop/mobile acceptance runs, legible multi-card masses and all supported seat counts; agreed
+frame-rate and loading budgets measured on representative devices. Split scene/routes so home does not download 3D
+unnecessarily.
+
+4. Cleanup and release
+
+Consolidate the inactive lobby, setup paths, prototype AI and container definitions only after consumer/history checks
+and regression coverage. Replace stale docs with operational instructions. Exercise production-shaped container,
+persistence, monitoring, reconnect/load behavior and Discord embedding. Native packaging is retained and evaluated
+separately.
+
+Exit: repeatable clean install and CI, documented environment/setup, reviewed deployment and known limitations; no
+P0/P1 release blockers. Deployment is a separate external action from local implementation.
+
+Progress reporting
+
+Each tranche records concrete changes, commands/results, remaining blockers and next acceptance target here. Passing
+unit tests is not reported as browser or production validation. Audit baseline stays immutable.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                             8
+Tranche 0 results
+
+Completed locally:
+
+• Root npm run typecheck checks all three workspaces, including client project references and server tests. Server/shared
+    build performs no-emit validation because deployment still uses source through ts-node; the client emits production
+    assets.
+
+• CI now uses Node 24 (matching the audited local major), checks server types and builds all workspaces. CI itself and
+    containers were not executed locally.
+
+• Production host debug impersonation/force-pass/dummies are blocked. Real easy/hard bots remain available in
+    waiting lobbies. Client deck injection is restricted to test environments.
+
+• Solo room options now provision a registered bot and start the match after the human joins. Unsupported
+    configurations are rejected; the client requests five cards and offers the two implemented difficulties. Artwork is
+    retained.
+
+• Timer/result/staging effects use explicit primitive dependencies. Profile panel refetches when either email or Discord
+    identity changes. Historical docs point to the verified audit/plan.
+
+Validation after implementation:
+
+Command            Result
+
+npm test           PASS: 240 tests across 29 files (88 client, 86 server, 66 shared). Includes 20
+                   production/solo guard cases and 2 real Colyseus solo join/start cases added in this
+                   tranche.
+
+npm run typecheck  PASS across all workspaces; final root build also rechecked all updated types.
+
+npm run lint       PASS, zero warnings/errors (client scope).
+
+npm run build      PASS. Client bundle warning remains: largest JS chunk 694.45 kB / 202.38 kB gzip.
+
+git diff --check   PASS; Git emits only Windows line-ending conversion notices.
+
+No files deleted, shared engine rules changed, dependencies upgraded or deployment performed. Full bot matches and
+browser interactions have not yet been validated; solo network tests establish provisioning/deal/start, not full-match
+quality.
+
+Tranche 1: multiplayer integrity and playable 3D
+
+Implemented locally:
+
+• Owner-filtered hands, pickup provenance and draw logs; server-only deck order/replay; public hand/deck counts. Real
+    Colyseus tests inspect snapshots and incremental patches for two players and a spectator, including pickup, refill and
+    Huzur exchange.
+
+• JWT-verified browser/Discord room identity, duplicate-account rejection, unrated guest matches and production
+    monitor protection. Lobby settings and malformed messages are validated.
+
+• A lazy-loaded Three.js table with custom card faces, equipped backs, public opponent counts, pointer selection and
+    existing authoritative attack/defense controls. Keyboard controls, reduced motion, resizing, renderer disposal and
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                              9
+    explicit/context-loss 2D fallback remain available. The large React board still needs further extraction.
+
+• Fixed bot pickup cycles, escaped-player turn progression, idle lead turns, case-sensitive invitation input, duplicate
+    keyboard selection and actionable cards during exit animations. Shared engine rules were retained.
+
+• Compatible dependency updates reduced npm audit from 53 findings (4 critical) to 23 (0 critical, 4 high, 16 moderate, 3
+    low). See dependency review; audit still exits nonzero.
+
+• Added a cross-platform root development launcher. Windows npm run dev smoke verification started both Vite on port
+    5173 and Colyseus on port 2567. Server startup explicitly reports missing MongoDB configuration; persistence was not
+    tested.
+
+Validation:
+
+Check                   Result
+
+npm test                PASS: 297 tests / 33 files: client 93, server 138, shared 66. Includes seeded complete
+                        matches with card conservation across supported configurations, privacy/identity
+                        network tests and production guards.
+
+npm run lint            PASS, no errors or warnings; lint scope remains client.
+
+npm run typecheck       PASS, all workspaces.
+
+npm run build           PASS. Main client chunk 698.65 kB / 204.98 kB gzip; lazy 3D chunk 553.01 kB / 138.93
+                        kB gzip. Bundle warnings remain. Server/shared builds validate source without emitting
+                        an artifact.
+
+Real browser play       A hard-bot Solo match finished; two isolated browser clients also finished the same
+                        private 3D match, with 21 driver actions per client and no browser errors.
+
+Presentation lifecycle  Desktop and 390×844 viewport checks, keyboard controls, forced WebGL context loss
+                        and four view-switch cycles passed. One active canvas remained after restoration.
+
+Vite configuration migration and Mongoose deprecation notices remain visible. No claims are made about hosted CI,
+physical-device performance, persistence or external OAuth from these local results.
+
+Next acceptance targets
+
+• Rematch/refresh browser verification now passes: a further Solo match finished after 19 driver actions, then rematch →
+    refresh restored the active game with one canvas. The reconnect token is saved again when a seated player enters
+    active play; the repeatable script returns only its presence. Keep this acceptance check through later connection
+    changes.
+
+• Complete interaction/visual polish for multi-card masses and all seat counts; extract lobby/results/HUD from
+    GameBoard and measure loading/frame budgets on real mobile devices.
+
+• Resolve the remaining high dependency advisories through deliberate watcher/protocol upgrades, retaining network
+    regression coverage.
+
+• Exercise production-shaped containers, MongoDB result writes, Redis scale-out and external Discord
+    OAuth/embedding. Validate native builds separately.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                            10
+• Review documented cleanup candidates by consumer/history evidence before removing code or artwork. No
+    speculative deletion has been performed.
+
+Milestone 1 has substantial local coverage; milestone 2 has a working playable slice. Neither is a declaration that the
+polished-game/public-release criteria are complete.
+
+DURAK / Technical audit & implementation roadmap / 20 Oct 2026                                                           11
+

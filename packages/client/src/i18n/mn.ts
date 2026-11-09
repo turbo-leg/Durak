@@ -200,6 +200,8 @@ export const MN: Record<string, string> = {
   'Your hand': 'Таны гар',
   'Select {card}': '{card} сонгох',
   'Table state': 'Ширээний байдал',
+  'Table view controls': 'Харагдацын товчнууд',
+  'Players and card counts': 'Тоглогчид ба хөзрийн тоо',
   '{deck} cards in the deck. {discard} discarded.': '{deck} хөзөр үлдсэн. {discard} хаягдсан.',
   '{deck} in deck, {discard} discarded': '{deck} үлдсэн, {discard} хаягдсан',
   'Incoming attack': 'Орж ирсэн хөзөр',
@@ -403,8 +405,8 @@ export const MN: Record<string, string> = {
   'Your successful defense becomes the next clockwise player’s attack. Pick up the whole table if you can’t defend.':
     'Таны хаасан хөзөр дараагийн хүн рүү орно. Хааж чадахгүй бол ширээгээ бүгдийг нь ав.',
   'Make a mass': 'Бөөнөөр орох',
-  'Masses contain 3, 5 or 7 cards under our pairing rules. Select all your cards before confirming. The table checks legality.':
-    'Гурав, тав, долоон хөзрөөр бөөнөөр орж болно. Бүх хөзрөө сонгоод хая. Болох эсэхийг ширээ шалгана.',
+  'Play 3 cards with at least 1 pair, 5 with 2 pairs, or 7 with 3 pairs. Every seated player must hold at least that many cards before you play, including teammates and players later in the circle. A 5-card mass needs an empty deck in a 5-card game. A 7-card mass needs a 7-card game and an empty deck.':
+    'Гурван хөзрөөр орохдоо дор хаяж нэг хос, таваар хоёр хос, долоогоор гурван хос хэрэгтэй. Ширээнд суусан хүн бүр, багийн нөхөр ч гэсэн, дор хаяж тийм олон хөзөртэй байх ёстой. Таван хөзрөөр орох нь тав тавыг тараасан тоглоомд, хөзөр дууссаны дараа л болно. Долоон хөзрөөр орох нь долоо долоог тараасан тоглоомд, хөзөр дууссаны дараа л болно.',
   'Swap a seven of trump while the deck remains. A Joker Huzur requires the Ace of Spades instead. A picked-up swap card cannot be used.':
     'Хөзөр дуусаагүй байхад хузурын долоогоор хузураа сольж болно. Хузур жокер бол гил тамгаар солино. Авсан хөзрөөрөө сольж болохгүй.',
   'Out clean': 'Цэвэр гарах',

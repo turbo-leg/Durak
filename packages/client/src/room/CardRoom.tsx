@@ -636,7 +636,7 @@ export function CardRoom({
               })
             : t('Click a card. Drag to look around.')}
         </div>
-        <div className="view-tools">
+        <div className="view-tools" role="group" aria-label={t('Table view controls')}>
           <GesturePicker
             self={view.self!}
             seats={view.seats}
@@ -692,6 +692,18 @@ export function CardRoom({
           )}
         </div>
       </div>
+      {live && view.seats.length > 1 && (
+        <section className="table-roster" aria-label={t('Players and card counts')}>
+          <ul>
+            {view.seats.map((seat) => (
+              <li key={seat.id} aria-current={seat.active ? 'step' : undefined}>
+                <span>{seat.name}</span>
+                <small>{seatStatus(seat, view.betweenGames, view.resultVisible)}</small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {teamMode && playing && state && (
         <TeamBoard
           state={state}

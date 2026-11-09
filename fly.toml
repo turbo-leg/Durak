@@ -1,14 +1,19 @@
 app = "durak-discord-activity"
 primary_region = "iad"
-
-[deploy]
-  kill_timeout = "35s"
+kill_signal = "SIGTERM"
+kill_timeout = 45
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
   PORT = "2567"
+  RESULT_OUTBOX_DIR = "/data/results"
+
+[mounts]
+  source = "durak_results"
+  destination = "/data"
+  initial_size = "1gb"
 
 [http_service]
   internal_port = 2567
@@ -18,7 +23,18 @@ primary_region = "iad"
   # Keep one machine awake: a stopped machine made the first visitor wait about 9 s.
   min_machines_running = 1
   processes = ["app"]
-  sticky_sessions = true
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 120
+    hard_limit = 150
+
+  [[http_service.checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/ready"
 
 [[vm]]
   cpu_kind = "shared"

@@ -94,6 +94,33 @@ describe('manual public gestures', () => {
   });
 });
 
+describe('readable table roster', () => {
+  it.each([false, true])(
+    'keeps six-seat names and public counts available (spectator: %s)',
+    (spectator) => {
+      value.isSpectator = spectator;
+      state.maxPlayers = 6;
+      state.currentTurn = 'other';
+      state.players.get('me')!.username = 'Mira';
+      state.players.get('other')!.username = 'Ana';
+      state.players.get('other')!.handCount = 7;
+      for (let i = 0; i < 4; i++) {
+        const player = new Player(`seat-${i}`);
+        player.username = `Friend ${i + 1}`;
+        player.handCount = i + 3;
+        state.players.set(player.id, player);
+        state.seatOrder.push(player.id);
+      }
+      render(<CardRoom authError="" />);
+      const roster = screen.getByRole('region', { name: 'Players and card counts' });
+      expect(within(roster).getAllByRole('listitem')).toHaveLength(spectator ? 6 : 5);
+      expect(within(roster).getByText('Ana').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(within(roster).getByText('7 cards')).toBeVisible();
+      expect(within(roster).getByText('Friend 4')).toBeVisible();
+    },
+  );
+});
+
 describe('private table lifecycle', () => {
   it('replaces rematch voting with Ready for next game and shows the countdown', () => {
     state.isPrivate = true;

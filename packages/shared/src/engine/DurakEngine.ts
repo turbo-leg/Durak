@@ -165,10 +165,10 @@ export class DurakEngine {
   }
 
   /**
-   * Mass = 3, 5, or 7 cards based on conditions.
-   * 3-Card Mass: 1 pair + 1 random card. (Denied if anyone has < 3 cards)
-   * 5-Card Mass: 2 pairs + 1 random card. (Only if deck empty AND everyone has >= 5 cards)
-   * 7-Card Mass: 3 pairs + 1 random card. (Only if deck empty AND everyone has >= 7 cards in 7-card lobbies)
+   * Every seated player must hold at least the mass size before the attack.
+   * 3 cards: at least 1 pair, with or without cards remaining in the deck.
+   * 5 cards: at least 2 pairs; an empty deck is required in 5-card lobbies.
+   * 7 cards: at least 3 pairs, an empty deck, and a 7-card lobby.
    */
   static isValidMassAttack(
     cards: Card[],
@@ -197,7 +197,7 @@ export class DurakEngine {
     const requiredSize = cards.length;
     if (requiredSize !== 3 && requiredSize !== 5 && requiredSize !== 7) return false;
 
-    // Check if everyone has enough cards
+    // Check current hands before play, including the attacker and all later defenders.
     for (const count of handCounts) {
       if (count < requiredSize) return false;
     }

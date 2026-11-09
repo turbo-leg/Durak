@@ -25,4 +25,6 @@ RUN npm run build:client
 ENV NODE_ENV=production
 EXPOSE 2567
 
-CMD ["npm", "run", "start:prod"]
+# Run Node directly as PID 1 so deployment signals reach the one drain handler.
+WORKDIR /app/packages/server
+CMD ["node", "-r", "ts-node/register/transpile-only", "index.ts"]

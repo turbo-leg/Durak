@@ -11,6 +11,7 @@ export interface IGameLog extends mongoose.Document {
   durak: string | null;
   huzurSetting: string;
   actionLog: string[];
+  resultApplied: boolean;
 }
 
 const GameLogSchema = new mongoose.Schema({
@@ -24,6 +25,7 @@ const GameLogSchema = new mongoose.Schema({
   durak: { type: String, default: null },
   huzurSetting: { type: String },
   actionLog: [{ type: String }],
+  resultApplied: { type: Boolean, default: false },
 });
 
 export const GameLog = mongoose.model<IGameLog>('GameLog', GameLogSchema);

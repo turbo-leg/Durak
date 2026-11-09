@@ -10,6 +10,7 @@ import { seatStatus, type TableCard, type TableSnapshot } from '../../game/table
 import { SELF, tableEvents, type TableEvent } from '../../game/tableEvents';
 import { cardFaceUrl, highResolutionCardFaceUrl } from '../../game/cardArt';
 import { looseCardLaunch, stepLooseCard, type LooseCard } from './cardPhysics';
+import { FrameCadence } from './frameCadence';
 import {
   CHARACTER_SCALE,
   CHARACTER_FLOOR,
@@ -175,11 +176,14 @@ export class TableRenderer {
   private dealHeldTurn = new THREE.Quaternion();
   private dealParentTurn = new THREE.Quaternion();
   private dealEuler = new THREE.Euler();
+  private labelView = new THREE.Vector3();
+  private labelProjection = new THREE.Vector3();
   private back: THREE.MeshStandardMaterial;
   private raycaster = new THREE.Raycaster();
   private observer: ResizeObserver;
   private frame = 0;
   private lastRender = 0;
+  private cadence = new FrameCadence();
   private lastDropFrame = 0;
   private disposed = false;
   private mobileQuality = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760;
@@ -638,6 +642,7 @@ export class TableRenderer {
     sprite.scale.set(2.15, 0.47, 1);
     sprite.position.set(x, y, z);
     sprite.userData.texture = texture;
+    sprite.userData.anchor = sprite.position.clone();
     this.labels.add(sprite);
     this.sizeLabel(sprite);
   }
@@ -645,14 +650,24 @@ export class TableRenderer {
   private sizeLabel(sprite: THREE.Sprite) {
     const height = this.host.clientHeight;
     if (!height) return;
+    const anchor = sprite.userData.anchor as THREE.Vector3;
+    sprite.position.copy(anchor);
     const distance = Math.max(
       0.1,
-      -sprite.position.clone().applyMatrix4(this.camera.matrixWorldInverse).z,
+      -this.labelView.copy(anchor).applyMatrix4(this.camera.matrixWorldInverse).z,
     );
     const unitsPerPixel =
       (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * distance) / height;
     const width = (height < 300 ? 96 : this.host.clientWidth < 600 ? 118 : 156) * unitsPerPixel;
     sprite.scale.set(width, (width * 112) / 512, 1);
+    // Project from the seat's original anchor every time, avoiding cumulative
+    // drift when the camera turns. Keep the full plate inside the canvas.
+    const projected = this.labelProjection.copy(anchor).project(this.camera);
+    const halfWidth = width / unitsPerPixel / this.host.clientWidth;
+    const halfHeight = (width * 112) / 512 / unitsPerPixel / height;
+    projected.x = THREE.MathUtils.clamp(projected.x, -1 + halfWidth + 0.03, 1 - halfWidth - 0.03);
+    projected.y = THREE.MathUtils.clamp(projected.y, -1 + halfHeight + 0.03, 1 - halfHeight - 0.03);
+    sprite.position.copy(projected.unproject(this.camera));
   }
 
   update(
@@ -1437,8 +1452,8 @@ export class TableRenderer {
     if (this.disposed) return;
     let moving = false;
     const now = performance.now();
-    if (this.mobileQuality && now - this.lastRender < 30) {
-      // Check on the next display frame. A timer followed by RAF skips another frame.
+    if (!this.cadence.shouldRender(now, this.mobileQuality ? 30 : 60)) {
+      // Retain one RAF chain; animation time remains elapsed wall-clock time.
       this.requestFrame();
       return;
     }

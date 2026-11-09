@@ -1,4 +1,5 @@
 import { Room, Client } from 'colyseus';
+import { randomUUID } from 'node:crypto';
 import {
   GameState,
   DurakEngine,
@@ -22,16 +23,16 @@ import {
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 
-import { GameLog } from '../models/GameLog';
-import { PlayerProfile } from '../models/PlayerProfile';
-import { calculateEloDeltas, EloPlayer } from '../utils/EloEngine';
-import { evaluateBadges, BADGES } from '../utils/Badges';
 import mongoose from 'mongoose';
 import { botEngine, BotDifficulty } from '../ai/BotEngine';
 import { verifyRoomIdentity, type RoomIdentity } from '../auth/session';
 import { isRecord, roomSettings } from './roomSettings';
 import { nextBot } from './botNames';
 import { observeOpponentResponse, type OpponentResponseMemory } from '../ai/BotOpponentResponses';
+import { wireTimestamp } from '../utils/wireTimestamp';
+import { queueMatchResult, type MatchResultSnapshot } from '../operations/matchResults';
+import { serverLifecycle } from '../operations/lifecycle';
+import { processCapacity } from '../operations/capacity';
 
 const logger = pino(
   process.env.NODE_ENV !== 'production'
@@ -74,6 +75,8 @@ export class DurakRoom extends Room<GameState> {
   private reservations = new Map<string, ReturnType<Room['allowReconnection']>>();
   private controlSerial = new Map<string, number>();
   private gameSerial = 0;
+  private resultId = new mongoose.Types.ObjectId();
+  private capacityKey = '';
   private turnSerial = 0;
   // Private-table lifecycle (countdown → opening). Room-clock timer only.
   private lifecycleTimer?: { clear(): void };
@@ -146,6 +149,8 @@ export class DurakRoom extends Room<GameState> {
     }
 
     // Register Handlers
+    this.capacityKey = this.roomId || randomUUID();
+    processCapacity.claimRoom(this.capacityKey);
     this.onMessage('look', (client, message) => this.handleLook(client, message));
     this.onMessage('gesture', (client, message: unknown) => {
       const player = this.state.players.get(client.sessionId);
@@ -205,6 +210,12 @@ export class DurakRoom extends Room<GameState> {
         return;
       }
       const id = `bot-${Math.random().toString(36).substring(2, 9)}`;
+      try {
+        processCapacity.claimBot(this.capacityKey, id);
+      } catch {
+        client.send('error', 'The server has reached its bot limit. Please try again shortly.');
+        return;
+      }
       const bot = new Player(id);
       this.nameBot(bot);
       bot.isReady = true;
@@ -221,6 +232,7 @@ export class DurakRoom extends Room<GameState> {
       // Only permanent bots are unowned; temporary stand-ins belong to a player.
       if (typeof id !== 'string' || this.state.players.get(id)?.control !== 'bot') return;
       this.botIds.delete(id);
+      processCapacity.releaseBot(this.capacityKey, id);
       this.state.players.delete(id);
       const seat = this.state.seatOrder.indexOf(id);
       if (seat !== -1) this.state.seatOrder.splice(seat, 1);
@@ -247,10 +259,12 @@ export class DurakRoom extends Room<GameState> {
       if (this.isRateLimited(client.sessionId)) return;
       this.handleSwapHuzur(client);
     });
-    this.onMessage('ping', (client, message: { clientTime: number }) => {
+    this.onMessage('ping', (client, message: unknown) => {
       if (this.isRateLimited(client.sessionId)) return;
-      if (!isRecord(message) || !Number.isFinite(message.clientTime)) return;
-      client.send('pong', { clientTime: message.clientTime, serverTime: Date.now() });
+      if (!isRecord(message)) return;
+      const clientTime = wireTimestamp(message.clientTime);
+      if (clientTime === null) return;
+      client.send('pong', { clientTime, serverTime: Date.now() });
     });
 
     // Defense staging — transient face-down ghosts visible to other players
@@ -577,6 +591,8 @@ export class DurakRoom extends Room<GameState> {
 
   /** Why the table cannot deal yet, or null when every start condition holds. */
   private startBlocker(): string | null {
+    if (!serverLifecycle.isReady)
+      return 'The server is temporarily unavailable. Try again shortly.';
     const players = Array.from(this.state.players.values());
     const humans = players.filter((p) => p.control === 'human');
     if (players.length < this.state.maxPlayers) return 'Waiting for every seat to fill.';
@@ -815,6 +831,7 @@ export class DurakRoom extends Room<GameState> {
   }
 
   async onAuth(_client: Client, options: any) {
+    processCapacity.assertAvailableClient(this.capacityKey, _client.sessionId);
     if (!isRecord(options)) throw new Error('Invalid join options');
     if (options.spectator !== undefined && typeof options.spectator !== 'boolean')
       throw new Error('Invalid spectator option');
@@ -863,6 +880,7 @@ export class DurakRoom extends Room<GameState> {
   }
 
   onJoin(client: Client, options: any, identity?: RoomIdentity) {
+    processCapacity.claimClient(this.capacityKey, client.sessionId);
     const src =
       typeof options?.src === 'string' && /^[a-z0-9_-]{1,40}$/i.test(options.src)
         ? options.src.toLowerCase()
@@ -884,6 +902,7 @@ export class DurakRoom extends Room<GameState> {
 
     if (this.soloDifficulty && this.state.players.size === 1) {
       const botId = `bot-${client.sessionId}`;
+      processCapacity.claimBot(this.capacityKey, botId);
       const bot = new Player(botId);
       this.nameBot(bot);
       bot.isReady = true;
@@ -929,6 +948,7 @@ export class DurakRoom extends Room<GameState> {
     this.clearDefenseGhostsFor(client.sessionId);
 
     if (this.spectators.has(client.sessionId)) {
+      processCapacity.releaseClient(this.capacityKey, client.sessionId);
       this.spectators.delete(client.sessionId);
       this.watcherIdentities.delete(client.sessionId);
       this.pendingSeatOptions.delete(client.sessionId);
@@ -941,6 +961,7 @@ export class DurakRoom extends Room<GameState> {
     const isInGame = this.state.phase === 'playing' || this.state.phase === 'opening';
 
     if (isInGame && this.state.isPrivate && leaving) {
+      if (consented) processCapacity.releaseClient(this.capacityKey, client.sessionId);
       await this.holdSeatForGame(client, leaving, consented);
       return;
     }
@@ -1038,6 +1059,13 @@ export class DurakRoom extends Room<GameState> {
     const player = this.state.players.get(id);
     if (!player || player.connected || player.control !== 'human') return;
     if (this.state.phase !== 'playing' && this.state.phase !== 'opening') return;
+    try {
+      processCapacity.claimBot(this.capacityKey, id);
+    } catch {
+      // The authoritative turn timer still advances the seat when bot capacity is full.
+      this.broadcast('info', 'Bot assistance is busy. The turn timer will keep the game moving.');
+      return;
+    }
     player.control = 'standin';
     this.botIds.set(id, 'easy');
     this.bumpControl(id);
@@ -1056,6 +1084,7 @@ export class DurakRoom extends Room<GameState> {
     if (player.control === 'standin') {
       player.control = 'human';
       this.botIds.delete(id);
+      processCapacity.releaseBot(this.capacityKey, id);
     }
     this.bumpControl(id);
     this.broadcast('playerReconnected', { sessionId: id });
@@ -1096,6 +1125,8 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private permanentlyRemovePlayer(sessionId: string, isInGame: boolean) {
+    processCapacity.releaseClient(this.capacityKey, sessionId);
+    processCapacity.releaseBot(this.capacityKey, sessionId);
     const wasCurrentTurn = this.state.currentTurn === sessionId;
 
     const seatIdx = this.state.seatOrder.indexOf(sessionId);
@@ -1167,6 +1198,11 @@ export class DurakRoom extends Room<GameState> {
    * for a fixed time before the first turn (and its clock) begins.
    */
   private startGame({ opening = false }: { opening?: boolean } = {}) {
+    if (!serverLifecycle.isReady) {
+      if (this.state.phase === 'countdown') this.cancelCountdown();
+      this.broadcast('info', 'The server is temporarily unavailable. Try again shortly.');
+      return;
+    }
     this.horseNextGameTimer?.clear();
     this.horseNextGameTimer = undefined;
     this.lifecycleTimer?.clear();
@@ -1174,6 +1210,7 @@ export class DurakRoom extends Room<GameState> {
     const playerCount = Array.from(this.state.players.values()).length;
     if (playerCount < 2) return; // Guard: never start with fewer than 2 players
     this.gameSerial++;
+    this.resultId = new mongoose.Types.ObjectId();
     const humans = Array.from(this.state.players.values()).filter((p) => p.control === 'human');
     logger.info(
       {
@@ -2124,6 +2161,7 @@ export class DurakRoom extends Room<GameState> {
   }
 
   async onDispose() {
+    processCapacity.releaseRoom(this.capacityKey);
     this.horseNextGameTimer?.clear();
     this.horseNextGameTimer = undefined;
     this.takeoverTimers.forEach((timer) => timer.clear());
@@ -2144,190 +2182,74 @@ export class DurakRoom extends Room<GameState> {
   }
 
   private async saveGameLog() {
-    try {
-      if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) return;
+    // Local/test games without a database remain supported. Production retains results
+    // through outages; every captured value is independent of the next deal's schema.
+    if (process.env.NODE_ENV !== 'production' && mongoose.connection.readyState === 0) return;
 
-      const sessionIds = Array.from(this.state.players.keys());
-      const players = sessionIds.map((id) => this.state.players.get(id)!);
-      const discordIds = players.map((p) => p?.discordId ?? '');
-      const userIds = players.map((p) => p?.userId ?? '');
-      const winnerSessions = Array.from(this.state.winners);
-
-      // Convert session IDs to the player's stable identifier (discordId > userId > sessionId)
-      // so that GameLog.winners and GameLog.durak can be matched against the querying player's ID.
-      const effectiveId = (sessionId: string): string => {
-        const idx = sessionIds.indexOf(sessionId);
-        if (idx === -1) return sessionId;
-        return discordIds[idx] || userIds[idx] || sessionId;
+    const sessionIds = Array.from(this.state.players.keys());
+    const players = sessionIds.map((id) => {
+      const player = this.state.players.get(id)!;
+      return {
+        id: player.id,
+        discordId: player.discordId,
+        userId: player.userId,
+        username: player.username,
+        avatarUrl: player.avatarUrl,
       };
-
-      const winnerIds = winnerSessions.filter((s): s is string => !!s).map(effectiveId);
-      const durakId = this.state.loser ? effectiveId(this.state.loser) : null;
-
-      const log = new GameLog({
-        roomId: this.roomId,
-        mode: this.state.mode,
-        players: sessionIds,
-        discordIds,
-        userIds,
-        winners: winnerIds,
-        durak: durakId,
-        huzurSetting: this.state.huzurSuit,
-        actionLog: Array.from(this.state.actionLog),
-      });
-      await log.save();
-      logger.info({ roomId: this.roomId }, 'GameLog saved to MongoDB');
-
-      // Shutdown snapshots are useful replay evidence, never completed-match rewards.
-      if (this.state.phase !== 'finished' || this.state.winners.length === 0) return;
-
-      // Upsert PlayerProfile for every authenticated participant (Discord or email)
-      const authedPlayers = players.filter((p) => p?.discordId || p?.userId);
-      const eloField = this.state.mode === 'teams' ? 'eloTeams' : 'eloClassic';
-      // Guests may join public tables, but a mixed/guest match cannot affect ratings.
-      const isRanked = !this.state.isPrivate && authedPlayers.length === players.length;
-
-      // Fetch current profiles so we can compute Elo deltas
-      const currentProfiles = await Promise.all(
-        authedPlayers.map((p) => {
-          const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
-          return PlayerProfile.findOne(filter);
-        }),
-      );
-
-      const eloInputs: EloPlayer[] = authedPlayers.map((p, i) => {
-        const prof = currentProfiles[i];
-        const isWinner = winnerSessions.includes(p.id);
-        return {
-          id: p.id,
-          currentElo: prof?.[eloField] ?? 1000,
-          gamesPlayed: prof?.stats.gamesPlayed ?? 0,
-          // Everyone who did not win lost; there are no middle places.
-          placement: isWinner ? 'winner' : 'durak',
-        };
-      });
-
-      // ELO deltas are only applied for ranked (non-private) games
-      const eloDeltas = isRanked ? calculateEloDeltas(eloInputs) : new Map<string, number>();
-
-      // Send eloResult BEFORE the DB write so players receive it even if they leave quickly.
-      if (isRanked) {
-        for (const p of authedPlayers) {
-          const delta = eloDeltas.get(p.id) ?? 0;
-          const prof = currentProfiles[authedPlayers.indexOf(p)];
-          const oldElo = prof?.[eloField] ?? 1000;
-          const newElo = Math.max(100, oldElo + delta);
-          const isWinner = winnerSessions.includes(p.id);
-          const isDurak = this.state.loser === p.id;
-          const client = this.clients.find((c) => c.sessionId === p.id);
-          if (client) {
-            client.send('eloResult', { delta, oldElo, newElo, isWinner, isDurak });
-          }
-        }
-      }
-
-      const profileOps = authedPlayers.map((p) => {
-        const isWinner = winnerSessions.includes(p.id);
-        const isDurak = this.state.loser === p.id;
-        const delta = eloDeltas.get(p.id) ?? 0;
-        const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
-        const setFields = p.discordId
-          ? { discordId: p.discordId, username: p.username, avatarUrl: p.avatarUrl }
-          : { userId: p.userId, username: p.username, avatarUrl: p.avatarUrl };
-        // Aggregation pipeline update so Elo is computed atomically in the DB:
-        // max(100, storedElo + delta) prevents JS read-modify-write races when
-        // a player finishes two concurrent games in different rooms.
-        return PlayerProfile.findOneAndUpdate(
-          filter,
-          [
-            {
-              $set: {
-                ...setFields,
-                // Only mutate ELO field for ranked games
-                ...(isRanked && {
-                  [eloField]: {
-                    $max: [100, { $add: [{ $ifNull: [`$${eloField}`, 1000] }, delta] }],
-                  },
-                }),
-                'stats.gamesPlayed': { $add: [{ $ifNull: ['$stats.gamesPlayed', 0] }, 1] },
-                'stats.wins': { $add: [{ $ifNull: ['$stats.wins', 0] }, isWinner ? 1 : 0] },
-                'stats.losses': { $add: [{ $ifNull: ['$stats.losses', 0] }, isWinner ? 0 : 1] },
-                'stats.durakCount': {
-                  $add: [{ $ifNull: ['$stats.durakCount', 0] }, isDurak ? 1 : 0],
-                },
-                'stats.winStreak': isWinner
-                  ? { $add: [{ $ifNull: ['$stats.winStreak', 0] }, 1] }
-                  : 0,
-                'stats.durakFreeStreak': isDurak
-                  ? 0
-                  : { $add: [{ $ifNull: ['$stats.durakFreeStreak', 0] }, 1] },
-              },
-            },
-          ],
-          { upsert: true, returnDocument: 'after', updatePipeline: true },
-        );
-      });
-      const updatedProfiles = await Promise.all(profileOps);
-
-      // Push final stats to each player so the profile page never shows stale data
-      for (const [i, p] of authedPlayers.entries()) {
-        const updated = updatedProfiles[i];
-        if (!updated) continue;
-        const client = this.clients.find((c) => c.sessionId === p.id);
-        if (client) {
-          client.send('statsUpdated', {
-            eloClassic: updated.eloClassic ?? 1000,
-            eloTeams: updated.eloTeams ?? 1000,
-            stats: updated.stats,
-            coins: updated.coins ?? 0,
-            badges: updated.badges ?? [],
-          });
-        }
-      }
-
-      // Award any newly earned badges
-      const badgeResults: { playerName: string; newBadges: string[] }[] = [];
-      const badgeOps = authedPlayers.map((p, i) => {
-        const updatedProfile = updatedProfiles[i];
-        if (!updatedProfile) return null;
-        const isWinner = winnerSessions.includes(p.id);
-        const newBadges = evaluateBadges(updatedProfile, isWinner);
-        if (newBadges.length === 0) return null;
-        badgeResults.push({ playerName: p.username, newBadges });
-        return PlayerProfile.findByIdAndUpdate(updatedProfile._id, {
-          $addToSet: { badges: { $each: newBadges } },
-        });
-      });
-      await Promise.all(badgeOps.filter(Boolean));
-
-      for (const { playerName, newBadges } of badgeResults) {
-        this.notifyBadgeUnlocks(playerName, newBadges);
-      }
-
-      // Award coins: winners +10, everyone else +3
-      const coinOps = authedPlayers.map((p) => {
-        const isWinner = winnerSessions.includes(p.id);
-        const award = isWinner ? 10 : 3;
-        const filter = p.discordId ? { discordId: p.discordId } : { userId: p.userId };
-        return PlayerProfile.findOneAndUpdate(filter, { $inc: { coins: award } });
-      });
-      await Promise.all(coinOps);
-    } catch (e) {
-      Sentry.captureException(e);
-      logger.error({ err: e }, 'Failed to save GameLog to MongoDB');
-    }
-  }
-
-  private notifyBadgeUnlocks(playerName: string, badgeIds: string[]): void {
-    const defs = badgeIds
-      .map((id) => BADGES.find((b) => b.id === id))
-      .filter(Boolean) as (typeof BADGES)[number][];
-    if (defs.length === 0) return;
-    const lines = defs.map((b) => `${b.emoji} **${b.name}** — ${b.description}`).join('\n');
-    this.broadcast('badgeUnlocked', {
-      playerName,
-      badges: defs.map((b) => b.id),
-      message: `${playerName} unlocked:\n${lines}`,
     });
+    const discordIds = players.map((p) => p?.discordId ?? '');
+    const userIds = players.map((p) => p?.userId ?? '');
+    const winnerSessions = Array.from(this.state.winners).filter((id): id is string => !!id);
+    const mode = this.state.mode;
+    const isPrivate = this.state.isPrivate;
+    const loser = this.state.loser;
+    const completed = this.state.phase === 'finished' && winnerSessions.length > 0;
+    const resultId = this.resultId;
+    const resultKey = resultId.toHexString();
+
+    // Convert session IDs to the player's stable identifier (discordId > userId > sessionId)
+    // so that GameLog.winners and GameLog.durak can be matched against the querying player's ID.
+    const effectiveId = (sessionId: string): string => {
+      const idx = sessionIds.indexOf(sessionId);
+      if (idx === -1) return sessionId;
+      return discordIds[idx] || userIds[idx] || sessionId;
+    };
+
+    const winnerIds = winnerSessions.filter((s): s is string => !!s).map(effectiveId);
+    const durakId = loser ? effectiveId(loser) : null;
+
+    const log = {
+      roomId: this.roomId,
+      mode,
+      players: sessionIds,
+      discordIds,
+      userIds,
+      winners: winnerIds,
+      durak: durakId,
+      huzurSetting: this.state.huzurSuit,
+      actionLog: Array.from(this.state.actionLog).filter(
+        (line): line is string => line !== undefined,
+      ),
+    };
+    const snapshot: MatchResultSnapshot = {
+      id: resultKey,
+      log,
+      players,
+      winnerSessions,
+      mode,
+      isPrivate,
+      loser,
+      completed,
+    };
+    try {
+      await queueMatchResult(snapshot, (playerId, type, data) => {
+        if (playerId) this.clients.find((c) => c.sessionId === playerId)?.send(type, data);
+        else this.broadcast(type, data);
+      });
+    } catch (error) {
+      Sentry.captureException(error);
+      logger.fatal({ err: error, resultKey, log }, 'Match result could not enter durable outbox');
+      this.broadcast('info', 'Your result could not sync. Please contact support.');
+    }
   }
 }

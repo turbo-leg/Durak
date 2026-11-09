@@ -2541,3 +2541,97 @@
     margin-top: 0;
   }
 }
+
+/* Keep table actions legible over cards, felt and wood at every camera angle. */
+.card-room .view-tools {
+  gap: 4px;
+  padding: 4px;
+  background: var(--room);
+  border: 1px solid #a4b3bd66;
+  border-radius: 8px;
+  align-items: center;
+  max-width: calc(100% - 24px);
+  z-index: 4;
+}
+.card-room .view-tools .quiet-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.card-room .view-tools .quiet-button:hover {
+  background: var(--panel);
+}
+.card-room .view-tools .quiet-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+/* A readable roster stays outside the scene and any floating result panel. */
+.table-roster {
+  margin: 0 5.5% 12px;
+  color: var(--text);
+  font-size: 12px;
+}
+.table-roster ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 20px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.table-roster li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  padding: 4px 0;
+}
+.table-roster li > span {
+  overflow-wrap: anywhere;
+}
+.table-roster small {
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 12px;
+}
+.table-roster li[aria-current] {
+  font-weight: 600;
+}
+.table-roster li[aria-current] small {
+  color: var(--blue);
+}
+@media (max-width: 760px) {
+  .card-room .view-tools {
+    gap: 0;
+    right: 12px;
+    bottom: 6px;
+  }
+  .card-room.match-active .view-tools {
+    flex-basis: auto;
+    align-self: center;
+    margin: 0 12px 8px;
+    inset: auto;
+  }
+  .table-roster {
+    margin: 0 16px 10px;
+    flex: 0 0 auto;
+  }
+  .table-roster ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 14px;
+  }
+  .table-roster li {
+    display: block;
+  }
+  .gesture-popover {
+    width: min(350px, calc(100vw - 32px));
+  }
+  .table-roster small {
+    display: block;
+  }
+}

@@ -1,3 +1,4 @@
+import './src/config/environment';
 import { Server, matchMaker } from 'colyseus';
 import { RedisPresence } from '@colyseus/redis-presence';
 import { RedisDriver } from '@colyseus/redis-driver';
@@ -14,17 +15,27 @@ import pino from 'pino';
 import * as Sentry from '@sentry/node';
 
 import { DurakRoom } from './src/rooms/DurakRoom';
-// Load .env from the monorepo root first (local dev), then fall back to cwd (Docker/prod).
-// ts-node runs from packages/server/ so ../../.env resolves to the repo root.
-import dotenv from 'dotenv';
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-dotenv.config(); // cwd fallback — picks up any local packages/server/.env overrides
 import mongoose from 'mongoose';
 import { PlayerProfile } from './src/models/PlayerProfile';
 import { GameLog } from './src/models/GameLog';
 import { User } from './src/models/User';
 import { SHOP_ITEMS, FREE_ITEM_IDS } from './src/config/shopCatalog';
 import { sessionSecret } from './src/auth/session';
+import {
+  createReadinessGate,
+  drainActiveGames,
+  protectServerRequests,
+  serverLifecycle,
+} from './src/operations/lifecycle';
+import { createTrafficProtection } from './src/operations/traffic';
+import {
+  flushPendingResults,
+  getFailedResultCount,
+  getPendingResultCount,
+} from './src/operations/resultQueue';
+import { createMetricsHandler, createOperationalMonitor } from './src/operations/metrics';
+import { processCapacity } from './src/operations/capacity';
+import { restoreMatchResults } from './src/operations/matchResults';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -37,6 +48,17 @@ const logger = pino(
 );
 
 const _JWT_SECRET = sessionSecret();
+let databaseInitialized = false;
+let databaseInitialization = Promise.resolve();
+
+serverLifecycle.configure({
+  databaseRequired: process.env.NODE_ENV === 'production' || Boolean(process.env.MONGO_URI),
+  databaseConnected: () => databaseInitialized && mongoose.connection.readyState === 1,
+  pendingResults: getFailedResultCount,
+});
+
+// Let failed writes reach the result retry queue rather than buffering invisibly in Mongoose.
+if (process.env.NODE_ENV === 'production') mongoose.set('bufferCommands', false);
 
 const COMMON_PASSWORDS = new Set([
   'password',
@@ -66,7 +88,7 @@ const COMMON_PASSWORDS = new Set([
 ]);
 
 if (process.env.MONGO_URI) {
-  mongoose
+  databaseInitialization = mongoose
     .connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 10000,
@@ -80,10 +102,12 @@ if (process.env.MONGO_URI) {
         GameLog.ensureIndexes(),
         User.ensureIndexes(),
       ]);
+      databaseInitialized = true;
     })
     .catch((err) => {
       Sentry.captureException(err);
       logger.error({ err }, 'MongoDB connection error');
+      if (process.env.NODE_ENV === 'production') throw err;
     });
 } else if (process.env.NODE_ENV === 'production') {
   logger.error('FATAL: MONGO_URI must be set in production');
@@ -93,6 +117,13 @@ if (process.env.MONGO_URI) {
 }
 
 const app = express();
+const operationalMonitor = createOperationalMonitor({
+  capacity: () => processCapacity.snapshot(),
+  pendingResults: getPendingResultCount,
+  failedResults: getFailedResultCount,
+  readiness: () => serverLifecycle.readiness(),
+  log: (metrics) => logger.info({ metrics }, 'Server operational metrics'),
+});
 app.set('trust proxy', 1);
 app.use(cors());
 // Compress text and the character model. Fly's proxy only compresses text types, and the
@@ -469,6 +500,14 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
 });
 
+app.get('/ready', (_req, res) => {
+  const readiness = serverLifecycle.readiness();
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(readiness.ready ? 200 : 503).json(readiness);
+});
+
+app.get('/metrics', createMetricsHandler(operationalMonitor.snapshot, process.env.METRICS_TOKEN));
+
 // ────────────────────────────────────────────────────────────────────────────
 
 const server = http.createServer(app);
@@ -476,6 +515,8 @@ const server = http.createServer(app);
 const redisUrl = process.env.REDIS_URL;
 const gameServer = new Server({
   server,
+  // The application owns the signal handler and waits for active games before disposal.
+  gracefullyShutdown: false,
   ...(redisUrl
     ? {
         presence: new RedisPresence(redisUrl),
@@ -483,6 +524,25 @@ const gameServer = new Server({
       }
     : {}),
 });
+
+// Colyseus intercepts /matchmake before the application's Express router. Protect
+// its listener too, so admission/readiness gates cannot be bypassed by matchmaking.
+protectServerRequests(
+  server,
+  cors(),
+  createTrafficProtection(
+    // The load test drives hundreds of players from one IP against its own private server.
+    // Never honoured in production.
+    process.env.TRAFFIC_LIMITS === 'off' && process.env.NODE_ENV !== 'production'
+      ? {
+          authPerMinute: Infinity,
+          matchmakingPerMinute: Infinity,
+          roomCreationsPerMinute: Infinity,
+        }
+      : {},
+  ),
+  createReadinessGate(serverLifecycle),
+);
 
 gameServer
   .define('durak', DurakRoom)
@@ -514,28 +574,59 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 const port = Number(process.env.PORT || 2567);
-gameServer.listen(port, '0.0.0.0').then(() => {
+async function startServer() {
+  await databaseInitialization;
+  await restoreMatchResults();
+  await gameServer.listen(port, '0.0.0.0');
   logger.info({ port }, 'Durak game server listening');
+}
+void startServer().catch((error: unknown) => {
+  Sentry.captureException(error);
+  logger.fatal({ err: error }, 'Server could not initialize persistence');
+  process.exit(1);
 });
 
-let isShuttingDown = false;
+let shutdownPromise: Promise<void> | undefined;
 
-async function shutdown(signal: string) {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  logger.info({ signal }, 'Signal received, draining...');
+function shutdown(signal: string): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  serverLifecycle.beginDrain();
+  logger.info({ signal }, 'Signal received, draining active games');
+  // Leave headroom under the host's 45-second stop budget even if a dependency hangs.
+  const forceShutdown = setTimeout(() => {
+    logger.error('Shutdown exceeded its 40-second deadline');
+    process.exit(1);
+  }, 40_000);
+  forceShutdown.unref();
 
-  server.close();
+  shutdownPromise = (async () => {
+    // Keep the listener open for existing players' reconnect reservations and health
+    // probes. The ingress gate rejects new matchmaking as soon as draining begins.
+    await drainActiveGames({
+      drainMs: 30_000,
+      activeRooms: async () => {
+        const listings = await matchMaker.query({ name: 'durak', processId: matchMaker.processId });
+        return listings.filter((listing) => {
+          const room = matchMaker.getRoomById(listing.roomId);
+          return room && ['playing', 'opening'].includes(room.state.phase);
+        }).length;
+      },
+      shutdown: async () => {
+        await gameServer.gracefullyShutdown(false);
+        const persisted = await flushPendingResults(5000);
+        if (!persisted) logger.error('Result retry queue did not empty before shutdown');
+        operationalMonitor.close();
+        await mongoose.disconnect();
+        process.exit(persisted ? 0 : 1);
+      },
+    });
+  })().catch((error: unknown) => {
+    Sentry.captureException(error);
+    logger.error({ err: error }, 'Server shutdown failed');
+    process.exit(1);
+  });
 
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const roomCount = (await matchMaker.query({ name: 'durak' })).length;
-    if (roomCount === 0) break;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-
-  await gameServer.gracefullyShutdown();
-  process.exit(0);
+  return shutdownPromise;
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
