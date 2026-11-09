@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { t, tServer } from '../i18n';
 
 export function RoomDialog({
   title,
@@ -37,7 +38,7 @@ export function RoomDialog({
     >
       <div className="dialog-heading">
         <h2 id={titleId}>{title}</h2>
-        <button aria-label="Close" className="icon-button" onClick={close}>
+        <button aria-label={t('Close')} className="icon-button" onClick={close}>
           ×
         </button>
       </div>
@@ -52,12 +53,16 @@ export function AccountPanel({ playerName, close }: { playerName: string; close:
   const [password, setPassword] = useState('');
   const [register, setRegister] = useState(false);
   return (
-    <RoomDialog title={auth.user ? 'Your seat.' : 'Make it your seat.'} close={close}>
+    <RoomDialog title={auth.user ? t('Your seat.') : t('Make it your seat.')} close={close}>
       {auth.user ? (
         <>
           <p>
-            Signed in as <strong>{playerName}</strong>. Your identity and equipped card back carry
-            into your matches.
+            {t(
+              'Signed in as {name}. Your identity and equipped card back carry into your matches.',
+              {
+                name: playerName,
+              },
+            )}
           </p>
           <button
             className="secondary-button"
@@ -66,12 +71,12 @@ export function AccountPanel({ playerName, close }: { playerName: string; close:
               close();
             }}
           >
-            Sign out
+            {t('Sign out')}
           </button>
         </>
       ) : (
         <>
-          <p>Guests can play immediately. Sign in to keep your profile and rated results.</p>
+          <p>{t('Guests can play immediately. Sign in to keep your profile and rated results.')}</p>
           <form
             className="account-form"
             onSubmit={(e) => {
@@ -81,7 +86,7 @@ export function AccountPanel({ playerName, close }: { playerName: string; close:
             }}
           >
             <label className="field">
-              Email
+              {t('Email')}
               <input
                 type="email"
                 required
@@ -91,7 +96,7 @@ export function AccountPanel({ playerName, close }: { playerName: string; close:
               />
             </label>
             <label className="field">
-              Password
+              {t('Password')}
               <input
                 type="password"
                 required
@@ -101,16 +106,16 @@ export function AccountPanel({ playerName, close }: { playerName: string; close:
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
-            {auth.error && <p role="alert">{auth.error}</p>}
+            {auth.error && <p role="alert">{tServer(auth.error)}</p>}
             <button className="primary-button" disabled={auth.isLoading}>
-              {auth.isLoading ? 'Please wait…' : register ? 'Create account' : 'Sign in'}
+              {auth.isLoading ? t('Please wait…') : register ? t('Create account') : t('Sign in')}
             </button>
           </form>
           <button className="quiet-button full-width" onClick={() => setRegister(!register)}>
-            {register ? 'Already have an account? Sign in' : 'New here? Create an account'}
+            {register ? t('Already have an account? Sign in') : t('New here? Create an account')}
           </button>
           <button className="secondary-button full-width" onClick={auth.loginWithDiscord}>
-            Continue with Discord
+            {t('Continue with Discord')}
           </button>
         </>
       )}
@@ -120,56 +125,64 @@ export function AccountPanel({ playerName, close }: { playerName: string; close:
 
 export function RulesPanel({ close }: { close: () => void }) {
   return (
-    <RoomDialog title="A seat at the table." close={close}>
+    <RoomDialog title={t('A seat at the table.')} close={close}>
       <p>
-        Play your hand. Beat the cards coming your way. Once the deck is empty, the first player out
-        of cards wins. In teams, their whole team wins.
+        {t(
+          'Play your hand. Beat the cards coming your way. Once the deck is empty, the first player out of cards wins. In teams, their whole team wins.',
+        )}
       </p>
       <div className="rules-grid">
         <div>
-          <h3>A different deck</h3>
+          <h3>{t('A different deck')}</h3>
           <p>
-            42 cards. Ranks rise from 7 through King, then 3, 2, Ace, Black Joker and Red Joker.
+            {t(
+              '42 cards. Ranks rise from 7 through King, then 3, 2, Ace, Black Joker and Red Joker.',
+            )}
           </p>
         </div>
         <div>
-          <h3>Beat it or pick up</h3>
+          <h3>{t('Beat it or pick up')}</h3>
           <p>
-            Use a higher card of the same suit or a trump. Jokers beat ordinary cards; Red Joker
-            beats Black Joker.
+            {t(
+              'Use a higher card of the same suit or a trump. Jokers beat ordinary cards; Red Joker beats Black Joker.',
+            )}
           </p>
         </div>
         <div>
-          <h3>Keep it moving</h3>
+          <h3>{t('Keep it moving')}</h3>
           <p>
-            Your successful defense becomes the next clockwise player’s attack. Pick up the whole
-            table if you can’t defend.
+            {t(
+              'Your successful defense becomes the next clockwise player’s attack. Pick up the whole table if you can’t defend.',
+            )}
           </p>
         </div>
         <div>
-          <h3>Make a mass</h3>
+          <h3>{t('Make a mass')}</h3>
           <p>
-            Masses contain 3, 5 or 7 cards under our pairing rules. Select all your cards before
-            confirming. The table checks legality.
+            {t(
+              'Masses contain 3, 5 or 7 cards under our pairing rules. Select all your cards before confirming. The table checks legality.',
+            )}
           </p>
         </div>
         <div>
-          <h3>Huzur</h3>
+          <h3>{t('Huzur')}</h3>
           <p>
-            Swap a seven of trump while the deck remains. A Joker Huzur requires the Ace of Spades
-            instead. A picked-up swap card cannot be used.
+            {t(
+              'Swap a seven of trump while the deck remains. A Joker Huzur requires the Ace of Spades instead. A picked-up swap card cannot be used.',
+            )}
           </p>
         </div>
         <div>
-          <h3>Out clean</h3>
+          <h3>{t('Out clean')}</h3>
           <p>
-            Hands refill to five or seven. When the deck is empty, the first to shed their last card
-            wins the game.
+            {t(
+              'Hands refill to five or seven. When the deck is empty, the first to shed their last card wins the game.',
+            )}
           </p>
         </div>
       </div>
       <button className="primary-button" onClick={close}>
-        Got it. Let’s play.
+        {t('Got it. Let’s play.')}
       </button>
     </RoomDialog>
   );

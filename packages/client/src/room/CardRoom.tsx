@@ -23,6 +23,7 @@ import { AccountPanel, RoomDialog, RulesPanel } from './RoomDialog';
 import { TeamBoard } from './TeamBoard';
 import './card-room.css';
 import './goofy.css';
+import { setLang, t, tServer, useLang } from '../i18n';
 
 const ThreeTable = lazy(() => import('../components/three/ThreeTable'));
 // Developer tools exist only in dev builds; production drops the import entirely.
@@ -58,6 +59,7 @@ export function CardRoom({
   embeddedName?: string;
   authError: string;
 }) {
+  const lang = useLang();
   const game = useGame();
   const auth = useAuth();
   const { imageUrl } = useCardBack();
@@ -102,33 +104,35 @@ export function CardRoom({
   const draw = state?.outcome === 'draw';
   const won = Boolean(state && state.winners.includes(session));
   const lost = Boolean(state?.outcome === 'win' && me && !won);
-  const winnerName = state?.winnerName || 'A player';
-  const winnerTeamName = state?.winnerTeam === 0 ? 'Blue' : 'Red';
+  const winnerName = state?.winnerName || t('A player');
+  const winnerTeamName = state?.winnerTeam === 0 ? t('Blue') : t('Red');
   const myTeamName = me?.team === 0 ? 'Blue' : 'Red';
   const resultTitle = draw
-    ? 'An even table.'
+    ? t('An even table.')
     : game.isSpectator || !me
       ? teamMode
-        ? `${winnerTeamName} team wins${horseMatchOver ? ' the match' : ''}.`
-        : `${winnerName} wins.`
+        ? horseMatchOver
+          ? t('{team} team wins the match.', { team: winnerTeamName })
+          : t('{team} team wins.', { team: winnerTeamName })
+        : t('{name} wins.', { name: winnerName })
       : horseMatchOver
         ? won
-          ? 'Your team won the match.'
-          : 'Your team lost the match.'
+          ? t('Your team won the match.')
+          : t('Your team lost the match.')
         : teamMode
           ? won
-            ? 'Your team won this game.'
-            : 'Your team lost this game.'
+            ? t('Your team won this game.')
+            : t('Your team lost this game.')
           : won
-            ? 'You won.'
-            : `${winnerName} wins.`;
+            ? t('You won.')
+            : t('{name} wins.', { name: winnerName });
   const resultLine = draw
-    ? 'Call it a draw. Another round?'
+    ? t('Call it a draw. Another round?')
     : teamMode
-      ? `${winnerName} went out first for the ${winnerTeamName} team.`
+      ? t('{name} went out first for the {team} team.', { name: winnerName, team: winnerTeamName })
       : won
-        ? 'You were first out of cards. Another round?'
-        : `${winnerName} was first out of cards. There’s always another round.`;
+        ? t('You were first out of cards. Another round?')
+        : t('{name} was first out of cards. There’s always another round.', { name: winnerName });
   const playing = phase === 'playing';
   const opening = phase === 'opening';
   // A countdown from the results screen keeps the results visible until the deal.
@@ -181,7 +185,7 @@ export function CardRoom({
     Math.ceil(((state?.phaseEndsAt || 0) - now - game.serverTimeOffset) / 1000),
   );
   const playerName =
-    embeddedName || auth.user?.globalName || auth.user?.username || name.trim() || 'Guest';
+    embeddedName || auth.user?.globalName || auth.user?.username || name.trim() || t('Guest');
   const seatRequest = <SeatRequest playerName={playerName} preset={preset} />;
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 250);
@@ -226,7 +230,7 @@ export function CardRoom({
     setSent({ turn: turnKey, error: game.error ?? null });
     game.room.send(view.attacks.length ? 'defend' : 'attack', { cards });
   };
-  const turnName = state?.players.get(state.currentTurn)?.username || 'Your opponent';
+  const turnName = state?.players.get(state.currentTurn)?.username || t('Your opponent');
   // The server decides eligibility; this button appears only when a candidate exists.
   const canSwap =
     playing &&
@@ -245,7 +249,12 @@ export function CardRoom({
     );
   const resultMessage =
     showResult && game.gameMessage?.startsWith('Game over.') ? '' : game.gameMessage;
-  const info = notice || game.error || authError || resultMessage || game.gameAbortReason;
+  const info =
+    notice ||
+    tServer(game.error) ||
+    authError ||
+    tServer(resultMessage) ||
+    tServer(game.gameAbortReason);
 
   return (
     <main
@@ -259,26 +268,33 @@ export function CardRoom({
             event.preventDefault();
             if (live) setModal('leave');
           }}
-          aria-label="Durak home"
+          aria-label={t('Durak home')}
         >
           <span className="brand-suit">♠</span>durak
-          <span className="brand-caption">The card room</span>
+          <span className="brand-caption">{t('The card room')}</span>
         </a>
-        <nav aria-label="Main navigation">
+        <nav aria-label={t('Main navigation')}>
+          <button
+            className="quiet-button lang-button"
+            aria-label={lang === 'mn' ? 'Switch to English' : 'Монгол хэл рүү шилжих'}
+            onClick={() => setLang(lang === 'mn' ? 'en' : 'mn')}
+          >
+            {lang === 'mn' ? 'EN' : 'МН'}
+          </button>
           <button className="quiet-button" onClick={() => setModal('rules')}>
-            How to play
+            {t('How to play')}
           </button>
           <button
             className="account-button"
-            aria-label="Account"
+            aria-label={t('Account')}
             onClick={() => setModal('account')}
           >
             <span className="avatar">{playerName.slice(0, 1).toUpperCase()}</span>
-            <span>{auth.user ? playerName : 'Guest player'}</span>
+            <span>{auth.user ? playerName : t('Guest player')}</span>
           </button>
           {live && (
             <button className="quiet-button" onClick={() => setModal('leave')}>
-              Leave table
+              {t('Leave table')}
             </button>
           )}
         </nav>
@@ -286,7 +302,7 @@ export function CardRoom({
 
       <div className="room-stage">
         <div className="scene-atmosphere" />
-        <div className="scene" aria-label="Interactive card table">
+        <div className="scene" aria-label={t('Interactive card table')}>
           {!fallback ? (
             <Suspense
               fallback={
@@ -296,7 +312,7 @@ export function CardRoom({
                     <span />
                     <span />
                   </span>
-                  <span>Setting the table…</span>
+                  <span>{t('Setting the table…')}</span>
                 </div>
               }
             >
@@ -318,7 +334,7 @@ export function CardRoom({
                 onUnavailable={() => {
                   setFallback(true);
                   setNotice(
-                    'The 3D view is unavailable. You can keep playing with the card controls.',
+                    t('The 3D view is unavailable. You can keep playing with the card controls.'),
                   );
                   setDismissed('');
                 }}
@@ -342,14 +358,14 @@ export function CardRoom({
                   },
                   (_, i) => (
                     <span key={`empty-${i}`} className="empty-seat">
-                      Empty seat
+                      {t('Empty seat')}
                     </span>
                   ),
                 )}
               </div>
               <div className="flat-piles">
                 <span>
-                  Deck
+                  {t('Deck')}
                   <br />
                   <strong>{view.deckCount}</strong>
                 </span>
@@ -357,14 +373,14 @@ export function CardRoom({
                   <Face key={c.key} card={c} />
                 ))}
                 <span>
-                  Discarded
+                  {t('Discarded')}
                   <br />
                   <strong>{view.discardCount}</strong>
                 </span>
               </div>
               {view.history.length > 0 && (
-                <div className="flat-history" aria-label="Cards accumulated on the table">
-                  <span>On the table · {view.history.length}</span>
+                <div className="flat-history" aria-label={t('Cards accumulated on the table')}>
+                  <span>{t('On the table · {n}', { n: view.history.length })}</span>
                   <div>
                     {view.history.map((c, i) => (
                       <Face key={`${i}:${c.key}`} card={c} />
@@ -375,20 +391,20 @@ export function CardRoom({
             </div>
           )}
           {(playing || opening || phase === 'finished') && (
-            <aside className="huzur-reference" aria-label="Huzur card" aria-live="polite">
+            <aside className="huzur-reference" aria-label={t('Huzur card')} aria-live="polite">
               <Face card={view.huzur} />
               <div>
-                <strong>{view.deckCount > 0 ? 'Huzur' : 'Trump reference'}</strong>
+                <strong>{view.deckCount > 0 ? t('Huzur') : t('Trump reference')}</strong>
                 <span>{cardLabel(view.huzur)}</span>
-                <small>{view.deckCount > 0 ? 'Ground card' : 'Deck empty'}</small>
+                <small>{view.deckCount > 0 ? t('Ground card') : t('Deck empty')}</small>
               </div>
             </aside>
           )}
         </div>
         {!live && (
           <section className="welcome-copy">
-            <h1>Don’t be the Durak.</h1>
-            <p>Durak means fool. The last one holding cards wears the title.</p>
+            <h1>{t('Don’t be the Durak.')}</h1>
+            <p>{t('Durak means fool. The last one holding cards wears the title.')}</p>
           </section>
         )}
         {playing && (
@@ -400,35 +416,40 @@ export function CardRoom({
             <div>
               {teamMode && me && !game.isSpectator && (
                 <span className={`turn-team turn-team--${myTeamName.toLowerCase()}`}>
-                  {me.team === 0 ? '◆' : '●'} {myTeamName} team
+                  {me.team === 0 ? '◆' : '●'} {t('{team} team', { team: myTeamName })}
                 </span>
               )}
               <h1>
                 {game.isSpectator
-                  ? 'Watching the table'
+                  ? t('Watching the table')
                   : view.canSelect
                     ? view.attacks.length
-                      ? 'Your defense.'
-                      : 'Your move.'
-                    : `${turnName}’s turn`}
+                      ? t('Your defense.')
+                      : t('Your move.')
+                    : t('{name}’s turn', { name: turnName })}
               </h1>
               <p>
                 {view.canSelect
                   ? view.attacks.length
-                    ? `Beat ${view.attacks.length === 1 ? 'the card' : `all ${view.attacks.length} cards`} or pick up the table.`
-                    : 'Select your cards, then send them to the table.'
+                    ? view.attacks.length === 1
+                      ? t('Beat the card or pick up the table.')
+                      : t('Beat all {n} cards or pick up the table.', { n: view.attacks.length })
+                    : t('Select your cards, then send them to the table.')
                   : teamMode
-                    ? `${state!.players.get(state!.currentTurn)?.team === 0 ? 'Blue' : 'Red'} team is playing. Stay ready.`
-                    : 'The table moves clockwise. Stay ready.'}
+                    ? t('{team} team is playing. Stay ready.', {
+                        team:
+                          state!.players.get(state!.currentTurn)?.team === 0 ? t('Blue') : t('Red'),
+                      })
+                    : t('The table moves clockwise. Stay ready.')}
               </p>
             </div>
             <span
               className={`turn-clock ${seconds <= 5 ? 'urgent' : ''}`}
               aria-live="off"
-              aria-label={`${seconds} seconds remaining`}
+              aria-label={t('{n} seconds remaining', { n: seconds })}
             >
               {seconds}
-              <small>sec</small>
+              <small>{t('sec')}</small>
             </span>
           </section>
         )}
@@ -436,23 +457,30 @@ export function CardRoom({
           <section className="turn-banner opening-banner" aria-live="polite">
             <span className="status-dot" />
             <div>
-              <h1>Dealing the cards.</h1>
+              <h1>{t('Dealing the cards.')}</h1>
               <p>
-                Huzur: {cardLabel(view.huzur)}.{' '}
+                {t('Huzur: {card}.', { card: cardLabel(view.huzur) })}{' '}
                 {Array.from(state!.openingDraws)
                   .filter((draw) => !!draw)
-                  .map(
-                    (draw) =>
-                      `${state!.players.get(draw.playerId)?.username || 'A player'} drew ${cardLabel(draw.card)}`,
+                  .map((draw) =>
+                    t('{name} drew {card}', {
+                      name: state!.players.get(draw.playerId)?.username || t('A player'),
+                      card: cardLabel(draw.card),
+                    }),
                   )
                   .join(' · ')}
                 {state!.openingDraws.length > 0 ? '. ' : ''}
-                {state!.currentTurn === session ? 'You lead.' : `${turnName} leads.`}
+                {state!.currentTurn === session
+                  ? t('You lead.')
+                  : t('{name} leads.', { name: turnName })}
               </p>
             </div>
-            <span className="turn-clock" aria-label={`Play begins in ${phaseSeconds} seconds`}>
+            <span
+              className="turn-clock"
+              aria-label={t('Play begins in {n} seconds', { n: phaseSeconds })}
+            >
               {phaseSeconds}
-              <small>sec</small>
+              <small>{t('sec')}</small>
             </span>
           </section>
         )}
@@ -461,30 +489,30 @@ export function CardRoom({
             <span className="connection-led" />
             {game.isSpectator && (
               <>
-                Watching
+                {t('Watching')}
                 <span className="meta-divider" />
               </>
             )}
             {state!.mode === 'horse'
-              ? `Horse · Game ${showResult ? horseGameShown : state!.horseGame}`
+              ? t('Horse, game {n}', { n: (showResult ? horseGameShown : state!.horseGame) ?? 1 })
               : state!.mode === 'teams'
                 ? `${state!.maxPlayers / 2}v${state!.maxPlayers / 2}`
                 : state!.maxPlayers === 2
                   ? '1v1'
-                  : `${state!.maxPlayers}-player free-for-all`}
+                  : t('{n}-player free-for-all', { n: state!.maxPlayers })}
             <span className="meta-divider" />
-            {state!.targetHandSize}-card hands
+            {t('{n}-card hands', { n: state!.targetHandSize })}
             {(playing || opening) && (
               <>
                 <span className="meta-divider" />
-                <span aria-label={`Trump suit: ${state!.huzurSuit}`}>
-                  Trump {SUITS[state!.huzurSuit]}
+                <span aria-label={t('Trump suit: {suit}', { suit: t(state!.huzurSuit) })}>
+                  {t('Trump')} {SUITS[state!.huzurSuit]}
                 </span>
               </>
             )}
             {state!.mode === 'horse' && (
               <span>
-                Blue: {state!.horseTeamA || '—'} / Red: {state!.horseTeamB || '—'}
+                {t('Blue')}: {state!.horseTeamA || '—'} / {t('Red')}: {state!.horseTeamB || '—'}
               </span>
             )}
           </aside>
@@ -510,7 +538,7 @@ export function CardRoom({
           />
         )}
         {showResult && (
-          <section className="result-dock play-dock" aria-label="Game result">
+          <section className="result-dock play-dock" aria-label={t('Game result')}>
             <span className="result-suit" aria-hidden="true">
               {lost ? '♣' : '♠'}
             </span>
@@ -524,21 +552,23 @@ export function CardRoom({
                 spectator={game.isSpectator}
               />
             )}
-            {teamMode && won && !draw && <p className="result-aside">The cleanup can wait.</p>}
+            {teamMode && won && !draw && (
+              <p className="result-aside">{t('The cleanup can wait.')}</p>
+            )}
             {horse && (
               <p>
-                Game {horseGameShown} · Blue: {state!.horseTeamA || '—'} · Red:{' '}
-                {state!.horseTeamB || '—'}
+                {t('Game {n}', { n: horseGameShown ?? 1 })}. {t('Blue')}: {state!.horseTeamA || '—'}
+                . {t('Red')}: {state!.horseTeamB || '—'}.{' '}
                 {!horseMatchOver &&
                   (privateTable
-                    ? ' · Ready up for the next game of the match.'
-                    : ' · Returning to the lobby for the next game in a few seconds.')}
+                    ? t('Ready up for the next game of the match.')
+                    : t('Returning to the lobby for the next game in a few seconds.'))}
               </p>
             )}
             {game.eloResult && (
               <p className="rating-result">
                 {game.eloResult.delta > 0 ? '+' : ''}
-                {game.eloResult.delta} rating · {game.eloResult.newElo}
+                {game.eloResult.delta} {t('rating')}: {game.eloResult.newElo}
               </p>
             )}
             {privateTable && !game.isSpectator && me && (
@@ -548,20 +578,22 @@ export function CardRoom({
                   onClick={() => game.room?.send('toggleReady', { isReady: !me.isReady })}
                 >
                   {me.isReady
-                    ? 'Not ready'
+                    ? t('Not ready')
                     : horseMatchOver
-                      ? 'Ready for a new Horse match'
-                      : 'Ready for next game'}
+                      ? t('Ready for a new Horse match')
+                      : t('Ready for next game')}
                   <span aria-hidden="true">↻</span>
                 </button>
                 <p role="status">
                   {phase === 'countdown'
-                    ? `Dealing in ${phaseSeconds}…`
-                    : `${readyHumans}/${humans.length} ready${
-                        state!.players.size < state!.maxPlayers
-                          ? ` · ${state!.maxPlayers - state!.players.size} empty ${state!.maxPlayers - state!.players.size === 1 ? 'seat' : 'seats'}`
-                          : ''
-                      }`}
+                    ? t('Dealing in {n}…', { n: phaseSeconds })
+                    : t('{ready}/{total} ready', { ready: readyHumans, total: humans.length }) +
+                      (state!.players.size < state!.maxPlayers
+                        ? '. ' +
+                          (state!.maxPlayers - state!.players.size === 1
+                            ? t('1 empty seat')
+                            : t('{n} empty seats', { n: state!.maxPlayers - state!.players.size }))
+                        : '')}
                 </p>
               </>
             )}
@@ -572,21 +604,24 @@ export function CardRoom({
                 onClick={() => game.sendRematchVote(true)}
               >
                 {game.rematchState?.voters.includes(session)
-                  ? 'Waiting for the table…'
+                  ? t('Waiting for the table…')
                   : horse
-                    ? 'Play another Horse match'
-                    : 'Rematch'}
+                    ? t('Play another Horse match')
+                    : t('Rematch')}
                 <span aria-hidden="true">↻</span>
               </button>
             )}
             {!privateTable && game.rematchState && (
               <p>
-                {game.rematchState.votes}/{game.rematchState.needed} ready for another round
+                {t('{votes}/{needed} ready for another round', {
+                  votes: game.rematchState.votes,
+                  needed: game.rematchState.needed,
+                })}
               </p>
             )}
             {seatRequest}
             <button className="quiet-button full-width" onClick={game.leaveGame}>
-              Back to the card room
+              {t('Back to the card room')}
             </button>
           </section>
         )}
@@ -595,8 +630,11 @@ export function CardRoom({
             ♠ ♡
           </span>
           {playing
-            ? `${view.deckCount} in deck / ${view.discardCount} discarded`
-            : 'Click a card. Drag to look around.'}
+            ? t('{deck} in deck, {discard} discarded', {
+                deck: view.deckCount,
+                discard: view.discardCount,
+              })
+            : t('Click a card. Drag to look around.')}
         </div>
         <div className="view-tools">
           <GesturePicker
@@ -617,7 +655,7 @@ export function CardRoom({
           {live && !game.isSpectator && (
             <button
               className="quiet-button"
-              title="Change how your hand is arranged"
+              title={t('Change how your hand is arranged')}
               onClick={() => {
                 const next =
                   HAND_ORDERS[(HAND_ORDERS.indexOf(handOrder) + 1) % HAND_ORDERS.length]!;
@@ -625,12 +663,12 @@ export function CardRoom({
                 saveHandOrder(next);
               }}
             >
-              Sort: {HAND_ORDER_LABEL[handOrder]}
+              {t('Sort')}: {t(HAND_ORDER_LABEL[handOrder])}
             </button>
           )}
           {!fallback && (
             <button className="quiet-button" onClick={() => setRecenterKey((value) => value + 1)}>
-              Recenter
+              {t('Recenter')}
             </button>
           )}
           <button
@@ -641,7 +679,7 @@ export function CardRoom({
               setNotice('');
             }}
           >
-            {fallback ? 'Try 3D view' : '2D view'}
+            {fallback ? t('Try 3D view') : t('2D view')}
           </button>
           {!(portrait && playing) && (
             <button
@@ -649,7 +687,7 @@ export function CardRoom({
               aria-pressed={keyboard}
               onClick={() => setKeyboard(!keyboard)}
             >
-              {keyboard ? 'Hide card controls' : 'Card controls'}
+              {keyboard ? t('Hide card controls') : t('Card controls')}
             </button>
           )}
         </div>
@@ -664,11 +702,11 @@ export function CardRoom({
       )}
       {(keyboard || fallback || (portrait && playing)) && phase !== 'waiting' && !showResult && (
         <section className="card-controls">
-          <div className="keyboard-hand" aria-label="Your hand">
+          <div className="keyboard-hand" aria-label={t('Your hand')}>
             {view.hand.map((card) => (
               <button
                 key={card.key}
-                aria-label={`Select ${cardLabel(card)}`}
+                aria-label={t('Select {card}', { card: cardLabel(card) })}
                 aria-pressed={selectedKeys.includes(card.key)}
                 disabled={!view.canSelect}
                 className={selectedKeys.includes(card.key) ? 'hand-card selected' : 'hand-card'}
@@ -681,11 +719,14 @@ export function CardRoom({
         </section>
       )}
       {fallback && (
-        <section className="sr-only" aria-label="Table state" aria-live="polite">
+        <section className="sr-only" aria-label={t('Table state')} aria-live="polite">
           <p>
-            {view.deckCount} cards in the deck. {view.discardCount} discarded.
+            {t('{deck} cards in the deck. {discard} discarded.', {
+              deck: view.deckCount,
+              discard: view.discardCount,
+            })}
           </p>
-          <ul aria-label="Incoming attack">
+          <ul aria-label={t('Incoming attack')}>
             {view.attacks.map((c) => (
               <li key={c.key}>{cardLabel(c)}</li>
             ))}
@@ -693,18 +734,20 @@ export function CardRoom({
         </section>
       )}
       {(playing || opening) && game.isSpectator && privateTable && (
-        <section className="action-dock" aria-label="Join this table">
+        <section className="action-dock" aria-label={t('Join this table')}>
           {seatRequest}
         </section>
       )}
       {playing && !game.isSpectator && (
         <section className="action-dock">
           {view.attacks.length > 0 && (
-            <div className="attack-reference" aria-label="Active table cards">
+            <div className="attack-reference" aria-label={t('Active table cards')}>
               <div>
-                <strong>{view.canSelect ? 'To beat' : 'On table'}</strong>
+                <strong>{view.canSelect ? t('To beat') : t('On table')}</strong>
                 <small>
-                  {view.attacks.length} {view.attacks.length === 1 ? 'card' : 'cards'}
+                  {view.attacks.length === 1
+                    ? t('1 card')
+                    : t('{n} cards', { n: view.attacks.length })}
                 </small>
               </div>
               <div
@@ -720,7 +763,12 @@ export function CardRoom({
                       className="defense-pair"
                       key={card.key}
                       aria-label={
-                        defense ? `${cardLabel(defense)} beats ${cardLabel(card)}` : cardLabel(card)
+                        defense
+                          ? t('{defense} beats {attack}', {
+                              defense: cardLabel(defense),
+                              attack: cardLabel(card),
+                            })
+                          : cardLabel(card)
                       }
                     >
                       <Face card={card} />
@@ -740,42 +788,46 @@ export function CardRoom({
             <strong>
               {view.canSelect
                 ? picked.length
-                  ? `${picked.length} ${picked.length === 1 ? 'card' : 'cards'} selected`
+                  ? picked.length === 1
+                    ? t('1 card selected')
+                    : t('{n} cards selected', { n: picked.length })
                   : view.attacks.length
-                    ? 'Choose your defense.'
-                    : 'Your hand, your move.'
+                    ? t('Choose your defense.')
+                    : t('Your hand, your move.')
                 : state!.winners.includes(session)
-                  ? 'You won.'
-                  : 'Watch the table.'}
+                  ? t('You won.')
+                  : t('Watch the table.')}
             </strong>
             <span role="status">
               {!view.canSelect
-                ? 'Cards are played clockwise.'
+                ? t('Cards are played clockwise.')
                 : awaiting
-                  ? 'Sending to the table…'
+                  ? t('Sending to the table…')
                   : !preview
                     ? view.attacks.length
                       ? view.attacks.length === 1
-                        ? 'Choose a card to beat the attack, or pick up.'
-                        : `Choose one card for each of the ${view.attacks.length} attacks, or pick up.`
-                      : 'Select cards, then confirm your play.'
+                        ? t('Choose a card to beat the attack, or pick up.')
+                        : t('Choose one card for each of the {n} attacks, or pick up.', {
+                            n: view.attacks.length,
+                          })
+                      : t('Select cards, then confirm your play.')
                     : !preview.legal
                       ? preview.reason
                       : preview.kind === 'defense'
                         ? describePairs(preview)
                         : picked.length > 1
-                          ? `Mass attack: ${picked.map(cardLabel).join(', ')}.`
-                          : `Attack with ${cardLabel(picked[0]!)}.`}
+                          ? t('Mass attack: {cards}.', { cards: picked.map(cardLabel).join(', ') })
+                          : t('Attack with {card}.', { card: cardLabel(picked[0]!) })}
             </span>
           </div>
           {picked.length > 0 && (
             <button className="quiet-button" onClick={() => setSelected([])}>
-              Clear
+              {t('Clear')}
             </button>
           )}
           {canSwap && (
             <button className="secondary-button" onClick={() => game.room?.send('swapHuzur')}>
-              Swap Huzur
+              {t('Swap Huzur')}
             </button>
           )}
           {view.canSelect && view.attacks.length > 0 && (
@@ -786,7 +838,7 @@ export function CardRoom({
                 setSelected([]);
               }}
             >
-              Pick up
+              {t('Pick up')}
             </button>
           )}
           <button
@@ -794,7 +846,7 @@ export function CardRoom({
             disabled={!view.canSelect || !picked.length || awaiting || !preview?.legal}
             onClick={play}
           >
-            {view.attacks.length ? 'Defend' : 'Play cards'}
+            {view.attacks.length ? t('Defend') : t('Play cards')}
             {picked.length > 0 && <span>{picked.length}</span>}
           </button>
         </section>
@@ -803,7 +855,7 @@ export function CardRoom({
         <div className="room-notice" role="status">
           <span>{info}</span>
           <button
-            aria-label="Dismiss message"
+            aria-label={t('Dismiss message')}
             onClick={() => {
               setDismissed(info);
               setNotice('');
@@ -820,24 +872,28 @@ export function CardRoom({
           <span className="connection-led" />
           {game.isReconnecting
             ? privateTable
-              ? 'Reconnecting… If this takes more than a few seconds, a bot plays for you until you’re back.'
-              : 'Finding your seat again…'
-            : 'Waiting for your opponent to reconnect…'}
+              ? t(
+                  'Reconnecting… If this takes more than a few seconds, a bot plays for you until you’re back.',
+                )
+              : t('Finding your seat again…')
+            : t('Waiting for your opponent to reconnect…')}
         </div>
       )}
       {modal === 'rules' && <RulesPanel close={() => setModal(null)} />}
       {modal === 'leave' && (
-        <RoomDialog title="Leave this table?" close={() => setModal(null)}>
+        <RoomDialog title={t('Leave this table?')} close={() => setModal(null)}>
           <p>
             {(playing || opening) && privateTable && !game.isSpectator
-              ? 'A bot plays your seat for the rest of this game, so your friends can finish. Your seat opens up when the game ends.'
+              ? t(
+                  'A bot plays your seat for the rest of this game, so your friends can finish. Your seat opens up when the game ends.',
+                )
               : playing && !game.isSpectator
-                ? 'Your seat will be given up. The other players can keep going.'
-                : 'You can join another table from the card room.'}
+                ? t('Your seat will be given up. The other players can keep going.')
+                : t('You can join another table from the card room.')}
           </p>
           <div className="dialog-actions">
             <button className="secondary-button" onClick={() => setModal(null)}>
-              Stay here
+              {t('Stay here')}
             </button>
             <button
               className="primary-button"
@@ -846,7 +902,7 @@ export function CardRoom({
                 setModal(null);
               }}
             >
-              Leave table
+              {t('Leave table')}
             </button>
           </div>
         </RoomDialog>

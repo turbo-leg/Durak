@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { t } from '../../i18n';
 import { SeatedView } from './SeatedView';
 import { FirstPersonCharacter, SeatedCharacter } from '../../character/CharacterRig';
 import { avatarPreset } from '@durak/shared';
@@ -1006,7 +1007,7 @@ export class TableRenderer {
         );
       if (refreshLabels)
         this.label(
-          `${snapshot.discardCount} discarded`,
+          t('{n} discarded', { n: snapshot.discardCount }),
           LAYOUT.discard.x,
           TABLE_TOP + cm(12),
           LAYOUT.discard.z + cm(12),

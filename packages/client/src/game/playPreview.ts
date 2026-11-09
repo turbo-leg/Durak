@@ -1,5 +1,6 @@
 import { Card, DurakEngine } from '@durak/shared';
 import { cardLabel, type TableCard } from './tableSnapshot';
+import { t } from '../i18n';
 
 export interface PlayPreview {
   readonly kind: 'attack' | 'defense';
@@ -41,7 +42,7 @@ export function previewPlay(
       DurakEngine.isValidAttackAddition(cards[0]!, context.table.map(toCard), []);
     return legal
       ? { kind: 'attack', legal }
-      : { kind: 'attack', legal, reason: 'Add a rank that is already on the table.' };
+      : { kind: 'attack', legal, reason: t('Add a rank that is already on the table.') };
   }
   const legal = DurakEngine.isValidMassAttackForHandCounts(
     cards,
@@ -61,8 +62,10 @@ function previewDefense(selected: readonly TableCard[], context: PreviewContext)
       legal: false,
       reason:
         missing > 0
-          ? `Select ${missing} more ${missing === 1 ? 'card' : 'cards'}: one for each attacking card.`
-          : `Select only ${context.attacks.length}: one card for each attacking card.`,
+          ? missing === 1
+            ? t('Select 1 more card: one for each attacking card.')
+            : t('Select {n} more cards: one for each attacking card.', { n: missing })
+          : t('Select only {n}: one card for each attacking card.', { n: context.attacks.length }),
     };
   const byCard = new Map<Card, TableCard>();
   const defenders = selected.map((c) => {
@@ -80,7 +83,7 @@ function previewDefense(selected: readonly TableCard[], context: PreviewContext)
     return {
       kind: 'defense',
       legal: false,
-      reason: 'Each card must beat one attacking card: the same suit and higher, or a trump.',
+      reason: t('Each card must beat one attacking card: the same suit and higher, or a trump.'),
     };
   return {
     kind: 'defense',
@@ -95,18 +98,24 @@ function previewDefense(selected: readonly TableCard[], context: PreviewContext)
 /** Explains which mass-attack condition failed. Legality itself comes from the engine. */
 function massReason(cards: Card[], context: PreviewContext): string {
   const n = cards.length;
-  if (n !== 3 && n !== 5 && n !== 7) return 'Play one card, or a mass attack of 3, 5 or 7 cards.';
+  if (n !== 3 && n !== 5 && n !== 7)
+    return t('Play one card, or a mass attack of 3, 5 or 7 cards.');
   if (context.handCounts.some((count) => count < n))
-    return `Every player needs at least ${n} cards for a ${n}-card mass attack.`;
-  if (n === 7 && context.targetHandSize !== 7) return 'A 7-card mass attack needs a 7-card game.';
+    return t('Every player needs at least {n} cards for a {n}-card mass attack.', { n });
+  if (n === 7 && context.targetHandSize !== 7)
+    return t('A 7-card mass attack needs a 7-card game.');
   if (n > 3 && context.deckCount > 0 && (n === 7 || context.targetHandSize !== 7))
-    return `A ${n}-card mass attack is allowed once the deck is empty.`;
+    return t('A {n}-card mass attack is allowed once the deck is empty.', { n });
   const pairs = (n - 1) / 2;
-  return `A ${n}-card mass attack needs at least ${pairs} ${pairs === 1 ? 'pair' : 'pairs'}.`;
+  return pairs === 1
+    ? t('A {n}-card mass attack needs at least 1 pair.', { n })
+    : t('A {n}-card mass attack needs at least {pairs} pairs.', { n, pairs });
 }
 
 export function describePairs(preview: PlayPreview): string {
   return (preview.pairs ?? [])
-    .map(({ attack, defense }) => `${cardLabel(defense)} beats ${cardLabel(attack)}`)
-    .join(' · ');
+    .map(({ attack, defense }) =>
+      t('{defense} beats {attack}', { defense: cardLabel(defense), attack: cardLabel(attack) }),
+    )
+    .join('. ');
 }

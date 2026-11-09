@@ -1,4 +1,5 @@
 import { AVATAR_PRESETS } from '@durak/shared';
+import { t } from '../i18n';
 
 export function AvatarPicker({
   value,
@@ -9,13 +10,13 @@ export function AvatarPicker({
 }) {
   return (
     <fieldset className="avatar-picker">
-      <legend>Your character</legend>
+      <legend>{t('Your character')}</legend>
       <div>
         {AVATAR_PRESETS.map((preset) => (
           <button
             type="button"
             key={preset.id}
-            aria-label={`Choose ${preset.name} avatar`}
+            aria-label={t('Choose {name} avatar', { name: t(preset.name) })}
             aria-pressed={value === preset.id}
             onClick={() => change(preset.id)}
           >
@@ -38,7 +39,7 @@ export function AvatarPicker({
               <circle cx="38" cy="28" r="2" fill="#25303a" />
               <path d="M28 37Q32 40 36 37" fill="none" stroke="#885349" strokeWidth="1.5" />
             </svg>
-            <span>{preset.name}</span>
+            <span>{t(preset.name)}</span>
           </button>
         ))}
       </div>

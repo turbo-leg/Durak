@@ -4,15 +4,10 @@ import { cardLabel } from '../game/tableSnapshot';
 import { GUIDED_HUZUR as HUZUR, GUIDED_STEPS } from '../game/guidedSteps';
 import { Face } from './CardFace';
 import { RoomDialog } from './RoomDialog';
+import { t } from '../i18n';
 
 /** An optional practice hand: four scripted moves checked with the shared rules. */
-export function GuidedHand({
-  close,
-  finishLabel = 'Done',
-}: {
-  close: () => void;
-  finishLabel?: string;
-}) {
+export function GuidedHand({ close, finishLabel }: { close: () => void; finishLabel?: string }) {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
   const [complete, setComplete] = useState(false);
@@ -40,40 +35,43 @@ export function GuidedHand({
     setSelected((old) => (old.includes(key) ? old.filter((k) => k !== key) : [...old, key]));
   };
   const hint = complete
-    ? step.done
+    ? t(step.done)
     : nudge
       ? nudge
       : !preview
         ? step.goal === 'pickup'
-          ? 'Try selecting a card, then pick up.'
-          : 'Select a card.'
+          ? t('Try selecting a card, then pick up.')
+          : t('Select a card.')
         : !preview.legal
           ? preview.reason
           : step.goal === 'pickup'
-            ? 'That would not work here. Pick up instead.'
+            ? t('That would not work here. Pick up instead.')
             : preview.kind === 'defense'
               ? describePairs(preview)
-              : `Ready: ${picked.map(cardLabel).join(', ')}.`;
+              : t('Ready: {cards}.', { cards: picked.map(cardLabel).join(', ') });
   return (
-    <RoomDialog title={`Guided hand · ${index + 1} of ${GUIDED_STEPS.length}`} close={close}>
+    <RoomDialog
+      title={t('Guided hand, {n} of {total}', { n: index + 1, total: GUIDED_STEPS.length })}
+      close={close}
+    >
       <div className="guided-hand">
-        <h3>{step.title}</h3>
-        <p>{step.lesson}</p>
+        <h3>{t(step.title)}</h3>
+        <p>{t(step.lesson)}</p>
         {step.attacks.length > 0 && (
-          <div className="guided-row" aria-label="Attacking cards">
-            <small>To beat</small>
+          <div className="guided-row" aria-label={t('Attacking cards')}>
+            <small>{t('To beat')}</small>
             {step.attacks.map((c) => (
               <Face key={c.key} card={c} />
             ))}
           </div>
         )}
-        <div className="guided-row keyboard-hand" aria-label="Practice hand">
+        <div className="guided-row keyboard-hand" aria-label={t('Practice hand')}>
           {step.hand.map((c) => (
             <button
               key={c.key}
               className={selected.includes(c.key) ? 'hand-card selected' : 'hand-card'}
               aria-pressed={selected.includes(c.key)}
-              aria-label={`Select ${cardLabel(c)}`}
+              aria-label={t('Select {card}', { card: cardLabel(c) })}
               disabled={complete}
               onClick={() => toggle(c.key)}
             >
@@ -87,7 +85,7 @@ export function GuidedHand({
         <div className="dialog-actions">
           {complete ? (
             <button className="primary-button" onClick={next}>
-              {last ? finishLabel : 'Next'}
+              {last ? (finishLabel ?? t('Done')) : t('Next')}
             </button>
           ) : (
             <>
@@ -97,10 +95,10 @@ export function GuidedHand({
                   onClick={() =>
                     step.goal === 'pickup'
                       ? setComplete(true)
-                      : setNudge('You can beat this one. Try defending first.')
+                      : setNudge(t('You can beat this one. Try defending first.'))
                   }
                 >
-                  Pick up
+                  {t('Pick up')}
                 </button>
               )}
               <button
@@ -108,7 +106,7 @@ export function GuidedHand({
                 disabled={!preview?.legal || step.goal === 'pickup'}
                 onClick={() => setComplete(true)}
               >
-                {step.attacks.length ? 'Defend' : 'Play cards'}
+                {step.attacks.length ? t('Defend') : t('Play cards')}
               </button>
             </>
           )}

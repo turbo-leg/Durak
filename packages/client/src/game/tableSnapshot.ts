@@ -1,5 +1,6 @@
 import type { Card, GameState, PrivateCard, PublicGesture } from '@durak/shared';
 import { sortHand, type HandOrder } from './handOrder';
+import { t } from '../i18n';
 
 /** Data that never travels in synced state: the owner's hand, from the 'private' message. */
 export interface OffStateView {
@@ -63,18 +64,18 @@ export function seatStatus(
   betweenGames?: boolean,
   resultVisible?: boolean,
 ): string {
-  if (resultVisible) return seat.escaped ? 'Won' : `${seat.count} cards`;
-  if (seat.standin) return 'Bot playing';
-  if (seat.connected === false) return 'Reconnecting';
-  if (betweenGames) return seat.bot ? 'Bot' : seat.ready ? 'Ready' : 'Not ready';
-  return seat.escaped ? 'Won' : `${seat.count} cards`;
+  if (resultVisible) return seat.escaped ? t('Won') : t('{n} cards', { n: seat.count });
+  if (seat.standin) return t('Bot playing');
+  if (seat.connected === false) return t('Reconnecting');
+  if (betweenGames) return seat.bot ? t('Bot') : seat.ready ? t('Ready') : t('Not ready');
+  return seat.escaped ? t('Won') : t('{n} cards', { n: seat.count });
 }
 
 export const cardIdentity = (card: Pick<Card, 'suit' | 'rank' | 'isJoker'>) =>
   `${card.suit}:${card.rank}:${card.isJoker ? 1 : 0}`;
 
 export function cardLabel(card: Pick<Card, 'suit' | 'rank' | 'isJoker'>): string {
-  if (card.isJoker) return card.rank === 18 ? 'Red Joker' : 'Black Joker';
+  if (card.isJoker) return card.rank === 18 ? t('Red Joker') : t('Black Joker');
   const rank: Record<number, string> = {
     11: 'Jack',
     12: 'Queen',
@@ -83,7 +84,10 @@ export function cardLabel(card: Pick<Card, 'suit' | 'rank' | 'isJoker'>): string
     15: '2',
     16: 'Ace',
   };
-  return `${rank[card.rank] ?? card.rank} of ${card.suit}`;
+  return t('{rank} of {suit}', {
+    rank: t(rank[card.rank] ?? String(card.rank)),
+    suit: t(card.suit),
+  });
 }
 
 type CardFace = Pick<Card, 'suit' | 'rank' | 'isJoker'>;
