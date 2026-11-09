@@ -4,6 +4,7 @@ import { useGame } from '../contexts/GameContext';
 import { invitationLink, parseInvitation } from '../game/invitation';
 import { GuidedHand } from './GuidedHand';
 import { TeamBoard } from './TeamBoard';
+import { t, tServer } from '../i18n';
 
 export function RoomMenu({
   playerName,
@@ -36,7 +37,7 @@ export function RoomMenu({
     try {
       await action();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not connect. Try again.');
+      setError(e instanceof Error ? tServer(e.message) : t('Could not connect. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -49,19 +50,19 @@ export function RoomMenu({
   // An invitation opens the table as a preview first; the guest then takes a seat there.
   const openInvitation = async (input: string) => {
     const table = parseInvitation(input);
-    if (!table) throw new Error('Paste an invitation link or a room code.');
+    if (!table) throw new Error(t('Paste an invitation link or a room code.'));
     await game.spectateGame(table);
   };
   return (
-    <section className="play-dock" aria-label="Choose a game">
+    <section className="play-dock" aria-label={t('Choose a game')}>
       <div className="dock-title">
-        <h2>Start a game</h2>
-        <span>2–6 players</span>
+        <h2>{t('Start a game')}</h2>
+        <span>{t('2–6 players')}</span>
       </div>
       <div
         className="dock-tabs"
         role="tablist"
-        aria-label="Game type"
+        aria-label={t('Game type')}
         onKeyDown={(event) => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           event.preventDefault();
@@ -77,19 +78,23 @@ export function RoomMenu({
           buttons[index]?.click();
         }}
       >
-        {(['friends', 'solo', 'public'] as const).map((t) => (
+        {(['friends', 'solo', 'public'] as const).map((kind) => (
           <button
-            key={t}
+            key={kind}
             role="tab"
-            aria-selected={tab === t}
+            aria-selected={tab === kind}
             aria-controls="game-setup"
-            tabIndex={tab === t ? 0 : -1}
+            tabIndex={tab === kind ? 0 : -1}
             onClick={() => {
-              setTab(t);
-              if (t === 'public') void refresh();
+              setTab(kind);
+              if (kind === 'public') void refresh();
             }}
           >
-            {t === 'solo' ? 'Practice' : t === 'friends' ? 'With friends' : 'Open tables'}
+            {kind === 'solo'
+              ? t('Practice')
+              : kind === 'friends'
+                ? t('With friends')
+                : t('Open tables')}
           </button>
         ))}
       </div>
@@ -98,17 +103,17 @@ export function RoomMenu({
         id="game-setup"
         role="tabpanel"
         aria-label={
-          tab === 'solo' ? 'Practice' : tab === 'friends' ? 'With friends' : 'Open tables'
+          tab === 'solo' ? t('Practice') : tab === 'friends' ? t('With friends') : t('Open tables')
         }
       >
         {!signedIn && (
           <label className="field setup-name">
-            Your table name
+            {t('Your table name')}
             <input
               maxLength={28}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Guest"
+              placeholder={t('Guest')}
             />
           </label>
         )}
@@ -116,14 +121,16 @@ export function RoomMenu({
         {tab === 'solo' ? (
           <>
             <p className="dock-description">
-              A seat is ready. Get a feel for the cards against a bot.
+              {t('A seat is ready. Get a feel for the cards against a bot.')}
             </p>
             <div className="difficulty-options">
               <button aria-pressed={difficulty === 'easy'} onClick={() => setDifficulty('easy')}>
-                Easy<span>Find your rhythm</span>
+                {t('Easy')}
+                <span>{t('Find your rhythm')}</span>
               </button>
               <button aria-pressed={difficulty === 'hard'} onClick={() => setDifficulty('hard')}>
-                Hard<span>Make it a match</span>
+                {t('Hard')}
+                <span>{t('Make it a match')}</span>
               </button>
             </div>
             <button
@@ -142,13 +149,13 @@ export function RoomMenu({
                 )
               }
             >
-              {busy ? 'Taking your seat…' : 'Practice against a bot'}
+              {busy ? t('Taking your seat…') : t('Practice against a bot')}
               <span aria-hidden="true">♠</span>
             </button>
           </>
         ) : tab === 'friends' ? (
           <>
-            <div className="format-options setup-format" aria-label="Match format">
+            <div className="format-options setup-format" aria-label={t('Match format')}>
               {(['1v1', '2v2', '3v3', 'Free-for-all'] as const).map((format) => {
                 const active =
                   mode !== 'classic'
@@ -171,14 +178,14 @@ export function RoomMenu({
                       );
                     }}
                   >
-                    {format}
+                    {t(format)}
                   </button>
                 );
               })}
             </div>
             <div className="settings-row setup-settings">
               <label className="field">
-                Game
+                {t('Game')}
                 <select
                   value={mode}
                   onChange={(e) => {
@@ -186,13 +193,13 @@ export function RoomMenu({
                     if (e.target.value !== 'classic' && ![4, 6].includes(seats)) setSeats(4);
                   }}
                 >
-                  <option value="classic">Classic</option>
-                  <option value="teams">Teams</option>
-                  <option value="horse">Horse</option>
+                  <option value="classic">{t('Classic')}</option>
+                  <option value="teams">{t('Teams')}</option>
+                  <option value="horse">{t('Horse')}</option>
                 </select>
               </label>
               <label className="field">
-                Seats
+                {t('Seats')}
                 <select value={seats} onChange={(e) => setSeats(Number(e.target.value))}>
                   {(mode === 'classic' ? [2, 3, 4, 5, 6] : [4, 6]).map((n) => (
                     <option key={n}>{n}</option>
@@ -200,7 +207,7 @@ export function RoomMenu({
                 </select>
               </label>
               <label className="field">
-                Hand
+                {t('Hand')}
                 <select value={handSize} onChange={(e) => setHandSize(Number(e.target.value))}>
                   <option>5</option>
                   <option>7</option>
@@ -210,39 +217,46 @@ export function RoomMenu({
             {mode !== 'classic' && (
               <p className="team-setup-note">
                 {mode === 'horse'
-                  ? 'Two teams play a series. Each loss adds a letter to HORSE.'
-                  : 'Blue and Red take alternating seats. The first player out wins for their whole team.'}
+                  ? t('Two teams play a series. Each loss adds a letter to HORSE.')
+                  : t(
+                      'Blue and Red take alternating seats. The first player out wins for their whole team.',
+                    )}
               </p>
             )}
             {mode !== 'classic' && (
               <label className="field setup-teams">
-                Teams
+                {t('Teams')}
                 <select value={teamSelection} onChange={(e) => setTeamSelection(e.target.value)}>
-                  <option value="random">Random teams</option>
-                  <option value="manual">Choose teams</option>
+                  <option value="random">{t('Random teams')}</option>
+                  <option value="manual">{t('Choose teams')}</option>
                 </select>
               </label>
             )}
             <p className="quick-match-summary">
-              {mode === 'classic' ? 'Classic' : mode === 'horse' ? 'Horse' : 'Teams'} game · {seats}{' '}
-              players · {handSize} cards each
+              {t('{mode} game, {seats} players, {hand} cards each', {
+                mode:
+                  mode === 'classic' ? t('Classic') : mode === 'horse' ? t('Horse') : t('Teams'),
+                seats,
+                hand: handSize,
+              })}
             </p>
             <button
               className="primary-button create-table-button"
               disabled={busy}
               onClick={() => void run(() => game.createGame({ ...options, isPrivate: true }))}
             >
-              Create a table<span aria-hidden="true">+</span>
+              {t('Create a table')}
+              <span aria-hidden="true">+</span>
             </button>
             <div className="join-row">
               <label className="field">
-                Join friends
+                {t('Join friends')}
                 <input
-                  aria-label="Invitation link or room code"
+                  aria-label={t('Invitation link or room code')}
                   value={code}
                   maxLength={64}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="Paste invitation link or code"
+                  placeholder={t('Paste invitation link or code')}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !busy && code.trim()) {
                       event.preventDefault();
@@ -256,22 +270,20 @@ export function RoomMenu({
                 disabled={busy || !code.trim()}
                 onClick={() => void run(() => openInvitation(code))}
               >
-                Join
+                {t('Join')}
               </button>
             </div>
           </>
         ) : (
           <>
-            <p className="dock-description">Find a table, or open one for other players.</p>
+            <p className="dock-description">{t('Find a table, or open one for other players.')}</p>
             <div className="open-rooms">
               {rooms.length ? (
                 rooms.map((r) => (
                   <div key={r.roomId}>
                     <span>
-                      {String(r.metadata?.mode || 'Classic')}
-                      <small>
-                        {r.clients}/{r.maxClients} seated
-                      </small>
+                      {t(String(r.metadata?.mode || 'Classic'))}
+                      <small>{t('{n}/{max} seated', { n: r.clients, max: r.maxClients })}</small>
                     </span>
                     <button
                       className="secondary-button"
@@ -280,20 +292,22 @@ export function RoomMenu({
                         void run(() => game.joinGame(r.roomId, undefined, undefined, playerName))
                       }
                     >
-                      Join
+                      {t('Join')}
                     </button>
                     <button
                       className="quiet-button"
                       disabled={busy}
                       onClick={() => void run(() => game.spectateGame(r.roomId))}
                     >
-                      Watch
+                      {t('Watch')}
                     </button>
                   </div>
                 ))
               ) : (
                 <p role="status">
-                  {busy ? 'Looking for open tables…' : 'No open tables yet. Start the next one.'}
+                  {busy
+                    ? t('Looking for open tables…')
+                    : t('No open tables yet. Start the next one.')}
                 </p>
               )}
             </div>
@@ -311,25 +325,26 @@ export function RoomMenu({
                 )
               }
             >
-              Find a match<span aria-hidden="true">♣</span>
+              {t('Find a match')}
+              <span aria-hidden="true">♣</span>
             </button>
             <button
               className="quiet-button full-width"
               disabled={busy}
               onClick={() => void refresh()}
             >
-              Refresh tables
+              {t('Refresh tables')}
             </button>
           </>
         )}
         {error && <p role="alert">{error}</p>}
         {tab !== 'public' && (
           <button className="quiet-button full-width" onClick={() => setGuided(true)}>
-            New to our rules? Try a guided hand
+            {t('New to our rules? Try a guided hand')}
           </button>
         )}
         {guided && <GuidedHand close={() => setGuided(false)} />}
-        <p className="dock-footnote">Our rules. 42 cards. No one wants to be the Durak.</p>
+        <p className="dock-footnote">{t('Our rules. 42 cards. No one wants to be the Durak.')}</p>
       </div>
     </section>
   );
@@ -358,27 +373,27 @@ export function RoomLobby({
   // Mirrors the server's start conditions so people know what the table waits for.
   const waitingFor =
     empty > 0
-      ? `Waiting for ${empty} more ${empty === 1 ? 'player' : 'players'}.`
+      ? empty === 1
+        ? t('Waiting for 1 more player.')
+        : t('Waiting for {n} more players.', { n: empty })
       : state.mode !== 'classic' && state.teamSelection === 'manual' && blue * 2 !== players.length
-        ? 'Teams must be balanced before the deal.'
+        ? t('Teams must be balanced before the deal.')
         : humans.some((p) => !p.isReady)
-          ? 'Starts when everyone is ready.'
+          ? t('Starts when everyone is ready.')
           : '';
   const countdown = state.phase === 'countdown';
   return (
     <section className="play-dock lobby-dock">
       <div className="dock-title">
-        <h2>{game.isSpectator ? 'Watching a table' : 'Your table'}</h2>
-        <span>
-          {state.players.size}/{state.maxPlayers} seated
-        </span>
+        <h2>{game.isSpectator ? t('Watching a table') : t('Your table')}</h2>
+        <span>{t('{n}/{max} seated', { n: state.players.size, max: state.maxPlayers })}</span>
       </div>
       <p className="dock-description">
         {game.isSpectator
-          ? 'You’re watching. Take a seat when you’re ready.'
+          ? t('You’re watching. Take a seat when you’re ready.')
           : state.isPrivate
-            ? 'Share this link to invite your friends.'
-            : 'Share this code to invite more players.'}
+            ? t('Share this link to invite your friends.')
+            : t('Share this code to invite more players.')}
       </p>
       <button
         className="invitation-code"
@@ -388,25 +403,28 @@ export function RoomLobby({
             await navigator.clipboard.writeText(text);
             onNotice(
               state.isPrivate
-                ? 'Invitation link copied. Send it to your friends.'
-                : 'Room code copied. Send it to your friends.',
+                ? t('Invitation link copied. Send it to your friends.')
+                : t('Room code copied. Send it to your friends.'),
             );
           } catch {
             onNotice(
               state.isPrivate
-                ? `Copy this invitation link: ${text} (room code ${game.room!.roomId})`
-                : `Copy this room code: ${text}`,
+                ? t('Copy this invitation link: {link} (room code {code})', {
+                    link: text,
+                    code: game.room!.roomId,
+                  })
+                : t('Copy this room code: {code}', { code: text }),
             );
           }
         }}
-        aria-label={state.isPrivate ? 'Copy invitation link' : 'Copy room code'}
+        aria-label={state.isPrivate ? t('Copy invitation link') : t('Copy room code')}
       >
         {game.room!.roomId}
-        <small>{state.isPrivate ? 'Copy invitation link' : 'Copy code'}</small>
+        <small>{state.isPrivate ? t('Copy invitation link') : t('Copy code')}</small>
       </button>
       {state.isPrivate && (
         <p className="dock-description" role="status">
-          {countdown ? `Dealing in ${countdownSeconds}…` : waitingFor}
+          {countdown ? t('Dealing in {n}…', { n: countdownSeconds }) : waitingFor}
         </p>
       )}
       {state.mode !== 'classic' && (
@@ -421,23 +439,25 @@ export function RoomLobby({
         />
       )}
       {state.mode === 'classic' && (
-        <ul className="lobby-players" aria-label="Players at this table">
+        <ul className="lobby-players" aria-label={t('Players at this table')}>
           {Array.from(state.players.values()).map((p) => (
             <li key={p.id}>
               <span className="avatar">{(p.username || 'G')[0]}</span>
               <span>
-                {p.id === session ? `${p.username || 'Guest'} (you)` : p.username || 'Guest'}
+                {p.id === session
+                  ? t('{name} (you)', { name: p.username || t('Guest') })
+                  : p.username || t('Guest')}
               </span>
               <span className={p.isReady ? 'ready-state' : 'not-ready'}>
-                {p.control !== 'human' ? 'Bot ready' : p.isReady ? 'Ready' : 'Not ready'}
+                {p.control !== 'human' ? t('Bot ready') : p.isReady ? t('Ready') : t('Not ready')}
               </span>
               {host && p.control === 'bot' && (
                 <button
                   className="quiet-button"
-                  aria-label={`Remove ${p.username || 'bot'}`}
+                  aria-label={t('Remove {name}', { name: p.username || t('bot') })}
                   onClick={() => game.room?.send('removeBot', { playerId: p.id })}
                 >
-                  Remove
+                  {t('Remove')}
                 </button>
               )}
             </li>
@@ -447,7 +467,7 @@ export function RoomLobby({
               <span className="avatar" aria-hidden="true">
                 ·
               </span>
-              <span>Open seat</span>
+              <span>{t('Open seat')}</span>
             </li>
           ))}
         </ul>
@@ -458,7 +478,7 @@ export function RoomLobby({
             className={me?.isReady ? 'secondary-button full-width' : 'primary-button'}
             onClick={() => game.room?.send('toggleReady', { isReady: !me?.isReady })}
           >
-            {me?.isReady ? 'Not ready yet' : 'Ready to play'}
+            {me?.isReady ? t('Not ready yet') : t('Ready to play')}
           </button>
           {host && state.isPrivate && (
             <button
@@ -466,7 +486,7 @@ export function RoomLobby({
               disabled={empty <= 0}
               onClick={() => game.room?.send('addBot', { difficulty: 'easy' })}
             >
-              Add a bot
+              {t('Add a bot')}
             </button>
           )}
           {host && !state.isPrivate && (
@@ -482,7 +502,7 @@ export function RoomLobby({
                   })
                 }
               >
-                Add a bot
+                {t('Add a bot')}
               </button>
               <button
                 className="primary-button"
@@ -493,7 +513,8 @@ export function RoomLobby({
                 }
                 onClick={game.startLobbyGame}
               >
-                Start the game<span aria-hidden="true">♠</span>
+                {t('Start the game')}
+                <span aria-hidden="true">♠</span>
               </button>
             </>
           )}
@@ -502,18 +523,18 @@ export function RoomLobby({
       {game.isSpectator && seatRequest}
       {avatarPicker && (
         <details className="lobby-customize">
-          <summary>Change character</summary>
+          <summary>{t('Change character')}</summary>
           {avatarPicker}
         </details>
       )}
       <p className="dock-footnote">
         {!state.isPrivate
           ? host
-            ? 'You host this table.'
-            : 'The host starts when everyone is ready.'
+            ? t('You host this table.')
+            : t('The host starts when everyone is ready.')
           : host
-            ? 'You host this table. The game starts by itself when every seat is ready.'
-            : 'The game starts by itself when every seat is ready.'}
+            ? t('You host this table. The game starts by itself when every seat is ready.')
+            : t('The game starts by itself when every seat is ready.')}
       </p>
     </section>
   );

@@ -4,7 +4,29 @@
  * The one bold move is the chunky sticker button (ink outline, hard shadow,
  * squishes on press). Everything else stays calm so the 3D table carries the scene.
  */
-@import url('https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Baloo+2:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@600;700;800&family=Rubik:wght@800;900&display=swap');
+
+/*
+ * Bagel Fat One and Baloo 2 have no Cyrillic. In Mongolian the same chunky voice comes from
+ * Rubik Black (headings) and Nunito (text), which cover Ө and Ү. The wordmark stays Bagel.
+ */
+html[lang='mn'] .card-room,
+html[lang='mn'] .room-dialog {
+  --display: 'Rubik', 'Nunito', system-ui, sans-serif;
+  --ui: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+}
+html[lang='mn'] .card-room h1,
+html[lang='mn'] .card-room h2,
+html[lang='mn'] .card-room h3,
+html[lang='mn'] .room-dialog h2,
+html[lang='mn'] .room-dialog h3,
+html[lang='mn'] .card-room .turn-clock,
+html[lang='mn'] .card-room .action-copy strong {
+  font-weight: 900;
+}
+html[lang='mn'] .card-room .wordmark {
+  font-family: 'Bagel Fat One', system-ui, sans-serif;
+}
 
 .card-room,
 .room-dialog {
@@ -609,7 +631,22 @@
   .card-room.match-active .view-tools {
     flex: 0 0 auto;
     gap: 8px;
-    padding: 8px 0;
+    padding: 8px 12px;
+    /* One row that scrolls sideways: wrapped pills squeezed the scene on small phones. */
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .card-room.match-active .view-tools > * {
+    flex-shrink: 0;
+  }
+  .card-room.match-active .view-tools .quiet-button {
+    white-space: nowrap;
+  }
+  .card-room .dock-title {
+    flex-wrap: wrap;
+    row-gap: 2px;
   }
   .card-room.match-active .view-tools > button,
   .card-room.match-active .view-tools .quiet-button {

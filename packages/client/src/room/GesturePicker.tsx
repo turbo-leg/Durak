@@ -7,6 +7,7 @@ import {
   type GestureId,
   type PublicGesture,
 } from '@durak/shared';
+import { t } from '../i18n';
 import type { TableSeat } from '../game/tableSnapshot';
 
 const GesturePreview = lazy(() => import('../components/three/GesturePreview'));
@@ -37,10 +38,12 @@ export function GesturePicker({
     Math.ceil(((self.gestureStartedAt || 0) + GESTURE_COOLDOWN_MS - now - offset) / 1000),
   );
   const active = [
-    ...(gestureWeight(self, now + offset) ? [`You: ${gestureLabel(self.gestureId || '')}`] : []),
+    ...(gestureWeight(self, now + offset)
+      ? [`${t('You')}: ${t(gestureLabel(self.gestureId || ''))}`]
+      : []),
     ...seats
       .filter((seat) => gestureWeight(seat, now + offset))
-      .map((seat) => `${seat.name}: ${gestureLabel(seat.gestureId || '')}`),
+      .map((seat) => `${seat.name}: ${t(gestureLabel(seat.gestureId || ''))}`),
   ].join('. ');
   useEffect(() => {
     if (!open) return;
@@ -74,15 +77,15 @@ export function GesturePicker({
         aria-controls={id}
         onClick={() => setOpen(!open)}
       >
-        Gestures
+        {t('Gestures')}
       </button>
       {open && (
-        <section id={id} className="gesture-popover" aria-label="Public gestures">
+        <section id={id} className="gesture-popover" aria-label={t('Public gestures')}>
           <div className="gesture-heading">
-            <strong>A little expression.</strong>
+            <strong>{t('A little expression.')}</strong>
             <button
               className="quiet-button"
-              aria-label="Close gestures"
+              aria-label={t('Close gestures')}
               onClick={() => {
                 setOpen(false);
                 trigger.current?.focus();
@@ -92,10 +95,12 @@ export function GesturePicker({
             </button>
           </div>
           <p>
-            {preview ? 'Try a gesture before taking a seat.' : 'Visible to everyone at the table.'}
+            {preview
+              ? t('Try a gesture before taking a seat.')
+              : t('Visible to everyone at the table.')}
           </p>
           <div className="gesture-body">
-            <Suspense fallback={<span className="gesture-preview">Loading character…</span>}>
+            <Suspense fallback={<span className="gesture-preview">{t('Loading character…')}</span>}>
               <GesturePreview gesture={self} offset={offset} preset={self.preset} />
             </Suspense>
             <div className="gesture-options">
@@ -109,17 +114,17 @@ export function GesturePicker({
                   disabled={!enabled || remaining > 0}
                   onClick={() => send(gesture.id)}
                 >
-                  {gesture.label}
+                  {t(gesture.label)}
                 </button>
               ))}
             </div>
           </div>
           <p className="gesture-note">
             {!enabled
-              ? 'Available when seated, between deals or during play.'
+              ? t('Available when seated, between deals or during play.')
               : remaining
-                ? `Another gesture in ${remaining}s.`
-                : 'Your other hand keeps the cards.'}
+                ? t('Another gesture in {n}s.', { n: remaining })
+                : t('Your other hand keeps the cards.')}
           </p>
         </section>
       )}

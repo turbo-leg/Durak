@@ -1,5 +1,6 @@
 import React from 'react';
 import * as Sentry from '@sentry/react';
+import { t } from '../i18n';
 
 interface Props {
   children: React.ReactNode;
@@ -28,12 +29,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
               ♠
             </span>
             <p className="recovery-brand">durak</p>
-            <h1>The table needs a reset.</h1>
+            <h1>{t('The table needs a reset.')}</h1>
             <p>
               Reload to return to your seat. If your game is still running, we’ll try to reconnect
               you.
             </p>
-            <button onClick={() => location.reload()}>Reload table</button>
+            <button onClick={() => location.reload()}>{t('Reload table')}</button>
           </div>
         </main>
       );

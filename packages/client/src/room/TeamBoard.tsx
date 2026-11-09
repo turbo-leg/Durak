@@ -1,4 +1,5 @@
 import type { GameState, Player } from '@durak/shared';
+import { t } from '../i18n';
 
 type Variant = 'lobby' | 'playing' | 'result';
 
@@ -6,10 +7,15 @@ const teamNames = ['Blue', 'Red'] as const;
 
 function playerStatus(player: Player, variant: Variant, active: boolean) {
   if (variant === 'lobby')
-    return player.control !== 'human' ? 'Bot ready' : player.isReady ? 'Ready' : 'Not ready';
-  if (variant === 'result') return player.handCount === 0 ? 'Out' : `${player.handCount} cards`;
-  if (active) return 'Playing';
-  return player.handCount === 0 ? 'Out' : `${player.handCount} cards`;
+    return player.control !== 'human'
+      ? t('Bot ready')
+      : player.isReady
+        ? t('Ready')
+        : t('Not ready');
+  if (variant === 'result')
+    return player.handCount === 0 ? t('Out') : t('{n} cards', { n: player.handCount });
+  if (active) return t('Playing');
+  return player.handCount === 0 ? t('Out') : t('{n} cards', { n: player.handCount });
 }
 
 export function TeamBoard({
@@ -36,7 +42,7 @@ export function TeamBoard({
   const manual = variant === 'lobby' && state.teamSelection === 'manual' && !spectator;
 
   return (
-    <section className={`team-board team-board--${variant}`} aria-label="Teams">
+    <section className={`team-board team-board--${variant}`} aria-label={t('Teams')}>
       {teamNames.map((name, team) => {
         const members = players
           .filter((player) => player.team === team)
@@ -54,17 +60,19 @@ export function TeamBoard({
                 <span className="team-emblem" aria-hidden="true">
                   {team === 0 ? '◆' : '●'}
                 </span>
-                <strong>{name}</strong>
-                {isMine && variant !== 'result' && <small>Your team</small>}
+                <strong>{t(name)}</strong>
+                {isMine && variant !== 'result' && <small>{t('Your team')}</small>}
               </div>
               <span className="team-side-count">
                 {variant === 'lobby'
                   ? `${members.length}/${perTeam}`
                   : isWinner
-                    ? 'Winners'
+                    ? t('Winners')
                     : variant === 'result'
-                      ? 'Final'
-                      : `${members.reduce((sum, player) => sum + player.handCount, 0)} cards`}
+                      ? t('Final')
+                      : t('{n} cards', {
+                          n: members.reduce((sum, player) => sum + player.handCount, 0),
+                        })}
               </span>
             </div>
             <ul>
@@ -76,8 +84,9 @@ export function TeamBoard({
                       {(player.username || 'G').slice(0, 1).toUpperCase()}
                     </span>
                     <span className="team-player-name">
-                      {player.username || 'Guest'}
-                      {player.id === sessionId ? ' (you)' : ''}
+                      {player.id === sessionId
+                        ? t('{name} (you)', { name: player.username || t('Guest') })
+                        : player.username || t('Guest')}
                     </span>
                     <span className="team-player-status">
                       {playerStatus(player, variant, active)}
@@ -85,7 +94,7 @@ export function TeamBoard({
                     {variant === 'lobby' && host && player.control === 'bot' && onRemoveBot && (
                       <button
                         className="team-remove"
-                        aria-label={`Remove ${player.username || 'bot'}`}
+                        aria-label={t('Remove {name}', { name: player.username || t('bot') })}
                         onClick={() => onRemoveBot(player.id)}
                       >
                         ×
@@ -100,7 +109,7 @@ export function TeamBoard({
                     <span className="team-player-avatar" aria-hidden="true">
                       +
                     </span>
-                    <span className="team-player-name">Open seat</span>
+                    <span className="team-player-name">{t('Open seat')}</span>
                   </li>
                 ))}
             </ul>
@@ -112,7 +121,11 @@ export function TeamBoard({
                 )}
                 onClick={() => onJoinTeam?.(team)}
               >
-                {isMine ? 'Your side' : members.length >= perTeam ? 'Team full' : `Join ${name}`}
+                {isMine
+                  ? t('Your side')
+                  : members.length >= perTeam
+                    ? t('Team full')
+                    : t('Join {team}', { team: t(name) })}
               </button>
             )}
           </div>

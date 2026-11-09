@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { GuidedHand } from './GuidedHand';
+import { t } from '../i18n';
 
 /**
  * Watching a private table (an invitation preview or a late arrival): ask for a
@@ -21,16 +22,18 @@ export function SeatRequest({ playerName, preset }: { playerName: string; preset
       <div className="seat-request" role="status">
         <p>
           <strong>
-            {place === 0 ? 'You’re next in line for a seat.' : `You’re #${place + 1} in line.`}
+            {place === 0
+              ? t('You’re next in line for a seat.')
+              : t('You’re #{n} in line.', { n: place + 1 })}
           </strong>{' '}
           {free > 0 && between
-            ? 'Taking your seat…'
+            ? t('Taking your seat…')
             : free > 0
-              ? 'You’ll be seated when this game ends.'
-              : 'The table is full. You’ll be seated when a seat opens.'}
+              ? t('You’ll be seated when this game ends.')
+              : t('The table is full. You’ll be seated when a seat opens.')}
         </p>
         <button className="quiet-button" onClick={() => game.room?.send('cancelSeatRequest')}>
-          Leave the line
+          {t('Leave the line')}
         </button>
       </div>
     );
@@ -38,8 +41,10 @@ export function SeatRequest({ playerName, preset }: { playerName: string; preset
     <div className="seat-request">
       <p>
         {free > 0
-          ? `${free} ${free === 1 ? 'seat is' : 'seats are'} open.`
-          : 'Every seat is taken. Get in line for the next one.'}
+          ? free === 1
+            ? t('1 seat is open.')
+            : t('{n} seats are open.', { n: free })
+          : t('Every seat is taken. Get in line for the next one.')}
       </p>
       <button
         className="primary-button"
@@ -47,14 +52,14 @@ export function SeatRequest({ playerName, preset }: { playerName: string; preset
           game.room?.send('requestSeat', { username: playerName, avatarPreset: preset })
         }
       >
-        {free > 0 && between && line.length === 0 ? 'Join the table' : 'Join next game'}
+        {free > 0 && between && line.length === 0 ? t('Join the table') : t('Join next game')}
         <span aria-hidden="true">♠</span>
       </button>
       {/* The watcher stays connected, so the invitation is kept while practicing. */}
       <button className="quiet-button" onClick={() => setGuided(true)}>
-        Try a guided hand first
+        {t('Try a guided hand first')}
       </button>
-      {guided && <GuidedHand close={() => setGuided(false)} finishLabel="Back to the table" />}
+      {guided && <GuidedHand close={() => setGuided(false)} finishLabel={t('Back to the table')} />}
     </div>
   );
 }
