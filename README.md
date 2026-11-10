@@ -1,12 +1,23 @@
-# Durak Discord Activity
+# Durak for Discord
 
-A real-time multiplayer **Durak** (Дурак, "fool") card game built as a [Discord Activity](https://discord.com/developers/docs/activities/overview). Players can launch the game inside any Discord voice channel and play a match of 2 to 6 players, against friends or bots, without leaving the call.
+[![CI](https://github.com/turbo-leg/Durak/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/turbo-leg/Durak/actions/workflows/ci.yml)
 
-Roadmap: [PROJECT_PLAN.md](docs/PROJECT_PLAN.md). Developer guide: [CONTRIBUTING.md](CONTRIBUTING.md). The interactive card room uses Three.js for home and live play, with spatial card selection, camera orbit, accessible card controls and a 2D fallback. Hands and deck order are filtered on the server, and room identities require verified session tokens. Release validation and remaining dependency work are tracked in the plan.
+**[Play it](https://durak-discord-activity.fly.dev)** (opens the standalone web build; the first load can take a few seconds while the server wakes up)
 
-The stack: **Colyseus** (authoritative game server) + **React/Vite** (client) + **MongoDB** (profiles, stats, achievements) + **Redis** (optional, for multi-instance scaling).
+Durak (Дурак, "fool") is the card game where the last player holding cards loses. This version runs as a [Discord Activity](https://discord.com/developers/docs/activities/overview): anyone in a voice channel can start a table and play with 2 to 6 people, or against bots, without leaving the call.
 
----
+## What I built
+
+- **A server that owns the game.** Every move goes to a Colyseus room on the server, which checks it against the rules before changing the state. Clients only draw what the server tells them.
+- **Hidden hands.** The game state uses per-client filters (`packages/shared/src/state/Player.ts`), so each player's browser receives only their own cards, not just a hidden copy of everyone's.
+- **Shared game code.** The rules engine and the state schema live in `packages/shared`, so the server and the client agree on the shape of the game.
+- **Bots.** Server-side bot players (`packages/server/src/ai`), with scripts that make bots play each other to compare strategies (`npm run bot:duel`, `npm run bot:selfplay`).
+- **Deploys that don't drop games.** On SIGTERM the server stops accepting new connections and waits up to 30 seconds for running games to finish before it shuts down (Fly.io allows 45).
+- **Checks on every pull request.** ESLint, Prettier, knip (unused code), TypeScript, about 390 Vitest tests including a server end-to-end test, and a production build. A push to `main` that passes deploys to Fly.io.
+
+**Stack:** TypeScript, Colyseus, React, Three.js, Vite, MongoDB, Redis (optional, for running several server processes), Docker, Fly.io, Discord Embedded App SDK.
+
+Built mostly by me ([@turbo-leg](https://github.com/turbo-leg)), with contributions from two friends.
 
 ## Quick start
 
