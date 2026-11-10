@@ -9,7 +9,7 @@ describe('operational metrics', () => {
       capacity: () => ({ rooms: 25, clients: 100, bots: 0 }),
       pendingResults: () => 2,
       failedResults: () => 1,
-      readiness: () => ({ ready: false, draining: false, databaseReady: true }),
+      readiness: () => ({ ready: false, degraded: false, draining: false, databaseReady: true }),
       log: vi.fn(),
     });
     try {

@@ -6,6 +6,11 @@ kill_timeout = 45
 [build]
   dockerfile = "Dockerfile"
 
+[deploy]
+  # Runs in a throwaway machine first: an unreachable database stops the deploy
+  # and the current release keeps serving. SKIP_DB_CHECK=1 overrides it in an emergency.
+  release_command = "node scripts/check-db.mjs"
+
 [env]
   PORT = "2567"
   RESULT_OUTBOX_DIR = "/data/results"

@@ -5,6 +5,13 @@ interface ReadinessDependencies {
   databaseRequired: boolean;
   databaseConnected: () => boolean;
   pendingResults?: () => number;
+  /**
+   * Keep hosting games while the database is down. Results wait in the durable outbox and
+   * the retry queue, and are written once the connection returns. Accounts stay closed.
+   */
+  allowDegraded?: boolean;
+  /** Stop new games once this many results are waiting, so the retry queue cannot fill. */
+  maxPendingResults?: number;
 }
 
 /** Process-local readiness. Importing a room in isolation does not start dependencies. */
@@ -38,8 +45,12 @@ export class ServerLifecycle {
   readiness() {
     const databaseReady = this.databaseReady;
     const pendingResults = this.dependencies.pendingResults?.() ?? 0;
-    const ready = !this.draining && databaseReady && pendingResults === 0;
-    return { ready, draining: this.draining, databaseReady, pendingResults };
+    const { allowDegraded = false, maxPendingResults = 0 } = this.dependencies;
+    const ready = allowDegraded
+      ? !this.draining && pendingResults < Math.max(1, maxPendingResults)
+      : !this.draining && databaseReady && pendingResults === 0;
+    const degraded = !databaseReady || pendingResults > 0;
+    return { ready, degraded, draining: this.draining, databaseReady, pendingResults };
   }
 }
 

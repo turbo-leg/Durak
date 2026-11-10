@@ -12,6 +12,7 @@
       "ignoreDependencies": ["@capacitor/ios", "@capacitor/splash-screen", "@capacitor/status-bar"]
     },
     "packages/server": {
+      "entry": ["scripts/*.mjs"],
       "ignoreDependencies": ["pino-pretty"]
     },
     "packages/shared": {}

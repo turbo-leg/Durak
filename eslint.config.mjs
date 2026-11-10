@@ -34,7 +34,13 @@ export default defineConfig([
     languageOptions: { ecmaVersion: 2020, globals: globals.browser },
   },
   {
-    files: ['packages/server/**/*.ts', 'packages/shared/**/*.ts', 'scripts/**', '*.{js,mjs}'],
+    files: [
+      'packages/server/**/*.ts',
+      'packages/server/scripts/**',
+      'packages/shared/**/*.ts',
+      'scripts/**',
+      '*.{js,mjs}',
+    ],
     languageOptions: { ecmaVersion: 2022, globals: globals.node },
     // The server predates strict typing; its `any`s are tracked as warnings to burn down.
     rules: { '@typescript-eslint/no-explicit-any': 'warn' },

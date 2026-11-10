@@ -49,12 +49,15 @@ const logger = pino(
 
 const _JWT_SECRET = sessionSecret();
 let databaseInitialized = false;
-let databaseInitialization = Promise.resolve();
 
 serverLifecycle.configure({
   databaseRequired: process.env.NODE_ENV === 'production' || Boolean(process.env.MONGO_URI),
   databaseConnected: () => databaseInitialized && mongoose.connection.readyState === 1,
   pendingResults: getFailedResultCount,
+  // A dead database must not take guest games down with it (the 2026-11-10 outage).
+  // Results wait in the /data outbox and are written when the connection returns.
+  allowDegraded: process.env.DATABASE_DEGRADED_MODE !== 'off',
+  maxPendingResults: 500,
 });
 
 // Let failed writes reach the result retry queue rather than buffering invisibly in Mongoose.
@@ -88,27 +91,36 @@ const COMMON_PASSWORDS = new Set([
 ]);
 
 if (process.env.MONGO_URI) {
-  databaseInitialization = mongoose
-    .connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-      maxPoolSize: 10,
-      retryWrites: true,
-    })
-    .then(async () => {
-      logger.info('Connected to MongoDB');
-      await Promise.all([
-        PlayerProfile.ensureIndexes(),
-        GameLog.ensureIndexes(),
-        User.ensureIndexes(),
-      ]);
-      databaseInitialized = true;
-    })
-    .catch((err) => {
-      Sentry.captureException(err);
-      logger.error({ err }, 'MongoDB connection error');
-      if (process.env.NODE_ENV === 'production') throw err;
-    });
+  const mongoUri = process.env.MONGO_URI;
+  // Retry the first connection in the background instead of exiting. The driver handles
+  // reconnects after that. Report the first failure and then every tenth, not each try.
+  const connectDatabase = async (): Promise<void> => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await mongoose.connect(mongoUri, {
+          serverSelectionTimeoutMS: 5000,
+          connectTimeoutMS: 10000,
+          maxPoolSize: 10,
+          retryWrites: true,
+        });
+        logger.info({ attempt }, 'Connected to MongoDB');
+        await Promise.all([
+          PlayerProfile.ensureIndexes(),
+          GameLog.ensureIndexes(),
+          User.ensureIndexes(),
+        ]);
+        databaseInitialized = true;
+        return;
+      } catch (err) {
+        if (attempt === 1 || attempt % 10 === 0) Sentry.captureException(err);
+        const retryMs = Math.min(60_000, 2000 * 2 ** Math.min(attempt - 1, 5));
+        logger.error({ err, attempt, retryMs }, 'MongoDB connection error; running degraded');
+        await mongoose.disconnect().catch(() => {});
+        await new Promise((resolve) => setTimeout(resolve, retryMs).unref());
+      }
+    }
+  };
+  void connectDatabase();
 } else if (process.env.NODE_ENV === 'production') {
   logger.error('FATAL: MONGO_URI must be set in production');
   process.exit(1);
@@ -575,14 +587,14 @@ if (fs.existsSync(clientDistPath)) {
 
 const port = Number(process.env.PORT || 2567);
 async function startServer() {
-  await databaseInitialization;
+  // The database connects in the background; guest games work while it does.
   await restoreMatchResults();
   await gameServer.listen(port, '0.0.0.0');
   logger.info({ port }, 'Durak game server listening');
 }
 void startServer().catch((error: unknown) => {
   Sentry.captureException(error);
-  logger.fatal({ err: error }, 'Server could not initialize persistence');
+  logger.fatal({ err: error }, 'Server could not start');
   process.exit(1);
 });
 

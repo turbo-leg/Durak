@@ -72,9 +72,42 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     if: github.ref == 'refs/heads/main'
+    # One production deploy at a time; a newer push waits rather than racing a rollback.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: durak-discord-activity
+      APP_URL: https://durak-discord-activity.fly.dev
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Remember the last good release
+        id: previous
+        run: |
+          image=$(flyctl releases -a "$FLY_APP" --image --json             | jq -r '[.[] | select(.Status == "complete")][0].ImageRef // empty')
+          echo "Last good image: ${image:-none}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      # fly.toml's release_command checks the database before the live machine changes.
+      - name: Deploy
+        run: flyctl deploy --remote-only
+
+      - name: Smoke test the live site
+        id: smoke
+        run: node scripts/smoke.mjs "$APP_URL"
+
+      - name: Roll back to the last good release
+        if: failure() && steps.previous.outputs.image != ''
+        run: |
+          echo "::error::Deploy or smoke test failed; rolling back to ${{ steps.previous.outputs.image }}"
+          # The previous image is known good; do not let a database outage block the rollback.
+          flyctl deploy --image "${{ steps.previous.outputs.image }}" --strategy immediate --env SKIP_DB_CHECK=1
+          node scripts/smoke.mjs "$APP_URL" --allow-degraded
