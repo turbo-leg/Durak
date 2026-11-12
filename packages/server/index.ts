@@ -35,7 +35,7 @@ import {
 } from './src/operations/resultQueue';
 import { createMetricsHandler, createOperationalMonitor } from './src/operations/metrics';
 import { processCapacity } from './src/operations/capacity';
-import { restoreMatchResults } from './src/operations/matchResults';
+import { replayStoredResults, restoreMatchResults } from './src/operations/matchResults';
 import { connectWithRetry } from './src/operations/database';
 
 if (process.env.SENTRY_DSN) {
@@ -54,13 +54,18 @@ let databaseInitialized = false;
 serverLifecycle.configure({
   databaseRequired: process.env.NODE_ENV === 'production' || Boolean(process.env.MONGO_URI),
   databaseConnected: () => databaseInitialized && mongoose.connection.readyState === 1,
-  pendingResults: getFailedResultCount,
+  failedResults: getFailedResultCount,
   queuedResults: getPendingResultCount,
   // A dead database must not take guest games down with it (the 2026-11-10 outage).
   // Results wait in the /data outbox and are written when the connection returns.
   allowDegraded: process.env.DATABASE_DEGRADED_MODE !== 'off',
-  maxPendingResults: 500,
 });
+
+// Results kept only on disk (the in-memory queue was full) are picked up again here once
+// the database is back; already-queued ones are ignored by id.
+setInterval(() => {
+  if (serverLifecycle.databaseReady) void replayStoredResults();
+}, 5 * 60_000).unref();
 
 // Let failed writes reach the result retry queue rather than buffering invisibly in Mongoose.
 if (process.env.NODE_ENV === 'production') mongoose.set('bufferCommands', false);
@@ -94,8 +99,6 @@ const COMMON_PASSWORDS = new Set([
 
 if (process.env.MONGO_URI) {
   const mongoUri = process.env.MONGO_URI;
-  // Retry the first connection in the background instead of exiting. The driver handles
-  // reconnects after that. Report the first failure and then every tenth, not each try.
   // Retry the first connection in the background instead of exiting; guest games run
   // degraded meanwhile. Report the first failure and then every tenth, not each try.
   void connectWithRetry({

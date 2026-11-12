@@ -30,7 +30,7 @@ describe('dependency readiness and deployment drain', () => {
     lifecycle.configure({
       databaseRequired: true,
       databaseConnected: () => connected,
-      pendingResults: () => pending,
+      failedResults: () => pending,
     });
     expect(lifecycle.isReady).toBe(false);
     connected = true;
@@ -46,25 +46,39 @@ describe('dependency readiness and deployment drain', () => {
   it('keeps hosting games while the database is down when degraded mode is allowed', async () => {
     const lifecycle = new ServerLifecycle();
     let connected = false;
-    let pending = 0;
+    let failed = 0;
+    let queued = 0;
     lifecycle.configure({
       databaseRequired: true,
       databaseConnected: () => connected,
-      pendingResults: () => pending,
+      failedResults: () => failed,
+      queuedResults: () => queued,
       allowDegraded: true,
-      maxPendingResults: 3,
     });
     expect(lifecycle.readiness()).toMatchObject({
       ready: true,
       degraded: true,
       databaseReady: false,
     });
-    pending = 2;
+    // A long outage: results waiting for the database never close the server.
+    failed = 900;
+    queued = 900;
     expect(lifecycle.isReady).toBe(true);
-    pending = 3;
-    expect(lifecycle.readiness()).toMatchObject({ ready: false, pendingResults: 3 });
-    pending = 0;
+    // Back online with a backlog still being written: open, but reported as degraded.
     connected = true;
+    failed = 0;
+    queued = 450;
+    expect(lifecycle.readiness()).toMatchObject({
+      ready: true,
+      degraded: true,
+      databaseReady: true,
+      pendingResults: 450,
+    });
+    // Connected but rejecting writes: stop new games so failures cannot pile up.
+    failed = 1;
+    expect(lifecycle.readiness()).toMatchObject({ ready: false, failedResults: 1 });
+    failed = 0;
+    queued = 0;
     expect(lifecycle.readiness()).toMatchObject({ ready: true, degraded: false });
     lifecycle.beginDrain();
     expect(lifecycle.isReady).toBe(false);

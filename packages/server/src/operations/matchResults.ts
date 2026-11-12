@@ -5,7 +5,7 @@ import { GameLog } from '../models/GameLog';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { calculateEloDeltas, type EloPlayer } from '../utils/EloEngine';
 import { evaluateBadges, BADGES } from '../utils/Badges';
-import { enqueueResult } from './resultQueue';
+import { enqueueResult, getPendingResultCount } from './resultQueue';
 import { ResultOutbox } from './resultOutbox';
 
 export interface MatchResultSnapshot {
@@ -106,7 +106,13 @@ export async function persistMatchResult(
   snapshot.eloBefore ??= Object.fromEntries(
     authedPlayers.map((p, i) => [p.id, currentProfiles[i]?.[eloField] ?? 1000]),
   );
-  await resultStore().put(snapshot.id, snapshot);
+  // Save the computed ELO so a retry reuses it. Best effort: a full or failing volume must
+  // not stop the database write itself.
+  await resultStore()
+    .put(snapshot.id, snapshot)
+    .catch((error: unknown) =>
+      logger.warn({ err: error, resultId: snapshot.id }, 'Could not update saved result'),
+    );
 
   const profileOps = authedPlayers.map((p) => {
     const isWinner = winnerSessions.includes(p.id);
@@ -252,7 +258,23 @@ export async function queueMatchResult(
     await resultStore().put(snapshot.id, snapshot);
   } finally {
     // Keep a live-process retry even if the durable volume is temporarily unavailable.
-    submit(snapshot, notify);
+    // Past the cap (a long database outage), the result stays on disk only and
+    // replayStoredResults picks it up later, so the in-memory queue cannot fill.
+    if (getPendingResultCount() < QUEUE_SOFT_CAP) submit(snapshot, notify);
+  }
+}
+
+const QUEUE_SOFT_CAP = 500;
+
+/** Re-queue results saved on disk but not in memory. Duplicate ids are ignored. */
+export async function replayStoredResults(): Promise<void> {
+  try {
+    for (const { id, payload } of await resultStore().readAll()) {
+      if (getPendingResultCount() >= QUEUE_SOFT_CAP) return;
+      if (payload.id === id && Array.isArray(payload.winnerSessions)) submit(payload);
+    }
+  } catch (error) {
+    logger.error({ err: error }, 'Could not replay saved results');
   }
 }
 

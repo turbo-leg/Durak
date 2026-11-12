@@ -10,6 +10,12 @@ import { Client } from 'colyseus.js';
 const base = (process.argv[2] ?? process.env.SMOKE_URL ?? '').replace(/\/+$/, '');
 const allowDegraded = process.argv.includes('--allow-degraded');
 const READY_SECONDS = Number(process.env.SMOKE_READY_SECONDS ?? 120);
+// Hard limit for the whole run: a hung room join must fail the deploy, not hang the job.
+const TOTAL_SECONDS = Number(process.env.SMOKE_TOTAL_SECONDS ?? 240);
+setTimeout(() => {
+  console.error(`smoke test FAILED: no result within ${TOTAL_SECONDS}s`);
+  process.exit(1);
+}, TOTAL_SECONDS * 1000).unref();
 if (!base) {
   console.error('Usage: node scripts/smoke.mjs <base-url> [--allow-degraded]');
   process.exit(2);

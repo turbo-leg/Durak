@@ -2186,9 +2186,9 @@ export class DurakRoom extends Room<GameState> {
     // through outages; every captured value is independent of the next deal's schema.
     if (process.env.NODE_ENV !== 'production' && mongoose.connection.readyState === 0) return;
     // While the database is down, keep the bounded outbox for results that change an
-    // account (coins, ELO, badges). Guest-only games would fill it and close the server.
+    // account (coins, ELO, badges). Guest-only games would only fill it.
     const hasAccount = Array.from(this.state.players.values()).some((p) => p.userId || p.discordId);
-    if (!hasAccount && !serverLifecycle.databaseReady) return;
+    if (!hasAccount && serverLifecycle.allowDegraded && !serverLifecycle.databaseReady) return;
 
     const sessionIds = Array.from(this.state.players.keys());
     const players = sessionIds.map((id) => {

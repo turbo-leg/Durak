@@ -72,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     if: github.ref == 'refs/heads/main'
+    # A hung step must fail (and roll back), not sit until GitHub cancels it hours later.
+    timeout-minutes: 25
     # One production deploy at a time; a newer push waits rather than racing a rollback.
     concurrency:
       group: production-deploy
@@ -95,19 +97,35 @@ jobs:
           image=$(flyctl releases -a "$FLY_APP" --image --json | jq -r '[.[] | select(.Status == "complete")][0].ImageRef // empty')
           echo "Last good image: ${image:-none}"
           echo "image=$image" >> "$GITHUB_OUTPUT"
+          # Only require the database after the deploy if it was up before it; a database
+          # outage must not block shipping a code fix.
+          if curl -sf --max-time 15 "$APP_URL/ready" | grep -q '"databaseReady":true'; then
+            echo "smoke_flags=" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Database was not ready before this deploy; smoke test accepts degraded mode"
+            echo "smoke_flags=--allow-degraded" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy
         run: flyctl deploy --remote-only
 
       - name: Smoke test the live site
-        id: smoke
-        run: node scripts/smoke.mjs "$APP_URL"
+        timeout-minutes: 6
+        run: node scripts/smoke.mjs "$APP_URL" ${{ steps.previous.outputs.smoke_flags }}
 
       - name: Roll back to the last good release
         if: failure() && steps.previous.outputs.image != ''
+        timeout-minutes: 10
         env:
           PREVIOUS_IMAGE: ${{ steps.previous.outputs.image }}
         run: |
+          # A deploy that failed before releasing (build or registry error) left the old
+          # release serving; restarting it would only drop live games.
+          latest=$(flyctl releases -a "$FLY_APP" --image --json | jq -r '.[0].ImageRef // empty')
+          if [ "$latest" = "$PREVIOUS_IMAGE" ]; then
+            echo "No new release went out; nothing to roll back."
+            exit 0
+          fi
           echo "::error::Deploy or smoke test failed; rolling back to $PREVIOUS_IMAGE"
           flyctl deploy --image "$PREVIOUS_IMAGE" --strategy immediate
           node scripts/smoke.mjs "$APP_URL" --allow-degraded
