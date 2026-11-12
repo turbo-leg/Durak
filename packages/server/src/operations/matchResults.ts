@@ -236,8 +236,9 @@ export async function persistMatchResult(
 }
 
 function submit(snapshot: MatchResultSnapshot, notify?: ResultNotification) {
+  // The snapshot is already on disk (queueMatchResult or restore). Writing it again here
+  // would let a full or failing volume block the database write forever.
   enqueueResult(snapshot.id, async () => {
-    await resultStore().put(snapshot.id, snapshot);
     await persistMatchResult(snapshot, notify);
     await resultStore().remove(snapshot.id);
   });

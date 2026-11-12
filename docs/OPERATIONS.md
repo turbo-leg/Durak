@@ -14,11 +14,11 @@ Redis presence/driver support does not establish multi-machine room routing. Kee
 
 ## Health and metrics
 
-| Endpoint       | Meaning                                                                                                                                                                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`  | Process liveness. A running process can answer even during a database outage.                                                                                                                                                                                                         |
-| `GET /ready`   | Returns 200 while the process can host games: not draining, and fewer than 500 results waiting. The body says `degraded: true` and `databaseReady: false` while MongoDB is down. Fly checks this endpoint; the CI smoke test and the uptime alert also require `databaseReady: true`. |
-| `GET /metrics` | Disabled with 404 unless `METRICS_TOKEN` is configured. Requires `Authorization: Bearer <token>` when enabled; wrong/missing tokens return 401.                                                                                                                                       |
+| Endpoint       | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`  | Process liveness. A running process can answer even during a database outage.                                                                                                                                                                                                                                                                                                                                                             |
+| `GET /ready`   | Returns 200 while the process can host games: not draining, and fewer than 500 results queued. While MongoDB is down only results for games with an account player are kept; guest-only games are not saved, so they cannot fill the outbox. The body says `degraded: true` and `databaseReady: false` while MongoDB is down. Fly checks this endpoint; the CI smoke test and the UptimeRobot monitor also require `databaseReady: true`. |
+| `GET /metrics` | Disabled with 404 unless `METRICS_TOKEN` is configured. Requires `Authorization: Bearer <token>` when enabled; wrong/missing tokens return 401.                                                                                                                                                                                                                                                                                           |
 
 Operational metrics are also logged every 30 seconds as structured `Server operational metrics` records. They include room/client/bot counts and limits, pending/retrying result counts, RSS/heap bytes, and event-loop p95/p99/max milliseconds. Each event-loop log interval resets the histogram. The endpoint samples the current interval without resetting it. These snapshots contain no player identities, hands, or replay logs.
 
@@ -48,7 +48,7 @@ Before the audience launch, run the game/CI checks, a clean production-image sta
 Every push to `main` deploys through the CI `deploy` job:
 
 1. It records the last `complete` release image.
-2. `flyctl deploy` runs `release_command` (`packages/server/scripts/check-db.mjs`) in a throwaway machine first. If MongoDB is unreachable the deploy stops before the live machine changes.
+2. `flyctl deploy` replaces the machine. A dead database no longer stops the server from booting (it runs degraded), so there is no pre-deploy database check; the smoke test catches it.
 3. `scripts/smoke.mjs` checks that `/ready` reports `databaseReady: true`, then plays a solo game against a bot on the live site.
 4. If the deploy or the smoke test fails, the job redeploys the recorded image and the run goes red.
 
@@ -58,12 +58,12 @@ Manual rollback:
 
 ```sh
 fly releases -a durak-discord-activity --image   # pick the last "complete" image
-fly deploy -a durak-discord-activity --image <image> --strategy immediate --env SKIP_DB_CHECK=1
+fly deploy -a durak-discord-activity --image <image> --strategy immediate
 ```
 
 ## Outages
 
-The `Uptime` workflow checks `/ready` every 10 minutes and opens one "Production down" issue (closed automatically on recovery). Then:
+An UptimeRobot keyword monitor checks `https://durak-discord-activity.fly.dev/ready` every 5 minutes for the text `"databaseReady":true` and alerts by email and the UptimeRobot phone app. Then:
 
 - **`fly logs -a durak-discord-activity`** shows the cause. `MongoDB connection error; running degraded` means the database is unreachable: check the Atlas console (cluster paused or deleted, network access list, user password). Games keep working meanwhile.
 - **New database:** `fly secrets set MONGO_URI='mongodb+srv://…' -a durak-discord-activity`. This restarts the machine, and the queued results are written once it connects.
@@ -71,11 +71,12 @@ The `Uptime` workflow checks `/ready` every 10 minutes and opens one "Production
 
 ## Changing region
 
-The volume is tied to one region. To move (for example to Tokyo, `nrt`):
+The volume is tied to one region, and `fly deploy` updates the existing machine in place; it does not move it. To move (for example to Tokyo, `nrt`):
 
-1. Make sure `/data/results` on the old volume is empty (`fly ssh console -C "ls /data/results"`), or copy the files out.
+1. With the database reachable, let the running machine replay its outbox: `/ready` must show `pendingResults: 0`. Otherwise copy `/data/results` out with `fly ssh console`.
 2. `fly volumes create durak_results -r nrt -s 1 -a durak-discord-activity`
-3. Set `primary_region = "nrt"` in `fly.toml` and deploy.
-4. Destroy the old machine and volume: `fly machine destroy <id>`, `fly volumes destroy <id>`.
+3. Destroy the old machine first, so the deploy creates exactly one new machine on the new volume: `fly machine destroy <id> --force`.
+4. Set `primary_region = "nrt"` in `fly.toml` and deploy. Check `fly status` shows one machine, in `nrt`.
+5. Destroy the old volume: `fly volumes destroy <id>`.
 
 Keep MongoDB in or near the same region; Atlas M0 is available in AWS Tokyo (ap-northeast-1).

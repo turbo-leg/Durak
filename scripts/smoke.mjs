@@ -46,26 +46,30 @@ async function playSoloGame() {
   room.onMessage('*', () => {});
   let hand = [];
   room.onMessage('private', (data) => (hand = data.hand ?? hand));
+  // Record every turn as it happens; a bot can move faster than any polling interval.
   const turns = new Set();
+  room.onStateChange((state) => {
+    if (state.phase === 'playing' && state.currentTurn) turns.add(state.currentTurn);
+  });
   try {
     const deadline = Date.now() + 60_000;
     while (Date.now() < deadline) {
+      // Two different players have had the turn: dealing, bot play and sync all work.
+      if (turns.size >= 2) return;
       const { phase, currentTurn } = room.state;
-      if (phase === 'playing' && currentTurn) {
-        turns.add(currentTurn);
-        // Two different players have had the turn: dealing, bot play and sync all work.
-        if (turns.size >= 2) return;
-        if (currentTurn === room.sessionId) {
-          if (room.state.activeAttackCards.length > 0) room.send('pickUp');
-          else if (hand[0]) {
-            const { suit, rank, isJoker } = hand[0];
-            room.send('attack', { cards: [{ suit, rank, isJoker }] });
-          }
-        }
-      } else if (phase === 'waiting' || phase === 'lobby') {
-        room.send('toggleReady', { isReady: true });
+      if (phase === 'finished') {
+        if (turns.size >= 1) return; // the game ran to the end, so turns did pass
+        throw new Error('Game finished without any turn being seen');
       }
-      await sleep(1500);
+      if (phase === 'waiting') room.send('toggleReady', { isReady: true });
+      if (phase === 'playing' && currentTurn === room.sessionId) {
+        if (room.state.activeAttackCards.length > 0) room.send('pickUp');
+        else if (hand[0]) {
+          const { suit, rank, isJoker } = hand[0];
+          room.send('attack', { cards: [{ suit, rank, isJoker }] });
+        }
+      }
+      await sleep(500);
     }
     throw new Error(`Game did not progress (phase ${room.state.phase}, turns seen ${turns.size})`);
   } finally {

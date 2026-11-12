@@ -10,7 +10,9 @@ interface ReadinessDependencies {
    * the retry queue, and are written once the connection returns. Accounts stay closed.
    */
   allowDegraded?: boolean;
-  /** Stop new games once this many results are waiting, so the retry queue cannot fill. */
+  /** Every result still in the retry queue, written or not; degraded mode caps this. */
+  queuedResults?: () => number;
+  /** Stop new games once this many results are queued, so the retry queue cannot fill. */
   maxPendingResults?: number;
 }
 
@@ -46,8 +48,9 @@ export class ServerLifecycle {
     const databaseReady = this.databaseReady;
     const pendingResults = this.dependencies.pendingResults?.() ?? 0;
     const { allowDegraded = false, maxPendingResults = 0 } = this.dependencies;
+    const queuedResults = this.dependencies.queuedResults?.() ?? pendingResults;
     const ready = allowDegraded
-      ? !this.draining && pendingResults < Math.max(1, maxPendingResults)
+      ? !this.draining && queuedResults < Math.max(1, maxPendingResults)
       : !this.draining && databaseReady && pendingResults === 0;
     const degraded = !databaseReady || pendingResults > 0;
     return { ready, degraded, draining: this.draining, databaseReady, pendingResults };

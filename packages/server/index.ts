@@ -36,6 +36,7 @@ import {
 import { createMetricsHandler, createOperationalMonitor } from './src/operations/metrics';
 import { processCapacity } from './src/operations/capacity';
 import { restoreMatchResults } from './src/operations/matchResults';
+import { connectWithRetry } from './src/operations/database';
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -54,6 +55,7 @@ serverLifecycle.configure({
   databaseRequired: process.env.NODE_ENV === 'production' || Boolean(process.env.MONGO_URI),
   databaseConnected: () => databaseInitialized && mongoose.connection.readyState === 1,
   pendingResults: getFailedResultCount,
+  queuedResults: getPendingResultCount,
   // A dead database must not take guest games down with it (the 2026-11-10 outage).
   // Results wait in the /data outbox and are written when the connection returns.
   allowDegraded: process.env.DATABASE_DEGRADED_MODE !== 'off',
@@ -94,33 +96,31 @@ if (process.env.MONGO_URI) {
   const mongoUri = process.env.MONGO_URI;
   // Retry the first connection in the background instead of exiting. The driver handles
   // reconnects after that. Report the first failure and then every tenth, not each try.
-  const connectDatabase = async (): Promise<void> => {
-    for (let attempt = 1; ; attempt++) {
-      try {
-        await mongoose.connect(mongoUri, {
-          serverSelectionTimeoutMS: 5000,
-          connectTimeoutMS: 10000,
-          maxPoolSize: 10,
-          retryWrites: true,
-        });
-        logger.info({ attempt }, 'Connected to MongoDB');
-        await Promise.all([
-          PlayerProfile.ensureIndexes(),
-          GameLog.ensureIndexes(),
-          User.ensureIndexes(),
-        ]);
-        databaseInitialized = true;
-        return;
-      } catch (err) {
-        if (attempt === 1 || attempt % 10 === 0) Sentry.captureException(err);
-        const retryMs = Math.min(60_000, 2000 * 2 ** Math.min(attempt - 1, 5));
-        logger.error({ err, attempt, retryMs }, 'MongoDB connection error; running degraded');
-        await mongoose.disconnect().catch(() => {});
-        await new Promise((resolve) => setTimeout(resolve, retryMs).unref());
-      }
-    }
-  };
-  void connectDatabase();
+  // Retry the first connection in the background instead of exiting; guest games run
+  // degraded meanwhile. Report the first failure and then every tenth, not each try.
+  void connectWithRetry({
+    connect: async () => {
+      await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 10000,
+        maxPoolSize: 10,
+        retryWrites: true,
+      });
+      await Promise.all([
+        PlayerProfile.ensureIndexes(),
+        GameLog.ensureIndexes(),
+        User.ensureIndexes(),
+      ]);
+      databaseInitialized = true;
+      logger.info('Connected to MongoDB');
+    },
+    reset: () => mongoose.disconnect(),
+    onError: (err, attempt, retryMs) => {
+      if (attempt === 1 || attempt % 10 === 0) Sentry.captureException(err);
+      logger.error({ err, attempt, retryMs }, 'MongoDB connection error; running degraded');
+    },
+    stopped: () => serverLifecycle.isDraining,
+  });
 } else if (process.env.NODE_ENV === 'production') {
   logger.error('FATAL: MONGO_URI must be set in production');
   process.exit(1);

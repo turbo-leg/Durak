@@ -92,11 +92,10 @@ jobs:
       - name: Remember the last good release
         id: previous
         run: |
-          image=$(flyctl releases -a "$FLY_APP" --image --json             | jq -r '[.[] | select(.Status == "complete")][0].ImageRef // empty')
+          image=$(flyctl releases -a "$FLY_APP" --image --json | jq -r '[.[] | select(.Status == "complete")][0].ImageRef // empty')
           echo "Last good image: ${image:-none}"
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      # fly.toml's release_command checks the database before the live machine changes.
       - name: Deploy
         run: flyctl deploy --remote-only
 
@@ -106,8 +105,9 @@ jobs:
 
       - name: Roll back to the last good release
         if: failure() && steps.previous.outputs.image != ''
+        env:
+          PREVIOUS_IMAGE: ${{ steps.previous.outputs.image }}
         run: |
-          echo "::error::Deploy or smoke test failed; rolling back to ${{ steps.previous.outputs.image }}"
-          # The previous image is known good; do not let a database outage block the rollback.
-          flyctl deploy --image "${{ steps.previous.outputs.image }}" --strategy immediate --env SKIP_DB_CHECK=1
+          echo "::error::Deploy or smoke test failed; rolling back to $PREVIOUS_IMAGE"
+          flyctl deploy --image "$PREVIOUS_IMAGE" --strategy immediate
           node scripts/smoke.mjs "$APP_URL" --allow-degraded
