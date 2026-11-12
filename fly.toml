@@ -1,5 +1,5 @@
 app = "durak-discord-activity"
-primary_region = "iad"
+primary_region = "nrt"
 kill_signal = "SIGTERM"
 kill_timeout = 45
 
