@@ -850,6 +850,25 @@
   flex-shrink: 0;
   transition: transform 0.18s !important;
 }
+/* A card whose 3D twin is still flying in: reserves its slot but cannot be seen or used. */
+.hand-card.arriving {
+  visibility: hidden;
+}
+/* A card appears in the row as its 3D twin lands in the hand. */
+button.hand-card {
+  animation: hand-card-in 0.18s ease-out;
+}
+@keyframes hand-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.hand-card {
+    animation: none;
+  }
+}
 .hand-card.selected {
   transform: translateY(-12px);
   outline: 2px solid #bad7e4;
@@ -924,21 +943,6 @@
   .huzur-reference .paper-card {
     width: 38px;
     height: 55px;
-  }
-  .huzur-reference div > small {
-    display: none;
-  }
-}
-@media (max-height: 520px) and (orientation: landscape) {
-  .in-game .huzur-reference {
-    top: 8px;
-    left: auto;
-    right: 3%;
-    padding: 4px 7px;
-  }
-  .huzur-reference .paper-card {
-    width: 32px;
-    height: 47px;
   }
   .huzur-reference div > small {
     display: none;
@@ -1489,133 +1493,6 @@
     transition: none !important;
     animation: none !important;
     scroll-behavior: auto !important;
-  }
-}
-
-@media (max-height: 520px) and (orientation: landscape) {
-  .in-game .room-header {
-    height: 56px;
-    padding-inline: 3%;
-  }
-  .in-game .wordmark {
-    font-size: 30px;
-  }
-  .in-game .brand-caption {
-    display: none;
-  }
-  .in-game:not(:has(.lobby-dock)):not(:has(.result-dock)) .room-stage {
-    height: calc(100dvh - 130px) !important;
-    min-height: 0 !important;
-    padding: 0;
-    display: block;
-    overflow: hidden;
-  }
-  .in-game .scene {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    height: auto;
-  }
-  .in-game .turn-banner {
-    position: absolute;
-    left: 3%;
-    top: 8px;
-    transform: none;
-    margin: 0;
-    max-width: 45%;
-    gap: 10px;
-  }
-  .in-game .turn-banner h1 {
-    font-size: 22px;
-  }
-  .in-game .turn-banner p {
-    display: none;
-  }
-  .in-game .turn-clock {
-    font-size: 20px;
-    margin-left: 0;
-    padding-left: 12px;
-  }
-  .in-game .table-meta {
-    position: absolute;
-    left: 3%;
-    top: auto;
-    bottom: 42px;
-    margin: 0;
-    font-size: 9px;
-  }
-  .in-game .scene-caption {
-    display: none;
-  }
-  .in-game .view-tools {
-    bottom: 0;
-    right: 3%;
-    gap: 12px;
-    font-size: 10px;
-  }
-  .in-game .view-tools button {
-    min-height: 36px;
-  }
-  .in-game .action-dock {
-    min-height: 74px;
-    margin: 0 3%;
-    padding: 10px 0;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .in-game .action-copy {
-    width: auto;
-    flex: 1;
-  }
-  .in-game .action-copy span {
-    display: none;
-  }
-  .in-game .action-copy strong {
-    font-size: 11px;
-  }
-  .in-game .play-button {
-    min-width: 120px;
-  }
-  .in-game .card-controls {
-    position: absolute;
-    bottom: 74px;
-    left: 25%;
-    right: 3%;
-    margin: 0;
-    padding: 0 8px;
-    background: #101e2cf2;
-  }
-  .in-game .keyboard-hand {
-    padding: 15px 4px 6px;
-  }
-  .in-game .paper-card {
-    width: 46px;
-    height: 66px;
-  }
-  .in-game .card-corner {
-    font-size: 13px;
-  }
-  .in-game .card-corner small {
-    font-size: 11px;
-  }
-  .in-game .card-pip {
-    font-size: 24px;
-  }
-  .room-notice {
-    top: 62px;
-  }
-  .in-game:has(.attack-reference):not(:has(.lobby-dock)):not(:has(.result-dock)) .room-stage {
-    height: calc(100dvh - 200px) !important;
-  }
-  .in-game .attack-reference {
-    padding-bottom: 5px;
-  }
-  .in-game .attack-reference .paper-card {
-    width: 100%;
-    height: auto;
-  }
-  .in-game:has(.attack-reference) .card-controls {
-    bottom: 144px;
   }
 }
 

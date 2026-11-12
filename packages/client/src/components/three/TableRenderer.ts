@@ -92,6 +92,10 @@ type AnimatedCard = {
   deal?: DealPath;
   /** A card that joins a fan only once the picked-up pile reaches it. */
   hiddenUntil?: number;
+  /** Hidden because it rests in your hand while a 2D row shows the same cards. */
+  restHidden?: boolean;
+  /** A card of your hand has come to rest in it at least once (dealt, drawn or picked up). */
+  landed?: boolean;
 };
 type DealPath = {
   /** When the card leaves the deck. */
@@ -188,6 +192,11 @@ export class TableRenderer {
   private disposed = false;
   private mobileQuality = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760;
   private canSelect = false;
+  /** On phones a 2D row is your hand, so the held 3D fan is not drawn a second time. */
+  private hideRestingHand = false;
+  /** Told which cards of your hand have landed, so a 2D row can show them only then. */
+  onHandLanded?: (keys: string[]) => void;
+  private landedSignature = '';
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private pointerStart: { x: number; y: number } | null = null;
 
@@ -1243,6 +1252,7 @@ export class TableRenderer {
       }
     }
     if (!this.reducedMotion.matches) this.actOut(events);
+    this.reportLanded();
     this.previousSnapshot = snapshot;
     this.requestFrame();
   }
@@ -1336,6 +1346,58 @@ export class TableRenderer {
     rig.releaseCards();
   }
 
+  /**
+   * Draw the cards in your hand only while they travel (dealt, picked up, played out). At
+   * rest they are hidden and cannot be picked, because the 2D row shows them instead.
+   */
+  setRestingHandHidden(hidden: boolean) {
+    if (this.hideRestingHand === hidden) return;
+    this.hideRestingHand = hidden;
+    this.requestFrame();
+  }
+  private isSettledInHand(card: AnimatedCard) {
+    return (
+      Boolean(card.mesh.userData.handKey) &&
+      card.mesh.parent === this.hand &&
+      !card.motion &&
+      !card.deal &&
+      !card.carry &&
+      !card.pendingParent &&
+      !card.hiddenUntil &&
+      !card.removing
+    );
+  }
+  private syncRestHidden(card: AnimatedCard) {
+    const settled = this.isSettledInHand(card);
+    if (settled) card.landed = true;
+    if (this.hideRestingHand && settled) {
+      if (card.mesh.visible) {
+        card.mesh.visible = false;
+        card.restHidden = true;
+      }
+    } else if (card.restHidden) {
+      card.mesh.visible = true;
+      card.restHidden = false;
+    }
+  }
+  /**
+   * Cards of your hand that have come to rest in it. A card still flying in (a deal, a draw
+   * after a turn, a pickup) is not listed until it lands. Re-fanning an old card never
+   * un-lands it, so the list only grows as cards arrive and shrinks as they are played.
+   */
+  private reportLanded() {
+    if (!this.onHandLanded) return;
+    const keys: string[] = [];
+    for (const card of this.cards.values()) {
+      const key = card.mesh.userData.handKey as string | undefined;
+      if (key && card.landed && !card.removing) keys.push(key);
+    }
+    keys.sort();
+    const signature = keys.join('|');
+    if (signature === this.landedSignature) return;
+    this.landedSignature = signature;
+    this.onHandLanded(keys);
+  }
   recenter() {
     this.controls.recenter();
   }
@@ -1414,7 +1476,7 @@ export class TableRenderer {
     );
     return this.raycaster.intersectObjects(
       Array.from(this.cards.values())
-        .filter((c) => !c.removing && c.mesh.userData.handKey)
+        .filter((c) => !c.removing && c.mesh.userData.handKey && c.mesh.visible)
         .map((c) => c.mesh),
       false,
     )[0];
@@ -1486,6 +1548,7 @@ export class TableRenderer {
     // at a stable screen size as the seated view or result view settles.
     this.labels.children.forEach((label) => this.sizeLabel(label as THREE.Sprite));
     for (const [id, card] of this.cards) {
+      this.syncRestHidden(card);
       const held = card.carry && now < card.carry.until ? card.carry.at() : undefined;
       if (held) {
         // In the hand: follow the palm exactly while turning toward its place on the table.
@@ -1587,6 +1650,7 @@ export class TableRenderer {
       return true;
     });
     this.lastDropFrame = now;
+    this.reportLanded();
     this.renderer.render(this.scene, this.camera);
     if (import.meta.env.DEV) {
       this.host.dataset.renderCalls = String(this.renderer.info.render.calls);
