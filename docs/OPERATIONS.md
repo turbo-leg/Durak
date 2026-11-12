@@ -71,12 +71,11 @@ An UptimeRobot keyword monitor checks `https://durak-discord-activity.fly.dev/re
 
 ## Changing region
 
-The volume is tied to one region, and `fly deploy` updates the existing machine in place; it does not move it. To move (for example to Tokyo, `nrt`):
+The volume is tied to one region, and `fly deploy` updates existing machines in place; it does not move them. Done without downtime on 2026-11-12 (Virginia to Tokyo):
 
-1. With the database reachable, let the running machine replay its outbox: `/ready` must show `pendingResults: 0`. Otherwise copy `/data/results` out with `fly ssh console`.
-2. `fly volumes create durak_results -r nrt -s 1 -a durak-discord-activity`
-3. Destroy the old machine first, so the deploy creates exactly one new machine on the new volume: `fly machine destroy <id> --force`.
-4. Set `primary_region = "nrt"` in `fly.toml` and deploy. Check `fly status` shows one machine, in `nrt`.
-5. Destroy the old volume: `fly volumes destroy <id>`.
+1. With the database reachable, `/ready` must show `pendingResults: 0`, and `fly ssh console -C "ls /data/results"` must be empty. Otherwise the old machine still holds unwritten results.
+2. `fly machine clone <machine id> --region nrt -a durak-discord-activity` starts a second machine on a new, empty volume in the new region. Check it with `curl -H "fly-force-instance-id: <new id>" https://durak-discord-activity.fly.dev/ready`.
+3. Destroy the old machine (`fly machine destroy <id> --force`) and then its volume (`fly volumes destroy <id>`). Two machines must not run for long: rooms live in one process, so players on different machines cannot join each other's tables.
+4. Set `primary_region` in `fly.toml` to the new region and merge. Check `fly status` shows exactly one machine.
 
 Keep MongoDB in or near the same region; Atlas M0 is available in AWS Tokyo (ap-northeast-1).
