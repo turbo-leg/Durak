@@ -23,6 +23,7 @@ import { AccountPanel, RoomDialog, RulesPanel } from './RoomDialog';
 import { TeamBoard } from './TeamBoard';
 import './card-room.css';
 import './goofy.css';
+import './landscape.css';
 import { setLang, t, tServer, useLang } from '../i18n';
 
 const ThreeTable = lazy(() => import('../components/three/ThreeTable'));
@@ -52,6 +53,9 @@ const demo: TableSnapshot = {
   seats: [],
 };
 
+const HANDHELD =
+  '(max-width: 760px) and (orientation: portrait), (max-height: 520px) and (orientation: landscape)';
+
 export function CardRoom({
   embeddedName,
   authError,
@@ -65,10 +69,9 @@ export function CardRoom({
   const { imageUrl } = useCardBack();
   const [modal, setModal] = useState<'rules' | 'account' | 'leave' | null>(null);
   const [fallback, setFallback] = useState(false);
+  // Phones held either way get the 2D hand and its big buttons; tapping small 3D cards is unreliable.
   const [portrait, setPortrait] = useState(
-    () =>
-      typeof matchMedia !== 'undefined' &&
-      matchMedia('(max-width: 760px) and (orientation: portrait)').matches,
+    () => typeof matchMedia !== 'undefined' && matchMedia(HANDHELD).matches,
   );
   const [preset, setPreset] = useState(
     () => avatarPreset(localStorage.getItem('durak_avatar')).id as string,
@@ -86,7 +89,7 @@ export function CardRoom({
   const [demoGesture, setDemoGesture] = useState<PublicGesture>({});
   useEffect(() => {
     if (typeof matchMedia === 'undefined') return;
-    const media = matchMedia('(max-width: 760px) and (orientation: portrait)');
+    const media = matchMedia(HANDHELD);
     const update = () => setPortrait(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);

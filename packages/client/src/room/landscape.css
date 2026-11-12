@@ -1,0 +1,475 @@
+/*
+ * Phones held sideways (about 360-430 px tall).
+ *
+ * The room is a tall column everywhere else: header, stage, hand, buttons. Sideways that
+ * leaves a thin sliver for the table, so here the match becomes a full-screen game with
+ * floating controls: the 3D table fills the screen, the turn and the Huzur card sit in the
+ * top corners, the hand fans along the bottom, and the buttons sit under the right thumb.
+ * Everything keeps clear of the notch with the safe-area insets.
+ */
+@media (max-height: 520px) and (orientation: landscape) {
+  .card-room.card-room {
+    --edge-l: max(12px, env(safe-area-inset-left));
+    --edge-r: max(12px, env(safe-area-inset-right));
+    --edge-b: max(8px, env(safe-area-inset-bottom));
+    --hud: #101e2cd9;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Slim bar over the table instead of a 100 px band above it. */
+  .card-room.card-room .room-header {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 44px;
+    padding: 0 var(--edge-r) 0 var(--edge-l);
+    border-bottom: 0;
+    background: linear-gradient(#101e2ce6, #101e2c00);
+  }
+  .card-room.card-room .wordmark {
+    font-size: 24px;
+    gap: 2px;
+  }
+  .card-room.card-room .brand-suit {
+    font-size: 15px;
+    margin-right: 2px;
+  }
+  .card-room.card-room .brand-caption,
+  .card-room.card-room .account-button > span:not(.avatar) {
+    display: none;
+  }
+  .card-room.card-room .room-header nav {
+    gap: 6px;
+  }
+  .card-room.card-room .room-header .quiet-button {
+    min-height: 36px;
+    padding: 4px 12px;
+    font-size: 12px;
+    border-radius: 18px;
+    background: var(--hud);
+  }
+  .card-room.card-room .avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* The table fills the whole screen; HUD pieces float over it. */
+  .card-room.card-room .room-stage {
+    position: absolute;
+    inset: 0;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    display: block;
+    overflow: hidden;
+  }
+  .card-room.card-room .scene {
+    position: absolute;
+    order: 0;
+    inset: 0;
+    width: auto;
+    height: auto;
+  }
+
+  .card-room.match-active .turn-banner {
+    position: absolute;
+    order: 0;
+    margin: 0;
+    left: var(--edge-l);
+    top: 48px;
+    transform: none;
+    gap: 8px;
+    width: fit-content;
+    max-width: 52%;
+    padding: 4px 12px 4px 10px;
+    border-radius: 14px;
+    background: var(--hud);
+  }
+  .card-room.match-active .turn-banner h1 {
+    font-size: 20px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .card-room.match-active .turn-banner p {
+    display: none;
+  }
+  .card-room.match-active .turn-clock {
+    margin-left: 0;
+    padding-left: 10px;
+    font-size: 20px;
+    line-height: 1.1;
+  }
+  .card-room.match-active .turn-clock small {
+    font-size: 8px;
+    margin-top: -3px;
+  }
+
+  .card-room.match-active .huzur-reference {
+    top: 48px;
+    left: auto;
+    right: var(--edge-r);
+    padding: 4px 8px 4px 5px;
+    gap: 7px;
+    border-radius: 12px;
+    background: var(--hud);
+  }
+  .card-room.match-active .huzur-reference .paper-card {
+    width: 28px;
+    height: 40px;
+  }
+  .card-room.match-active .huzur-reference .card-corner {
+    font-size: 10px;
+    left: 2px;
+    top: 2px;
+  }
+  .card-room.match-active .huzur-reference .card-corner small {
+    font-size: 8px;
+  }
+  .card-room.match-active .huzur-reference .card-pip {
+    font-size: 15px;
+  }
+  .card-room.match-active .huzur-reference strong {
+    font-size: 12px;
+  }
+  /* The card itself shows the suit; the long name only costs width. */
+  .card-room.match-active
+    .huzur-reference
+    div
+    > span:not(.paper-card):not(.card-corner):not(.card-pip),
+  .card-room.match-active .huzur-reference div > small {
+    display: none;
+  }
+
+  /* Facts already shown elsewhere (mode, trump) cost space the hand needs. */
+  .card-room.match-active .table-meta,
+  .card-room.match-active .scene-caption,
+  .card-room.match-active .table-roster {
+    display: none;
+  }
+
+  /* Table view tools: a compact column in the left corner. */
+  .card-room.match-active .view-tools {
+    position: absolute;
+    left: var(--edge-l);
+    right: auto;
+    bottom: var(--edge-b);
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 0;
+    overflow: visible;
+    background: none;
+    border: 0;
+  }
+  .card-room.match-active .view-tools > button,
+  .card-room.match-active .view-tools .quiet-button {
+    min-height: 34px;
+    padding: 2px 10px;
+    font-size: 11px;
+    border-radius: 17px;
+    background: var(--hud);
+    white-space: nowrap;
+  }
+
+  /* Your hand: a fan of big, overlapping cards along the bottom. */
+  .card-room.match-active .card-controls {
+    position: absolute;
+    z-index: 4;
+    left: calc(var(--edge-l) + 108px);
+    right: calc(var(--edge-r) + 172px);
+    bottom: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .card-room.match-active .keyboard-hand {
+    padding: 26px 10px var(--edge-b);
+    gap: 0;
+    justify-content: safe center;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .card-room.match-active .keyboard-hand::-webkit-scrollbar {
+    display: none;
+  }
+  .card-room.match-active .keyboard-hand .paper-card {
+    width: clamp(46px, 15vh, 66px);
+    height: auto;
+    aspect-ratio: 68 / 96;
+    box-shadow: 0 4px 12px #0007;
+  }
+  .card-room.match-active .keyboard-hand .card-corner {
+    font-size: clamp(12px, 3.6vh, 16px);
+  }
+  .card-room.match-active .keyboard-hand .card-corner small {
+    font-size: clamp(10px, 3vh, 13px);
+  }
+  .card-room.match-active .keyboard-hand .card-pip {
+    font-size: clamp(22px, 7vh, 32px);
+  }
+  .card-room.match-active .keyboard-hand .hand-card + .hand-card {
+    margin-left: clamp(-20px, -4vh, -12px);
+  }
+  /* A big hand overlaps more so it still fits; it scrolls sideways only as a last resort. */
+  .card-room.match-active .keyboard-hand:has(.hand-card:nth-child(9)) .hand-card + .hand-card {
+    margin-left: clamp(-34px, -8.5vh, -26px);
+  }
+  .card-room.match-active .keyboard-hand .hand-card.selected {
+    transform: translateY(-16px);
+    outline-offset: 2px;
+    z-index: 2;
+  }
+
+  /* Buttons under the right thumb. */
+  .card-room.match-active .action-dock {
+    position: absolute;
+    z-index: 5;
+    right: var(--edge-r);
+    bottom: var(--edge-b);
+    width: 156px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .card-room.match-active .action-copy {
+    flex: none;
+    text-align: right;
+  }
+  .card-room.match-active .action-copy strong {
+    font-size: 12px;
+    line-height: 1.25;
+    text-shadow: 0 1px 4px #000a;
+  }
+  .card-room.match-active .action-copy span {
+    display: none;
+  }
+  .card-room.match-active .action-dock .primary-button,
+  .card-room.match-active .action-dock .secondary-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    padding: 0 12px;
+    justify-content: center;
+    font-size: 17px !important;
+  }
+  .card-room.match-active .action-dock .quiet-button {
+    align-self: flex-end;
+    min-height: 32px;
+    padding: 2px 12px;
+    font-size: 11px;
+    border-radius: 16px;
+    background: var(--hud);
+  }
+
+  /* The cards to beat sit under the turn banner so they never hide the hand. */
+  .card-room.match-active .attack-reference {
+    position: fixed;
+    z-index: 4;
+    top: 88px;
+    left: var(--edge-l);
+    max-width: 48%;
+    flex: none;
+    gap: 8px;
+    padding: 4px 10px 4px 8px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--hud);
+  }
+  .card-room.match-active .attack-reference strong {
+    font-size: 11px;
+  }
+  .card-room.match-active .attack-reference small {
+    display: none;
+  }
+  .card-room.match-active .attack-cards {
+    grid-auto-columns: 34px;
+    gap: 4px;
+    padding: 0;
+  }
+  .card-room.match-active .attack-cards.has-defense-preview {
+    grid-auto-columns: 78px;
+  }
+  .card-room.match-active .attack-reference .defense-pair > .paper-card {
+    flex-basis: 34px;
+    width: 34px;
+  }
+  .card-room.match-active .attack-reference .card-corner {
+    font-size: 10px;
+  }
+  .card-room.match-active .attack-reference .card-corner small {
+    font-size: 8px;
+  }
+  .card-room.match-active .attack-reference .card-pip {
+    font-size: 15px;
+  }
+
+  .card-room.match-active .room-notice {
+    top: 50px;
+  }
+
+  /* Home, lobby and result: the start card sits beside the table instead of below it. */
+  .card-room.card-room:not(.match-active) .scene {
+    inset: 44px 49% 0 0;
+  }
+  .card-room.card-room:not(.match-active) .welcome-copy {
+    position: absolute;
+    left: var(--edge-l);
+    top: 52px;
+    width: 46%;
+    padding: 0;
+    margin: 0;
+  }
+  .card-room.card-room:not(.match-active) .welcome-copy h1 {
+    font-size: clamp(26px, 8vh, 34px);
+    margin: 0;
+    line-height: 1.05;
+  }
+  .card-room.card-room:not(.match-active) .welcome-copy p,
+  .card-room.card-room:not(.match-active) .welcome-suits {
+    display: none;
+  }
+  .card-room.card-room .play-dock,
+  .card-room.card-room .lobby-dock,
+  .card-room.card-room .result-dock {
+    position: absolute;
+    z-index: 3;
+    left: auto;
+    right: var(--edge-r);
+    top: 52px;
+    bottom: var(--edge-b);
+    width: min(47%, 400px);
+    max-height: none;
+    margin: 0;
+    padding: 12px 14px 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 16px;
+  }
+  .card-room.card-room .dock-title {
+    margin-bottom: 8px;
+  }
+  .card-room.card-room .dock-title h2 {
+    font-size: 22px;
+  }
+  .card-room.card-room .dock-tabs button {
+    min-height: 40px;
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+  .card-room.card-room .play-dock .dock-description {
+    display: none;
+  }
+  .card-room.card-room .play-dock .field,
+  .card-room.card-room .play-dock .setup-name {
+    gap: 3px;
+    font-size: 11px;
+  }
+  .card-room.card-room .play-dock input,
+  .card-room.card-room .play-dock select {
+    min-height: 40px;
+    padding-block: 4px;
+    font-size: 14px;
+  }
+  .card-room.card-room .avatar-picker legend {
+    display: none;
+  }
+  .card-room.card-room .avatar-picker > div {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  /* Names stay in each button's aria-label; the faces are enough to pick from. */
+  .card-room.card-room .avatar-picker button {
+    font-size: 0;
+    padding: 3px;
+  }
+  .card-room.card-room .avatar-picker svg,
+  .card-room.card-room .avatar-picker img {
+    width: 42px;
+    margin: 0 auto;
+  }
+  .card-room.card-room .difficulty-options button {
+    padding: 8px 10px;
+  }
+  .card-room.card-room .play-dock .primary-button,
+  .card-room.card-room .lobby-dock .primary-button {
+    position: sticky;
+    bottom: 0;
+    min-height: 50px;
+    margin-top: 8px;
+    box-shadow: 0 -10px 12px var(--panel);
+  }
+
+  /* Match-only controls have no place over the start card. */
+  .card-room.card-room:not(.match-active) .view-tools,
+  .card-room.card-room:not(.match-active) .scene-caption,
+  .card-room.card-room:not(.match-active) .card-controls {
+    display: none;
+  }
+
+  /* Practice needs only a face and a difficulty, so everything fits above the button. */
+  .card-room.card-room .play-dock .game-setup {
+    gap: 8px;
+  }
+  .card-room.card-room .play-dock .game-setup:has(.difficulty-options) .setup-name {
+    display: none;
+  }
+  .card-room.card-room .difficulty-options {
+    gap: 8px;
+  }
+  .card-room.card-room .difficulty-options button {
+    min-height: 44px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .card-room.card-room .difficulty-options button span {
+    display: block;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  /* Tighter vertical rhythm inside the card (the desktop spacing wastes a third of the height). */
+  .card-room.card-room .dock-title {
+    margin-bottom: 8px;
+  }
+  .card-room.card-room .dock-tabs {
+    margin: 0 0 8px;
+  }
+  .card-room.card-room .avatar-picker,
+  .card-room.card-room .setup-avatar {
+    margin: 0;
+  }
+
+  /* Dialogs (rules, account, leave): centred, never taller than the screen, scrolling inside. */
+  .room-dialog {
+    inset: 0;
+    margin: auto;
+    width: min(620px, calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-height: calc(100dvh - 16px);
+    padding: 16px 20px;
+    overscroll-behavior: contain;
+  }
+  .room-dialog h2 {
+    font-size: 26px;
+    margin-bottom: 6px;
+  }
+  .room-dialog .rules-grid {
+    gap: 10px 22px;
+  }
+  .room-dialog .dialog-actions {
+    position: sticky;
+    bottom: -16px;
+    padding: 8px 0 16px;
+    background: #1f2c4b;
+  }
+}
