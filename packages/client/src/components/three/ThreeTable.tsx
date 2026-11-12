@@ -11,6 +11,8 @@ interface Props {
   onUnavailable: () => void;
   onLook?: (yaw: number, pitch: number) => void;
   recenterKey?: number;
+  /** Phones: a 2D row is the hand, so cards resting in the 3D hand are not drawn. */
+  restingHandHidden?: boolean;
 }
 
 export default function ThreeTable({
@@ -22,12 +24,29 @@ export default function ThreeTable({
   onUnavailable,
   onLook,
   recenterKey = 0,
+  restingHandHidden = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<TableRenderer | null>(null);
-  const latest = useRef({ snapshot, selectedKeys, defensePairs, onSelect, onUnavailable, onLook });
+  const latest = useRef({
+    snapshot,
+    selectedKeys,
+    defensePairs,
+    onSelect,
+    onUnavailable,
+    onLook,
+    restingHandHidden,
+  });
   useEffect(() => {
-    latest.current = { snapshot, selectedKeys, defensePairs, onSelect, onUnavailable, onLook };
+    latest.current = {
+      snapshot,
+      selectedKeys,
+      defensePairs,
+      onSelect,
+      onUnavailable,
+      onLook,
+      restingHandHidden,
+    };
   });
   useEffect(() => {
     if (!host.current) return;
@@ -40,6 +59,7 @@ export default function ThreeTable({
         (yaw, pitch) => latest.current.onLook?.(yaw, pitch),
       );
       renderer.current = table;
+      table.setRestingHandHidden(latest.current.restingHandHidden);
       table.update(
         latest.current.snapshot,
         new Set(latest.current.selectedKeys.split('|')),
@@ -64,6 +84,9 @@ export default function ThreeTable({
   useEffect(() => {
     renderer.current?.recenter();
   }, [recenterKey]);
+  useEffect(() => {
+    renderer.current?.setRestingHandHidden(restingHandHidden);
+  }, [restingHandHidden]);
   return (
     <>
       <div ref={host} className="absolute inset-0" data-testid="three-table" />

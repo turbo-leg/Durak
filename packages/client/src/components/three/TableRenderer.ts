@@ -92,6 +92,8 @@ type AnimatedCard = {
   deal?: DealPath;
   /** A card that joins a fan only once the picked-up pile reaches it. */
   hiddenUntil?: number;
+  /** Hidden because it rests in your hand while a 2D row shows the same cards. */
+  restHidden?: boolean;
 };
 type DealPath = {
   /** When the card leaves the deck. */
@@ -188,6 +190,8 @@ export class TableRenderer {
   private disposed = false;
   private mobileQuality = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760;
   private canSelect = false;
+  /** On phones a 2D row is your hand, so the held 3D fan is not drawn a second time. */
+  private hideRestingHand = false;
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private pointerStart: { x: number; y: number } | null = null;
 
@@ -1336,6 +1340,36 @@ export class TableRenderer {
     rig.releaseCards();
   }
 
+  /**
+   * Draw the cards in your hand only while they travel (dealt, picked up, played out). At
+   * rest they are hidden and cannot be picked, because the 2D row shows them instead.
+   */
+  setRestingHandHidden(hidden: boolean) {
+    if (this.hideRestingHand === hidden) return;
+    this.hideRestingHand = hidden;
+    this.requestFrame();
+  }
+  private syncRestHidden(card: AnimatedCard) {
+    const resting =
+      this.hideRestingHand &&
+      Boolean(card.mesh.userData.handKey) &&
+      card.mesh.parent === this.hand &&
+      !card.motion &&
+      !card.deal &&
+      !card.carry &&
+      !card.pendingParent &&
+      !card.hiddenUntil &&
+      !card.removing;
+    if (resting) {
+      if (card.mesh.visible) {
+        card.mesh.visible = false;
+        card.restHidden = true;
+      }
+    } else if (card.restHidden) {
+      card.mesh.visible = true;
+      card.restHidden = false;
+    }
+  }
   recenter() {
     this.controls.recenter();
   }
@@ -1414,7 +1448,7 @@ export class TableRenderer {
     );
     return this.raycaster.intersectObjects(
       Array.from(this.cards.values())
-        .filter((c) => !c.removing && c.mesh.userData.handKey)
+        .filter((c) => !c.removing && c.mesh.userData.handKey && c.mesh.visible)
         .map((c) => c.mesh),
       false,
     )[0];
@@ -1486,6 +1520,7 @@ export class TableRenderer {
     // at a stable screen size as the seated view or result view settles.
     this.labels.children.forEach((label) => this.sizeLabel(label as THREE.Sprite));
     for (const [id, card] of this.cards) {
+      this.syncRestHidden(card);
       const held = card.carry && now < card.carry.until ? card.carry.at() : undefined;
       if (held) {
         // In the hand: follow the palm exactly while turning toward its place on the table.

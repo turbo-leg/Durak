@@ -150,3 +150,99 @@ describe('card identity across presentation zones', () => {
     expect([...cards.values()].some((c) => c.removing)).toBe(false);
   });
 });
+
+describe('the 3D hand while a 2D row shows the same cards', () => {
+  type RestCard = {
+    mesh: THREE.Mesh;
+    motion?: object;
+    deal?: object;
+    carry?: object;
+    pendingParent?: THREE.Object3D;
+    hiddenUntil?: number;
+    removing?: boolean;
+    restHidden?: boolean;
+  };
+  const sync = (table: TableRenderer, entry: RestCard) =>
+    (table as unknown as { syncRestHidden(card: RestCard): void }).syncRestHidden(entry);
+  const heldCard = (hand: THREE.Group): RestCard => {
+    const mesh = new THREE.Mesh();
+    mesh.userData.handKey = 'Spades:9:0';
+    hand.add(mesh);
+    return { mesh };
+  };
+
+  it('hides cards resting in the hand and shows them again when the row goes away', () => {
+    const { table, hand } = fixture();
+    const entry = heldCard(hand);
+    table.setRestingHandHidden(true);
+    sync(table, entry);
+    expect(entry.mesh.visible).toBe(false);
+    table.setRestingHandHidden(false);
+    sync(table, entry);
+    expect(entry.mesh.visible).toBe(true);
+  });
+
+  it('draws a card while it flies and hides it once it has landed in the hand', () => {
+    const { table, hand } = fixture();
+    const entry = heldCard(hand);
+    table.setRestingHandHidden(true);
+    sync(table, entry);
+    expect(entry.mesh.visible).toBe(false);
+    // Played out: it leaves the hand for the table, so it must be seen travelling.
+    entry.mesh.removeFromParent();
+    sync(table, entry);
+    expect(entry.mesh.visible).toBe(true);
+    // Dealt or picked up: visible during the flight, hidden on arrival.
+    hand.add(entry.mesh);
+    entry.motion = {};
+    sync(table, entry);
+    expect(entry.mesh.visible).toBe(true);
+    entry.motion = undefined;
+    sync(table, entry);
+    expect(entry.mesh.visible).toBe(false);
+  });
+
+  it('leaves cards that are not yours, or still waiting to appear, alone', () => {
+    const { table, hand, scene } = fixture();
+    table.setRestingHandHidden(true);
+    const onTable = new THREE.Mesh();
+    scene.add(onTable);
+    onTable.userData.handKey = 'Spades:9:0';
+    const tableCard: RestCard = { mesh: onTable };
+    sync(table, tableCard);
+    expect(onTable.visible).toBe(true);
+    const waiting = heldCard(hand);
+    waiting.hiddenUntil = 1000;
+    waiting.mesh.visible = false;
+    sync(table, waiting);
+    expect(waiting.restHidden).toBeUndefined();
+    expect(waiting.mesh.visible).toBe(false);
+  });
+
+  it('cannot pick a card that is not drawn', () => {
+    const { table, hand, cards } = fixture();
+    const entry = heldCard(hand);
+    cards.set('a', entry as never);
+    Object.assign(table, {
+      renderer: {
+        domElement: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }) },
+      },
+      raycaster: new THREE.Raycaster(),
+    });
+    const hit = () =>
+      (table as unknown as { handHit(e: { clientX: number; clientY: number }): unknown }).handHit({
+        clientX: 50,
+        clientY: 50,
+      });
+    // A card straight ahead of the camera, so the ray through the screen centre hits it.
+    entry.mesh.geometry = new THREE.BoxGeometry(2, 2, 0.1);
+    entry.mesh.material = new THREE.MeshBasicMaterial();
+    hand.position.set(0, 0, -1);
+    hand.scale.setScalar(1);
+    hand.updateWorldMatrix(true, true);
+    entry.mesh.updateWorldMatrix(true, false);
+    expect(hit()).toBeTruthy();
+    entry.mesh.visible = false;
+    expect(hit()).toBeUndefined();
+  });
+});

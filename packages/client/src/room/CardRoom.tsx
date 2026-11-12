@@ -70,7 +70,7 @@ export function CardRoom({
   const [modal, setModal] = useState<'rules' | 'account' | 'leave' | null>(null);
   const [fallback, setFallback] = useState(false);
   // Phones held either way get the 2D hand and its big buttons; tapping small 3D cards is unreliable.
-  const [portrait, setPortrait] = useState(
+  const [handheld, setHandheld] = useState(
     () => typeof matchMedia !== 'undefined' && matchMedia(HANDHELD).matches,
   );
   const [preset, setPreset] = useState(
@@ -90,7 +90,7 @@ export function CardRoom({
   useEffect(() => {
     if (typeof matchMedia === 'undefined') return;
     const media = matchMedia(HANDHELD);
-    const update = () => setPortrait(media.matches);
+    const update = () => setHandheld(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
@@ -334,6 +334,7 @@ export function CardRoom({
                   if (live && !game.isSpectator) game.room?.send('look', { yaw, pitch });
                 }}
                 recenterKey={recenterKey}
+                restingHandHidden={handheld && playing}
                 onUnavailable={() => {
                   setFallback(true);
                   setNotice(
@@ -684,7 +685,7 @@ export function CardRoom({
           >
             {fallback ? t('Try 3D view') : t('2D view')}
           </button>
-          {!(portrait && playing) && (
+          {!(handheld && playing) && (
             <button
               className="quiet-button"
               aria-pressed={keyboard}
@@ -715,7 +716,7 @@ export function CardRoom({
           spectator={game.isSpectator}
         />
       )}
-      {(keyboard || fallback || (portrait && playing)) && phase !== 'waiting' && !showResult && (
+      {(keyboard || fallback || (handheld && playing)) && phase !== 'waiting' && !showResult && (
         <section className="card-controls">
           <div className="keyboard-hand" aria-label={t('Your hand')}>
             {view.hand.map((card) => (
