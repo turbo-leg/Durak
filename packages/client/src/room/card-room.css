@@ -850,6 +850,25 @@
   flex-shrink: 0;
   transition: transform 0.18s !important;
 }
+/* A card whose 3D twin is still flying in: reserves its slot but cannot be seen or used. */
+.hand-card.arriving {
+  visibility: hidden;
+}
+/* A card appears in the row as its 3D twin lands in the hand. */
+button.hand-card {
+  animation: hand-card-in 0.18s ease-out;
+}
+@keyframes hand-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.hand-card {
+    animation: none;
+  }
+}
 .hand-card.selected {
   transform: translateY(-12px);
   outline: 2px solid #bad7e4;

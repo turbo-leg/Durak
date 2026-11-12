@@ -13,6 +13,8 @@ interface Props {
   recenterKey?: number;
   /** Phones: a 2D row is the hand, so cards resting in the 3D hand are not drawn. */
   restingHandHidden?: boolean;
+  /** Which cards of your hand have landed in it; a card still flying in is not listed. */
+  onHandLanded?: (keys: string[]) => void;
 }
 
 export default function ThreeTable({
@@ -25,6 +27,7 @@ export default function ThreeTable({
   onLook,
   recenterKey = 0,
   restingHandHidden = false,
+  onHandLanded,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<TableRenderer | null>(null);
@@ -36,6 +39,7 @@ export default function ThreeTable({
     onUnavailable,
     onLook,
     restingHandHidden,
+    onHandLanded,
   });
   useEffect(() => {
     latest.current = {
@@ -46,6 +50,7 @@ export default function ThreeTable({
       onUnavailable,
       onLook,
       restingHandHidden,
+      onHandLanded,
     };
   });
   useEffect(() => {
@@ -59,6 +64,7 @@ export default function ThreeTable({
         (yaw, pitch) => latest.current.onLook?.(yaw, pitch),
       );
       renderer.current = table;
+      table.onHandLanded = (keys) => latest.current.onHandLanded?.(keys);
       table.setRestingHandHidden(latest.current.restingHandHidden);
       table.update(
         latest.current.snapshot,

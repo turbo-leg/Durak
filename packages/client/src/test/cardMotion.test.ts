@@ -246,3 +246,75 @@ describe('the 3D hand while a 2D row shows the same cards', () => {
     expect(hit()).toBeUndefined();
   });
 });
+
+describe('telling the 2D row which cards have landed in the hand', () => {
+  type LandCard = {
+    mesh: THREE.Mesh;
+    motion?: object;
+    deal?: object;
+    removing?: boolean;
+    landed?: boolean;
+  };
+  const internals = (table: TableRenderer) =>
+    table as unknown as {
+      syncRestHidden(card: LandCard): void;
+      reportLanded(): void;
+      cards: Map<string, LandCard>;
+      onHandLanded?: (keys: string[]) => void;
+    };
+  const held = (hand: THREE.Group, key: string): LandCard => {
+    const mesh = new THREE.Mesh();
+    mesh.userData.handKey = key;
+    hand.add(mesh);
+    return { mesh };
+  };
+
+  it('lists a card only once it has come to rest, and keeps it listed while the fan re-spreads', () => {
+    const { table, hand } = fixture();
+    const t = internals(table);
+    const seen: string[][] = [];
+    t.onHandLanded = (keys) => seen.push(keys);
+    const old = held(hand, 'Spades:9:0');
+    t.cards.set('a', old);
+    t.syncRestHidden(old);
+    t.reportLanded();
+    expect(seen.at(-1)).toEqual(['Spades:9:0']);
+
+    // A new card still flying in is not listed yet, even though it is in the hand group.
+    const drawn = held(hand, 'Hearts:7:0');
+    drawn.motion = {};
+    t.cards.set('b', drawn);
+    t.syncRestHidden(drawn);
+    t.reportLanded();
+    expect(seen.at(-1)).toEqual(['Spades:9:0']);
+
+    // The old card shifts to make room: that is motion, but it has already landed.
+    old.motion = {};
+    t.syncRestHidden(old);
+    t.reportLanded();
+    expect(seen.at(-1)).toEqual(['Spades:9:0']);
+
+    // The new card lands; now both are listed.
+    drawn.motion = undefined;
+    t.syncRestHidden(drawn);
+    t.reportLanded();
+    expect(seen.at(-1)).toEqual(['Hearts:7:0', 'Spades:9:0']);
+  });
+
+  it('does not report again when nothing changed, and drops a card that was played', () => {
+    const { table, hand } = fixture();
+    const t = internals(table);
+    const onLanded = vi.fn();
+    t.onHandLanded = onLanded;
+    const entry = held(hand, 'Spades:9:0');
+    t.cards.set('a', entry);
+    t.syncRestHidden(entry);
+    t.reportLanded();
+    t.reportLanded();
+    expect(onLanded).toHaveBeenCalledTimes(1);
+    entry.removing = true;
+    t.reportLanded();
+    expect(onLanded).toHaveBeenCalledTimes(2);
+    expect(onLanded).toHaveBeenLastCalledWith([]);
+  });
+});

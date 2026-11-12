@@ -81,6 +81,9 @@ export function CardRoom({
   const [keyboard, setKeyboard] = useState(
     () => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 760px)').matches,
   );
+  // Cards of your hand that have landed in the 3D hand; the 2D row shows a card only then.
+  const [landed, setLanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [givenUp, setGivenUp] = useState<ReadonlySet<string>>(() => new Set());
   const [selected, setSelected] = useState<string[]>([]);
   const [name, setName] = useState(() => localStorage.getItem('durak_display_name') || '');
   const [notice, setNotice] = useState('');
@@ -173,6 +176,25 @@ export function CardRoom({
   const selectedKeys =
     selectionTurn === turnKey ? selected.filter((key) => view.hand.some((c) => c.key === key)) : [];
   const picked = view.hand.filter((c) => selectedKeys.includes(c.key));
+  // On phones the 2D row shows a card only once its 3D card has landed in the hand, so a
+  // card is never readable while it is still flying in from the deck or the table.
+  const trackArrivals = handheld && playing && !fallback && !game.isSpectator;
+  const arrived = (key: string) => !trackArrivals || landed.has(key) || givenUp.has(key);
+  const waitingKeys = trackArrivals
+    ? view.hand
+        .filter((c) => !arrived(c.key))
+        .map((c) => c.key)
+        .join('|')
+    : '';
+  useEffect(() => {
+    if (!waitingKeys) return;
+    // If the 3D view stalls (a slow phone, a hidden tab), the hand must not stay hidden.
+    const timer = setTimeout(
+      () => setGivenUp((old) => new Set([...old, ...waitingKeys.split('|')])),
+      4000,
+    );
+    return () => clearTimeout(timer);
+  }, [waitingKeys]);
   const seconds = Math.max(
     0,
     Math.ceil(
@@ -335,6 +357,7 @@ export function CardRoom({
                 }}
                 recenterKey={recenterKey}
                 restingHandHidden={handheld && playing}
+                onHandLanded={(keys) => setLanded(new Set(keys))}
                 onUnavailable={() => {
                   setFallback(true);
                   setNotice(
@@ -719,18 +742,25 @@ export function CardRoom({
       {(keyboard || fallback || (handheld && playing)) && phase !== 'waiting' && !showResult && (
         <section className="card-controls">
           <div className="keyboard-hand" aria-label={t('Your hand')}>
-            {view.hand.map((card) => (
-              <button
-                key={card.key}
-                aria-label={t('Select {card}', { card: cardLabel(card) })}
-                aria-pressed={selectedKeys.includes(card.key)}
-                disabled={!view.canSelect}
-                className={selectedKeys.includes(card.key) ? 'hand-card selected' : 'hand-card'}
-                onClick={() => toggle(card.key)}
-              >
-                <Face card={card} />
-              </button>
-            ))}
+            {view.hand.map((card) =>
+              arrived(card.key) ? (
+                <button
+                  key={card.key}
+                  aria-label={t('Select {card}', { card: cardLabel(card) })}
+                  aria-pressed={selectedKeys.includes(card.key)}
+                  disabled={!view.canSelect}
+                  className={selectedKeys.includes(card.key) ? 'hand-card selected' : 'hand-card'}
+                  onClick={() => toggle(card.key)}
+                >
+                  <Face card={card} />
+                </button>
+              ) : (
+                // Keeps its place in the row so the hand does not shuffle as cards land.
+                <span key={card.key} className="hand-card arriving" aria-hidden="true">
+                  <Face card={card} />
+                </span>
+              ),
+            )}
           </div>
         </section>
       )}
