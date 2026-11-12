@@ -33,3 +33,34 @@ Try it at `/?lang=mn`, or with the МН / EN button in the header. Phones set to
 - **Bot names:** Orgil, Jagaa, Mugii and the rest come from the server in Latin letters. Cyrillic names (Оргил, Жагаа, Мөгий)
   are a separate small change.
 - **Rare messages:** server messages not listed in `mn.ts` (rare errors) still show in English.
+
+## Second reader: Gemini 4 Argon (2026-11-12)
+
+Gemini is a second reader, not a native speaker's final word. Its answers to the card-table questions above:
+
+- **Suits (гил / бунд / дөрвөлжин / цэцэг), face cards (боол / хатан / ноён / тамга), suit-first names («гил 9»), Хузур, and the buttons Хаях / Хаах / Авах:** it says keep all of them as they are (about 90-100% sure; «хүзүр» would read as _neck_). **Still worth a quick yes from a human who plays at a real table.**
+- **Already applied (grammar that was clearly wrong):**
+  - Case endings that break on card names and numbers: `{attack}-г`, `{card}-р`, `{n}-т`, `{name}-ийн`.
+  - «ширээгээ ав» ("pick up your table") became «бүгдийг нь ав» / «ширээн дээрх хөзрийг ав».
+  - «тоглолтыг хожлоо» became «тоглолтод яллаа».
+  - «Та суудлаа өгнө» (offering a bus seat) became «Таны суудал сулрана».
+  - «Дасгалын гар» became «Дадлагын тоглолт».
+  - «Багийг санамсаргүй» became «Санамсаргүй баг».
+  - «Та харж байна» became «Та тоглолт үзэж байна».
+  - Double instrumentals like «хөзрөөр бөөнөөр» were shortened.
+  - «Final» is now «Эцсийн дүн».
+  - Stiff phrases on the home screen and the guided hand were loosened.
+
+### Not changed: please ask a native speaker
+
+| Question                                                                                                                                          | Gemini says                                                                                                   | Why it was left alone                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| The draw pile is «Хөзөр»; is **Газрын хөзөр** (or **Газар**) what people say?                                                                     | Yes (95%): «Хөзөр дууссан» can read as "all cards are gone"                                                   | A vocabulary choice, and it appears in many lines    |
+| **Морь** (HORSE mode) is a literal translation of the basketball game; does it mean anything to your audience?                                    | No; suggests spelling out "5 losses" or renaming                                                              | A naming decision for you                            |
+| **Хүн бүр өөрөө** for free-for-all                                                                                                                | **Хүн бүр амиа**                                                                                              | Not sure that works as a button label                |
+| **Төвд** («Recenter» button)                                                                                                                      | Reads as _Tibet_ with a capital letter; suggests **Төвлөх** / **Голлуулах**                                   | A short word was chosen on purpose, to fit phones    |
+| **Энгийн** is used for both Classic and the Casual outfit                                                                                         | Outfit could be **Чөлөөт**                                                                                    | Different screens, so low risk                       |
+| **Тэнэг** as a page label (`Durak home`)                                                                                                          | Reads like an insult alone; keep it for sentences like «тэнэг үлдэх»                                          | Only a screen-reader label                           |
+| The long mass-attack rules paragraph (distributive «тав таваар», «тийм олон»), the Huzur swap line, «Өөр хөзөр», the sort pills, «Дахиад» gesture | Several small grammar and wording fixes (full text in `Projects\durak\gemini-mn-review.md`, outside the repo) | Longer text, needs a native read rather than a guess |
+
+Gemini's own flag worth a second look: buttons in the _-х_ form (Хаях / Хаах / Авах) are right, but the "Tone" bullet above says buttons use the short command form (Хая, Ав). The code uses the _-х_ form.
