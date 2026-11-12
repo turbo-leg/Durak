@@ -18,7 +18,7 @@ export const MN: Record<string, string> = {
   '{rank} of {suit}': '{suit} {rank}',
   'Red Joker': 'Улаан жокер',
   'Black Joker': 'Хар жокер',
-  '{defense} beats {attack}': '{defense} нь {attack}-г хаана',
+  '{defense} beats {attack}': '{defense} нь {attack} хөзрийг хаана',
 
   // Header and home
   'Durak home': 'Тэнэг, нүүр хуудас',
@@ -35,7 +35,7 @@ export const MN: Record<string, string> = {
   'Interactive card table': 'Хөзрийн ширээ',
   'Setting the table…': 'Ширээ засаж байна…',
   'The 3D view is unavailable. You can keep playing with the card controls.':
-    'Гурван хэмжээст харагдац ажиллахгүй байна. Доорх хөзрөөр үргэлжлүүлээд тоглоорой.',
+    '3D горим ажиллахгүй байна. Доорх хөзрөөрөө үргэлжлүүлэн тоглоорой.',
   'Click a card. Drag to look around.': 'Хөзөр дээр дар. Чирээд эргэн тойрноо хар.',
 
   // Start a game
@@ -80,7 +80,7 @@ export const MN: Record<string, string> = {
     'Хоёр баг дараалан тоглоно. Хожигдох бүрт HORSE гэдэг үгнээс нэг үсэг авна.',
   'Blue and Red take alternating seats. The first player out wins for their whole team.':
     'Хөх, улаан баг ээлжлэн сууна. Хамгийн түрүүнд хөзрөө дуусгасан хүний баг бүхэлдээ хожно.',
-  'Random teams': 'Багийг санамсаргүй',
+  'Random teams': 'Санамсаргүй баг',
   'Choose teams': 'Багаа сонгох',
   '{mode} game, {seats} players, {hand} cards each': '{mode}, {seats} хүн, тус бүр {hand} хөзөр',
   'Create a table': 'Ширээ нээх',
@@ -88,25 +88,26 @@ export const MN: Record<string, string> = {
   'Invitation link or room code': 'Урилгын холбоос эсвэл ширээний код',
   'Paste invitation link or code': 'Холбоос эсвэл кодоо энд хуул',
   Join: 'Орох',
-  'Find a table, or open one for other players.': 'Ширээ олох, эсвэл бусдад зориулж нэгийг нээ.',
+  'Find a table, or open one for other players.': 'Бэлэн ширээнд ор, эсвэл шинэ ширээ нээгээрэй.',
   '{n}/{max} seated': '{n}/{max} суусан',
   Watch: 'Харах',
   'Looking for open tables…': 'Нээлттэй ширээ хайж байна…',
   'No open tables yet. Start the next one.': 'Одоогоор нээлттэй ширээ алга. Та эхлүүлээрэй.',
   'Find a match': 'Тоглогч хайх',
   'Refresh tables': 'Дахин хайх',
-  'New to our rules? Try a guided hand': 'Дүрэм нь шинэ үү? Зааварчилгаатай тоглоод үз',
+  'New to our rules? Try a guided hand': 'Дүрмээ мэдэхгүй юу? Заавартай тоглоод үзээрэй',
   'Our rules. 42 cards. No one wants to be the Durak.':
-    'Манай дүрэм. Дөчин хоёр хөзөр. Хэн ч тэнэг болмооргүй.',
+    'Монгол дүрмээр, 42 хөзрөөр. Хэн ч тэнэг үлдэхийг хүсэхгүй!',
   'Could not connect. Try again.': 'Холбогдож чадсангүй. Дахин оролдоно уу.',
   'Paste an invitation link or a room code.': 'Урилгын холбоос эсвэл ширээний кодоо хуулна уу.',
 
   // Lobby
-  'Watching a table': 'Ширээ харж байна',
+  'Watching a table': 'Тоглолт үзэж байна',
   'Your table': 'Таны ширээ',
-  'You’re watching. Take a seat when you’re ready.': 'Та харж байна. Бэлэн болохоороо суугаарай.',
-  'Share this link to invite your friends.': 'Энэ холбоосыг найзууддаа явуулаад урь.',
-  'Share this code to invite more players.': 'Энэ кодыг явуулаад өөр хүмүүсийг урь.',
+  'You’re watching. Take a seat when you’re ready.':
+    'Та тоглолт үзэж байна. Бэлэн болохоороо суугаарай.',
+  'Share this link to invite your friends.': 'Энэ холбоосыг найзууддаа явуулж уриарай.',
+  'Share this code to invite more players.': 'Энэ кодыг явуулж бусдыг уриарай.',
   'Invitation link copied. Send it to your friends.':
     'Урилгын холбоос хуулагдлаа. Найзууддаа явуулаарай.',
   'Room code copied. Send it to your friends.': 'Ширээний код хуулагдлаа. Найзууддаа явуулаарай.',
@@ -146,7 +147,7 @@ export const MN: Record<string, string> = {
 
   // Seat requests
   'You’re next in line for a seat.': 'Дараагийн суудал таных.',
-  'You’re #{n} in line.': 'Та дараалалд {n}-т байна.',
+  'You’re #{n} in line.': 'Та дараалалд {n}-р байна.',
   'You’ll be seated when this game ends.': 'Энэ тоглоом дуусахад сууна.',
   'The table is full. You’ll be seated when a seat opens.':
     'Ширээ дүүрэн байна. Суудал сулрахад сууна.',
@@ -154,7 +155,7 @@ export const MN: Record<string, string> = {
   '1 seat is open.': 'Нэг суудал сул байна.',
   '{n} seats are open.': '{n} суудал сул байна.',
   'Every seat is taken. Get in line for the next one.':
-    'Бүх суудал дүүрэн. Дараагийнх нь дараалалд ороорой.',
+    'Бүх суудал дүүрэн. Дараагийн тоглолтын дараалалд ороорой.',
   'Join the table': 'Ширээнд суух',
   'Join next game': 'Дараагийн тоглоомд суух',
   'Try a guided hand first': 'Эхлээд зааварчилгаатай тоглоод үз',
@@ -170,14 +171,14 @@ export const MN: Record<string, string> = {
   '{n} discarded': '{n} хаягдсан',
   Deck: 'Хөзөр',
   Discarded: 'Хаягдсан',
-  'Cards accumulated on the table': 'Ширээн дээр хуримтлагдсан хөзөр',
+  'Cards accumulated on the table': 'Ширээн дээр цугларсан хөзөр',
   'On the table · {n}': 'Ширээн дээр: {n}',
-  'Watching the table': 'Ширээ харж байна',
+  'Watching the table': 'Тоглолт үзэж байна',
   'Your defense.': 'Таны хаах ээлж.',
   'Your move.': 'Таны ээлж.',
-  '{name}’s turn': '{name}-ийн ээлж',
-  'Beat the card or pick up the table.': 'Хөзрийг хаа, эсвэл ширээгээ ав.',
-  'Beat all {n} cards or pick up the table.': '{n} хөзрийг бүгдийг нь хаа, эсвэл ширээгээ ав.',
+  '{name}’s turn': 'Ээлж: {name}',
+  'Beat the card or pick up the table.': 'Хөзрийг хаа, эсвэл бүгдийг нь ав.',
+  'Beat all {n} cards or pick up the table.': '{n} хөзрийг бүгдийг нь хаа, эсвэл ав.',
   'Select your cards, then send them to the table.': 'Хөзрөө сонгоод ширээн дээр хая.',
   '{team} team is playing. Stay ready.': '{team} баг тоглож байна. Бэлэн байгаарай.',
   'The table moves clockwise. Stay ready.': 'Ээлж цагийн зүүний дагуу явна. Бэлэн байгаарай.',
@@ -224,7 +225,7 @@ export const MN: Record<string, string> = {
     '{n} хөзөр бүрт нэг нэг хөзөр сонго, эсвэл ав.',
   'Select cards, then confirm your play.': 'Хөзрөө сонгоод хая.',
   'Mass attack: {cards}.': 'Бөөнөөр орно: {cards}.',
-  'Attack with {card}.': '{card}-р орно.',
+  'Attack with {card}.': '{card} хөзрөөр орно.',
   Clear: 'Цуцлах',
   'Swap Huzur': 'Хузур солих',
   'Pick up': 'Авах',
@@ -262,23 +263,22 @@ export const MN: Record<string, string> = {
   'Play one card, or a mass attack of 3, 5 or 7 cards.':
     'Нэг хөзөр хая, эсвэл гурав, тав, долоон хөзрөөр бөөнөөр ор.',
   'Every player needs at least {n} cards for a {n}-card mass attack.':
-    '{n} хөзрөөр бөөнөөр орохын тулд хүн бүр дор хаяж {n} хөзөртэй байх ёстой.',
+    '{n} хөзрөөр орохын тулд хүн бүр дор хаяж {n} хөзөртэй байх ёстой.',
   'A 7-card mass attack needs a 7-card game.':
-    'Долоон хөзрөөр бөөнөөр орох нь долоон хөзөртэй тоглоомд л болно.',
+    'Зөвхөн 7 хөзрөөр тараасан тоглоомд л 7 хөзрөөр орж болно.',
   'A {n}-card mass attack is allowed once the deck is empty.':
-    '{n} хөзрөөр бөөнөөр орох нь хөзөр дууссаны дараа л болно.',
-  'A {n}-card mass attack needs at least 1 pair.':
-    '{n} хөзрөөр бөөнөөр ороход дор хаяж нэг хос хэрэгтэй.',
+    'Хөзөр дууссаны дараа л {n} хөзрөөр орж болно.',
+  'A {n}-card mass attack needs at least 1 pair.': '{n} хөзрөөр ороход дор хаяж 1 хос хэрэгтэй.',
   'A {n}-card mass attack needs at least {pairs} pairs.':
-    '{n} хөзрөөр бөөнөөр ороход дор хаяж {pairs} хос хэрэгтэй.',
+    '{n} хөзрөөр ороход дор хаяж {pairs} хос хэрэгтэй.',
 
   // Results
   'Game result': 'Тоглоомын дүн',
   'An even table.': 'Тэнцлээ.',
-  '{team} team wins the match.': '{team} баг тоглолтыг хожлоо.',
+  '{team} team wins the match.': '{team} баг тоглолтод яллаа.',
   '{team} team wins.': '{team} баг хожлоо.',
   '{name} wins.': '{name} хожлоо.',
-  'Your team won the match.': 'Танай баг тоглолтыг хожлоо!',
+  'Your team won the match.': 'Танай баг тоглолтод яллаа!',
   'Your team lost the match.': 'Танай баг тоглолтод хожигдлоо.',
   'Your team won this game.': 'Танай баг энэ удаад хожлоо!',
   'Your team lost this game.': 'Танай баг энэ удаад хожигдлоо.',
@@ -291,7 +291,7 @@ export const MN: Record<string, string> = {
   'Game {n}': '{n}-р тоглоом',
   'Ready up for the next game of the match.': 'Дараагийн тоглоомд бэлэн болоорой.',
   'Returning to the lobby for the next game in a few seconds.':
-    'Хэдэн секундын дараа дараагийн тоглоом руу буцна.',
+    'Хэдэн секундын дараа хүлээлгийн өрөө рүү буцна.',
   rating: 'оноо',
   'Ready for a new Horse match': 'Шинэ Морь тоглолтод бэлэн',
   'Ready for next game': 'Дараагийнхад бэлэн',
@@ -304,7 +304,7 @@ export const MN: Record<string, string> = {
   '{votes}/{needed} ready for another round': '{votes}/{needed} дахиад тоглоход бэлэн',
   'Back to the card room': 'Нүүр хуудас руу буцах',
   Winners: 'Хожсон',
-  Final: 'Эцсийн',
+  Final: 'Эцсийн дүн',
   'Your team': 'Танай баг',
   'Your side': 'Танай тал',
   'Team full': 'Баг дүүрэн',
@@ -319,7 +319,7 @@ export const MN: Record<string, string> = {
   'A bot plays your seat for the rest of this game, so your friends can finish. Your seat opens up when the game ends.':
     'Энэ тоглоом дуустал таны оронд бот тоглоно. Найзууд тань дуусгаж болно. Тоглоом дуусахад суудал тань сулрана.',
   'Your seat will be given up. The other players can keep going.':
-    'Та суудлаа өгнө. Бусад нь үргэлжлүүлээд тоглоно.',
+    'Таны суудал сулрана. Бусад нь үргэлжлүүлэн тоглоно.',
   'You can join another table from the card room.': 'Нүүр хуудаснаас өөр ширээнд орж болно.',
   'Stay here': 'Үлдэх',
 
@@ -353,13 +353,13 @@ export const MN: Record<string, string> = {
   'Ready: {cards}.': 'Бэлэн: {cards}.',
   'Guided hand, {n} of {total}': 'Зааварчилгаа, {total}-с {n}',
   'Attacking cards': 'Орж ирсэн хөзөр',
-  'Practice hand': 'Дасгалын гар',
+  'Practice hand': 'Дадлагын тоглолт',
   Done: 'Болсон',
   Next: 'Дараах',
   'You can beat this one. Try defending first.': 'Үүнийг хааж болно. Эхлээд хаагаад үз.',
   'Select, check, confirm': 'Сонгох, шалгах, хаях',
   'Choose a card to lead. Nothing is played until you confirm. Our deck runs 7 to King, then 3, 2 and Ace, and two Jokers beat everything.':
-    'Эхлэх хөзрөө сонго. Хаяхыг дартал юу ч тоглогдохгүй. Манай хөзөр долооноос ноён хүртэл, дараа нь гурав, хоёр, тамга. Хоёр жокер бүгдийг хаана.',
+    'Эхлэх хөзрөө сонго. «Хаях»-ыг дартал хөзөр гарахгүй. Манай хөзөр 7-оос ноён хүртэл, дараа нь 3, 2, тамга. Хоёр жокер бүгдийг хаана.',
   'Played. Your card is now the attack on the next player clockwise.':
     'Хаялаа. Таны хөзөр одоо дараагийн хүн рүү орж байна.',
   'You are attacked with the 10 of Diamonds. Beat it with a higher card of the same suit.':
@@ -371,7 +371,7 @@ export const MN: Record<string, string> = {
     'Хузур нь гол өнгийг заана. Энд гил. Хузур өөр өнгийн ямар ч хөзрийг, тамгыг ч хаана.',
   'The 7 of trump beat an Ace.': 'Хузурын долоо тамгыг хаалаа.',
   'Nothing beats the Red Joker. When you cannot defend, pick up the table instead.':
-    'Улаан жокерыг юу ч хаахгүй. Хааж чадахгүй бол ширээгээ ав.',
+    'Улаан жокерыг юу ч хаахгүй. Хааж чадахгүй бол ширээн дээрх хөзрийг ав.',
   'Picked up. The cards join your hand and play moves on.':
     'Авлаа. Хөзрүүд таны гарт орж, тоглоом үргэлжилнэ.',
 
@@ -403,7 +403,7 @@ export const MN: Record<string, string> = {
     'Ижил өнгийн томоор эсвэл хузураар хаа. Жокер энгийн хөзрийг хаана. Улаан жокер хар жокерыг хаана.',
   'Keep it moving': 'Цааш нь дамжуул',
   'Your successful defense becomes the next clockwise player’s attack. Pick up the whole table if you can’t defend.':
-    'Таны хаасан хөзөр дараагийн хүн рүү орно. Хааж чадахгүй бол ширээгээ бүгдийг нь ав.',
+    'Таны хаасан хөзөр дараагийн хүн рүү орно. Хааж чадахгүй бол ширээн дээрх бүх хөзрийг ав.',
   'Make a mass': 'Бөөнөөр орох',
   'Play 3 cards with at least 1 pair, 5 with 2 pairs, or 7 with 3 pairs. Every seated player must hold at least that many cards before you play, including teammates and players later in the circle. A 5-card mass needs an empty deck in a 5-card game. A 7-card mass needs a 7-card game and an empty deck.':
     'Гурван хөзрөөр орохдоо дор хаяж нэг хос, таваар хоёр хос, долоогоор гурван хос хэрэгтэй. Ширээнд суусан хүн бүр, багийн нөхөр ч гэсэн, дор хаяж тийм олон хөзөртэй байх ёстой. Таван хөзрөөр орох нь тав тавыг тараасан тоглоомд, хөзөр дууссаны дараа л болно. Долоон хөзрөөр орох нь долоо долоог тараасан тоглоомд, хөзөр дууссаны дараа л болно.',
@@ -438,7 +438,7 @@ export const MN: Record<string, string> = {
   'Need at least 2 players to start.': 'Эхлэхэд дор хаяж хоёр хүн хэрэгтэй.',
   'All players must be ready to start.': 'Эхлэхийн тулд бүгд бэлэн байх ёстой.',
   'Press Ready for the next game.': 'Дараагийн тоглоомд «Бэлэн» дарна уу.',
-  'This account is already seated': 'Энэ бүртгэл аль хэдийн суусан байна',
+  'This account is already seated': 'Энэ хаягаар өөр суудалд суусан байна',
   'You’re in line for the next free seat.': 'Та дараагийн сул суудлын дараалалд орлоо.',
   'You joined Team Blue.': 'Та хөх багт орлоо.',
   'You joined Team Red.': 'Та улаан багт орлоо.',
