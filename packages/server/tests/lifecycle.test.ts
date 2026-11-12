@@ -30,7 +30,7 @@ describe('dependency readiness and deployment drain', () => {
     lifecycle.configure({
       databaseRequired: true,
       databaseConnected: () => connected,
-      pendingResults: () => pending,
+      failedResults: () => pending,
     });
     expect(lifecycle.isReady).toBe(false);
     connected = true;
@@ -41,6 +41,75 @@ describe('dependency readiness and deployment drain', () => {
     expect(lifecycle.isReady).toBe(true);
     lifecycle.beginDrain();
     expect(lifecycle.readiness()).toMatchObject({ ready: false, draining: true });
+  });
+
+  it('keeps hosting games while the database is down when degraded mode is allowed', async () => {
+    const lifecycle = new ServerLifecycle();
+    let connected = false;
+    let failed = 0;
+    let queued = 0;
+    lifecycle.configure({
+      databaseRequired: true,
+      databaseConnected: () => connected,
+      failedResults: () => failed,
+      queuedResults: () => queued,
+      allowDegraded: true,
+    });
+    expect(lifecycle.readiness()).toMatchObject({
+      ready: true,
+      degraded: true,
+      databaseReady: false,
+    });
+    // A long outage: results waiting for the database never close the server.
+    failed = 900;
+    queued = 900;
+    expect(lifecycle.isReady).toBe(true);
+    // Back online with a backlog still being written: open, but reported as degraded.
+    connected = true;
+    failed = 0;
+    queued = 450;
+    expect(lifecycle.readiness()).toMatchObject({
+      ready: true,
+      degraded: true,
+      databaseReady: true,
+      pendingResults: 450,
+    });
+    // Connected but rejecting writes: stop new games so failures cannot pile up.
+    failed = 1;
+    expect(lifecycle.readiness()).toMatchObject({ ready: false, failedResults: 1 });
+    failed = 0;
+    queued = 0;
+    expect(lifecycle.readiness()).toMatchObject({ ready: true, degraded: false });
+    lifecycle.beginDrain();
+    expect(lifecycle.isReady).toBe(false);
+
+    const app = express();
+    connected = false;
+    const open = new ServerLifecycle();
+    open.configure({
+      databaseRequired: true,
+      databaseConnected: () => connected,
+      allowDegraded: true,
+    });
+    app.use(createReadinessGate(open));
+    app.use((_req, res) => res.json({ accepted: true }));
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No HTTP listener');
+    const url = `http://127.0.0.1:${address.port}`;
+    try {
+      // Guest games still start; anything that needs an account waits for the database.
+      expect((await fetch(`${url}/matchmake/joinOrCreate/durak`, { method: 'POST' })).status).toBe(
+        200,
+      );
+      expect((await fetch(`${url}/api/auth/login`, { method: 'POST' })).status).toBe(503);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   });
 
   it('blocks real matchmaking and database HTTP requests but preserves reconnect and health', async () => {

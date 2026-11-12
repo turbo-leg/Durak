@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import * as Sentry from '@sentry/node';
+import { serverLifecycle } from './lifecycle';
 
 type Job = { run: () => Promise<void>; attempts: number; retryAt: number; running: boolean };
 
@@ -81,7 +82,8 @@ export class ResultQueue {
 }
 
 const resultQueue = new ResultQueue(
-  () => mongoose.connection.readyState === 1,
+  // Wait for startup (indexes) to finish, not just the socket, before writing results.
+  () => serverLifecycle.databaseReady && mongoose.connection.readyState === 1,
   (error, resultId) => {
     Sentry.captureException(error, { tags: { resultId } });
     console.error('Match result persistence deferred; retrying', { resultId, error });

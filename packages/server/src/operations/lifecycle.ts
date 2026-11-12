@@ -4,7 +4,15 @@ import type http from 'http';
 interface ReadinessDependencies {
   databaseRequired: boolean;
   databaseConnected: () => boolean;
-  pendingResults?: () => number;
+  /** Results whose write failed while the database was connected (or that are waiting for it). */
+  failedResults?: () => number;
+  /** Every result still in the retry queue, written or not. */
+  queuedResults?: () => number;
+  /**
+   * Keep hosting games while the database is down. Results wait in the durable outbox and
+   * are written once the connection returns. Accounts stay closed.
+   */
+  allowDegraded?: boolean;
 }
 
 /** Process-local readiness. Importing a room in isolation does not start dependencies. */
@@ -35,11 +43,28 @@ export class ServerLifecycle {
     this.draining = true;
   }
 
+  get allowDegraded(): boolean {
+    return this.dependencies.allowDegraded ?? false;
+  }
+
   readiness() {
     const databaseReady = this.databaseReady;
-    const pendingResults = this.dependencies.pendingResults?.() ?? 0;
-    const ready = !this.draining && databaseReady && pendingResults === 0;
-    return { ready, draining: this.draining, databaseReady, pendingResults };
+    const failedResults = this.dependencies.failedResults?.() ?? 0;
+    const pendingResults = this.dependencies.queuedResults?.() ?? failedResults;
+    // Degraded: a database that is down does not stop guest games, but one that is up and
+    // rejecting writes does, so results cannot pile up against it.
+    const ready = this.allowDegraded
+      ? !this.draining && (!databaseReady || failedResults === 0)
+      : !this.draining && databaseReady && failedResults === 0;
+    const degraded = !databaseReady || pendingResults > 0;
+    return {
+      ready,
+      degraded,
+      draining: this.draining,
+      databaseReady,
+      pendingResults,
+      failedResults,
+    };
   }
 }
 

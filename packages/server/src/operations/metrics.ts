@@ -6,7 +6,12 @@ interface MetricsSources {
   capacity: () => { rooms: number; clients: number; bots: number };
   pendingResults: () => number;
   failedResults: () => number;
-  readiness: () => { ready: boolean; draining: boolean; databaseReady: boolean };
+  readiness: () => {
+    ready: boolean;
+    degraded: boolean;
+    draining: boolean;
+    databaseReady: boolean;
+  };
   log: (metrics: unknown) => void;
 }
 
